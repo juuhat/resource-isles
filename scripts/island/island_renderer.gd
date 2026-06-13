@@ -117,23 +117,16 @@ func get_hovered_resource_node_type() -> int:
 
 func _draw_terrain() -> void:
 	_draw_water_background()
-	var visible_rect := _get_visible_world_rect()
 
 	for rect in water_tiles:
-		if not rect.intersects(visible_rect):
-			continue
-
 		_draw_water_tile(rect)
 
 	for tile in land_tiles:
 		var texture: Texture2D = tile["texture"]
 		var rect: Rect2 = tile["rect"]
-		if not rect.intersects(visible_rect):
-			continue
-
 		draw_texture_rect(texture, rect, false)
 
-	_draw_water_surface_details(visible_rect)
+	_draw_water_surface_details()
 
 
 func _draw_water_tile(rect: Rect2) -> void:
@@ -179,32 +172,69 @@ func _draw_water_background() -> void:
 
 
 func _create_water_gradient_texture() -> ImageTexture:
-	var texture_width := 384
+	var texture_width := 256
 	var texture_height := maxi(1, roundi(texture_width * float(island.height) / float(island.width)))
 	var image := Image.create(texture_width, texture_height, false, Image.FORMAT_RGBA8)
-	var shallow_color := Color(0.43, 0.84, 0.88, 1.0)
-	var deep_color := Color(0.03, 0.20, 0.45, 1.0)
-	var center := Vector2(texture_width, texture_height) * 0.5
-	var max_radius := center.length()
+	var shallow_color := Color(0.24, 0.62, 0.75, 1.0)
+	var deep_color := Color(0.04, 0.24, 0.48, 1.0)
+	var shallow_buffer_tiles := 3.0
+	var max_depth_tiles := 10.0
+	var land_rects := _get_land_rects_in_tile_space()
 
 	for y in range(texture_height):
 		for x in range(texture_width):
-			var point := Vector2(x, y)
-			var distance := point.distance_to(center)
-			var gradient := clampf(distance / max_radius, 0.0, 1.0)
+			var point := Vector2(
+				(float(x) + 0.5) / float(texture_width) * float(island.width),
+				(float(y) + 0.5) / float(texture_height) * float(island.height)
+			)
+			var distance := _distance_to_nearest_land(point, land_rects)
+			var gradient := clampf(
+				(distance - shallow_buffer_tiles) / max_depth_tiles,
+				0.0,
+				1.0
+			)
 			gradient = gradient * gradient * (3.0 - 2.0 * gradient)
 			image.set_pixel(x, y, shallow_color.lerp(deep_color, gradient))
 
 	return ImageTexture.create_from_image(image)
 
 
-func _draw_water_surface_details(visible_rect: Rect2) -> void:
+func _get_land_rects_in_tile_space() -> Array[Rect2]:
+	var land_rects: Array[Rect2] = []
+
+	for y in range(island.height):
+		for x in range(island.width):
+			var cell := Vector2i(x, y)
+			if _is_land(cell):
+				land_rects.append(Rect2(Vector2(x, y), Vector2.ONE))
+
+	return land_rects
+
+
+func _distance_to_nearest_land(point: Vector2, land_rects: Array[Rect2]) -> float:
+	if land_rects.is_empty():
+		return 0.0
+
+	var nearest := INF
+	for rect in land_rects:
+		var distance := _distance_to_rect(point, rect)
+		if distance < nearest:
+			nearest = distance
+
+	return nearest
+
+
+func _distance_to_rect(point: Vector2, rect: Rect2) -> float:
+	var dx := maxf(maxf(rect.position.x - point.x, 0.0), point.x - rect.end.x)
+	var dy := maxf(maxf(rect.position.y - point.y, 0.0), point.y - rect.end.y)
+	return Vector2(dx, dy).length()
+
+
+func _draw_water_surface_details() -> void:
 	for tile in water_surface_tiles:
 		var cell: Vector2i = tile["cell"]
 		var depth: float = tile["depth"]
 		var rect: Rect2 = tile["rect"]
-		if not rect.intersects(visible_rect):
-			continue
 
 		if tile["draw_shimmer"]:
 			_draw_water_shimmer(cell, depth)
@@ -309,19 +339,6 @@ func _is_water(cell: Vector2i) -> bool:
 
 func _is_land(cell: Vector2i) -> bool:
 	return island.is_in_bounds(cell) and island.get_terrain(cell) != IslandData.Terrain.WATER
-
-
-func _get_visible_world_rect() -> Rect2:
-	var island_size := Vector2(island.width * cell_size.x, island.height * cell_size.y)
-	var camera := get_viewport().get_camera_2d()
-	if camera == null:
-		return Rect2(Vector2.ZERO, island_size)
-
-	var viewport_size := get_viewport_rect().size / camera.zoom
-	var margin := cell_size.length()
-	var visible_position := camera.position - viewport_size * 0.5 - Vector2(margin, margin)
-	var visible_size := viewport_size + Vector2(margin * 2.0, margin * 2.0)
-	return Rect2(visible_position, visible_size)
 
 
 func _draw_grid() -> void:
