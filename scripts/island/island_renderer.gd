@@ -13,7 +13,7 @@ const SHORE_RIGHT := 8
 @export var cell_size := Vector2(128.0, 128.0)
 @export var show_grid := false
 @export var grid_line_width := 1.0
-@export var animate_water := false
+@export var animate_water := true
 
 var island: IslandData
 var resource_node_database: ResourceNodeDatabase
@@ -251,9 +251,9 @@ func _draw_water_shimmer(cell: Vector2i, depth: float) -> void:
 	var pos := cell_to_world(cell)
 	var phase := (cell.x * 0.77) + (cell.y * 1.23) + water_time * 2.1
 	var alpha := (sin(phase) * 0.5 + 0.5) * 0.11
-	var line_width := _screen_pixels_to_world(0.5)
+	var line_width := _screen_pixels_to_world(2.0)
 	var shimmer_color := Color(0.82, 1.0, 1.0, alpha)
-	var wave_count := 1 + int(depth > 0.55)
+	var wave_count := 1# + int(depth > 0.55)
 
 	for index in range(wave_count):
 		var local_phase := phase + index * 2.4
@@ -275,9 +275,15 @@ func _draw_water_shimmer(cell: Vector2i, depth: float) -> void:
 
 func _draw_shoreline_foam(rect: Rect2, cell: Vector2i, shore_mask: int) -> void:
 	var pos := rect.position
-	var foam_width := minf(cell_size.x, cell_size.y) * 0.14
-	var pulse := (sin(water_time * 3.0 + cell.x * 0.9 + cell.y * 0.6) * 0.5 + 0.5)
-	var foam_color := Color(0.92, 1.0, 0.96, 0.30 + pulse * 0.18)
+	var foam_phase := water_time * 0.9 + cell.x * 0.9 + cell.y * 0.6
+	var pulse := sin(foam_phase) * 0.5 + 0.5
+	var drift := sin(foam_phase * 0.7 + 1.8) * 0.5 + 0.5
+	var foam_width := minf(cell_size.x, cell_size.y) * lerpf(0.10, 0.13, pulse)
+	var foam_color := Color(0.86, 0.98, 1.0, 0.0).lerp(
+		Color(0.98, 0.98, 0.92, 0.0),
+		drift
+	)
+	foam_color.a = 0.26 + pulse * 0.08
 
 	if (shore_mask & SHORE_UP) != 0:
 		draw_rect(Rect2(pos, Vector2(cell_size.x, foam_width)), foam_color, true)
