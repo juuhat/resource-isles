@@ -2,6 +2,8 @@ class_name IslandGenerator
 extends RefCounted
 
 const IslandDataScript := preload("res://scripts/island/island_data.gd")
+const STARTER_ISLAND_WIDTH := 34
+const STARTER_ISLAND_HEIGHT := 24
 
 var rng := RandomNumberGenerator.new()
 
@@ -12,7 +14,7 @@ func generate_starter_island(seed_value: int = 0) -> IslandData:
 	else:
 		rng.seed = seed_value
 
-	var island := IslandDataScript.new(22, 16)
+	var island := IslandDataScript.new(STARTER_ISLAND_WIDTH, STARTER_ISLAND_HEIGHT)
 	_fill_water(island)
 	_carve_grass_blob(island)
 	_add_sand_border(island)
@@ -43,9 +45,10 @@ func _carve_grass_blob(island: IslandData) -> void:
 				island.set_terrain(cell, IslandData.Terrain.GRASS)
 
 	# Add a couple of chunky peninsulas so the shape feels authored.
-	_fill_rect(island, Rect2i(4, 5, 5, 4), IslandData.Terrain.GRASS)
-	_fill_rect(island, Rect2i(13, 6, 5, 4), IslandData.Terrain.GRASS)
-	_fill_rect(island, Rect2i(9, 10, 7, 2), IslandData.Terrain.GRASS)
+	var center_cell := Vector2i(roundi(center.x), roundi(center.y))
+	_fill_rect(island, Rect2i(center_cell.x - 7, center_cell.y - 3, 5, 4), IslandData.Terrain.GRASS)
+	_fill_rect(island, Rect2i(center_cell.x + 2, center_cell.y - 2, 5, 4), IslandData.Terrain.GRASS)
+	_fill_rect(island, Rect2i(center_cell.x - 2, center_cell.y + 2, 7, 2), IslandData.Terrain.GRASS)
 
 
 func _add_sand_border(island: IslandData) -> void:

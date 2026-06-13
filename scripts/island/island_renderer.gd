@@ -5,6 +5,10 @@ const WATER_TEXTURE := preload("res://assets/tiles/water.png")
 const SAND_TEXTURE := preload("res://assets/tiles/sand.png")
 const GRASS_TEXTURE := preload("res://assets/tiles/grass.png")
 const CRATE_TEXTURE := preload("res://assets/buildings/crate.png")
+const SHORE_UP := 1
+const SHORE_DOWN := 2
+const SHORE_LEFT := 4
+const SHORE_RIGHT := 8
 
 @export var cell_size := Vector2(128.0, 128.0)
 @export var show_grid := false
@@ -18,6 +22,9 @@ var placement_preview_enabled := false
 var placement_building_type := IslandData.BuildingType.CRATE
 var water_time := 0.0
 var water_gradient_texture: ImageTexture
+var land_tiles: Array[Dictionary] = []
+var water_tiles: Array[Rect2] = []
+var water_surface_tiles: Array[Dictionary] = []
 
 
 func _process(delta: float) -> void:
@@ -31,6 +38,7 @@ func _process(delta: float) -> void:
 func render(new_island: IslandData) -> void:
 	island = new_island
 	water_gradient_texture = null
+	_rebuild_terrain_cache()
 	queue_redraw()
 
 
@@ -109,25 +117,57 @@ func get_hovered_resource_node_type() -> int:
 
 func _draw_terrain() -> void:
 	_draw_water_background()
+	var visible_rect := _get_visible_world_rect()
+
+	for rect in water_tiles:
+		if not rect.intersects(visible_rect):
+			continue
+
+		_draw_water_tile(rect)
+
+	for tile in land_tiles:
+		var texture: Texture2D = tile["texture"]
+		var rect: Rect2 = tile["rect"]
+		if not rect.intersects(visible_rect):
+			continue
+
+		draw_texture_rect(texture, rect, false)
+
+	_draw_water_surface_details(visible_rect)
+
+
+func _draw_water_tile(rect: Rect2) -> void:
+	draw_texture_rect(WATER_TEXTURE, rect, false, Color(1.0, 1.0, 1.0, 0.20))
+
+
+func _rebuild_terrain_cache() -> void:
+	land_tiles.clear()
+	water_tiles.clear()
+	water_surface_tiles.clear()
+
+	if island == null:
+		return
 
 	for y in range(island.height):
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
 			var terrain_type := island.get_terrain(cell)
-
-			var pos := cell_to_world(cell)
-			var rect := Rect2(pos, cell_size)
+			var rect := Rect2(cell_to_world(cell), cell_size)
 
 			if terrain_type == IslandData.Terrain.WATER:
-				_draw_water_tile(cell, rect)
+				water_tiles.append(rect)
+				water_surface_tiles.append({
+					"cell": cell,
+					"rect": rect,
+					"depth": _water_depth_factor(cell),
+					"shore_mask": _shore_mask_for_water_cell(cell),
+					"draw_shimmer": (x + y) % 3 == 0,
+				})
 			else:
-				draw_texture_rect(_texture_for_terrain(terrain_type), rect, false)
-
-	_draw_water_surface_details()
-
-
-func _draw_water_tile(_cell: Vector2i, rect: Rect2) -> void:
-	draw_texture_rect(WATER_TEXTURE, rect, false, Color(1.0, 1.0, 1.0, 0.20))
+				land_tiles.append({
+					"texture": _texture_for_terrain(terrain_type),
+					"rect": rect,
+				})
 
 
 func _draw_water_background() -> void:
@@ -158,19 +198,23 @@ func _create_water_gradient_texture() -> ImageTexture:
 	return ImageTexture.create_from_image(image)
 
 
-func _draw_water_surface_details() -> void:
-	for y in range(island.height):
-		for x in range(island.width):
-			var cell := Vector2i(x, y)
-			if not _is_water(cell):
-				continue
+func _draw_water_surface_details(visible_rect: Rect2) -> void:
+	for tile in water_surface_tiles:
+		var cell: Vector2i = tile["cell"]
+		var depth: float = tile["depth"]
+		var rect: Rect2 = tile["rect"]
+		if not rect.intersects(visible_rect):
+			continue
 
-			_draw_water_shimmer(cell)
-			_draw_shoreline_foam(cell)
+		if tile["draw_shimmer"]:
+			_draw_water_shimmer(cell, depth)
+
+		var shore_mask: int = tile["shore_mask"]
+		if shore_mask != 0:
+			_draw_shoreline_foam(rect, cell, shore_mask)
 
 
-func _draw_water_shimmer(cell: Vector2i) -> void:
-	var depth := _water_depth_factor(cell)
+func _draw_water_shimmer(cell: Vector2i, depth: float) -> void:
 	if depth < 0.18:
 		return
 
@@ -199,31 +243,49 @@ func _draw_water_shimmer(cell: Vector2i) -> void:
 		draw_polyline(points, shimmer_color, line_width, true)
 
 
-func _draw_shoreline_foam(cell: Vector2i) -> void:
-	var pos := cell_to_world(cell)
+func _draw_shoreline_foam(rect: Rect2, cell: Vector2i, shore_mask: int) -> void:
+	var pos := rect.position
 	var foam_width := minf(cell_size.x, cell_size.y) * 0.14
 	var pulse := (sin(water_time * 3.0 + cell.x * 0.9 + cell.y * 0.6) * 0.5 + 0.5)
 	var foam_color := Color(0.92, 1.0, 0.96, 0.30 + pulse * 0.18)
 
-	if _is_land(cell + Vector2i.UP):
+	if (shore_mask & SHORE_UP) != 0:
 		draw_rect(Rect2(pos, Vector2(cell_size.x, foam_width)), foam_color, true)
 
-	if _is_land(cell + Vector2i.DOWN):
+	if (shore_mask & SHORE_DOWN) != 0:
 		draw_rect(
 			Rect2(pos + Vector2(0.0, cell_size.y - foam_width), Vector2(cell_size.x, foam_width)),
 			foam_color,
 			true
 		)
 
-	if _is_land(cell + Vector2i.LEFT):
+	if (shore_mask & SHORE_LEFT) != 0:
 		draw_rect(Rect2(pos, Vector2(foam_width, cell_size.y)), foam_color, true)
 
-	if _is_land(cell + Vector2i.RIGHT):
+	if (shore_mask & SHORE_RIGHT) != 0:
 		draw_rect(
 			Rect2(pos + Vector2(cell_size.x - foam_width, 0.0), Vector2(foam_width, cell_size.y)),
 			foam_color,
 			true
 		)
+
+
+func _shore_mask_for_water_cell(cell: Vector2i) -> int:
+	var mask := 0
+
+	if _is_land(cell + Vector2i.UP):
+		mask |= SHORE_UP
+
+	if _is_land(cell + Vector2i.DOWN):
+		mask |= SHORE_DOWN
+
+	if _is_land(cell + Vector2i.LEFT):
+		mask |= SHORE_LEFT
+
+	if _is_land(cell + Vector2i.RIGHT):
+		mask |= SHORE_RIGHT
+
+	return mask
 
 
 func _water_depth_factor(cell: Vector2i) -> float:
@@ -247,6 +309,19 @@ func _is_water(cell: Vector2i) -> bool:
 
 func _is_land(cell: Vector2i) -> bool:
 	return island.is_in_bounds(cell) and island.get_terrain(cell) != IslandData.Terrain.WATER
+
+
+func _get_visible_world_rect() -> Rect2:
+	var island_size := Vector2(island.width * cell_size.x, island.height * cell_size.y)
+	var camera := get_viewport().get_camera_2d()
+	if camera == null:
+		return Rect2(Vector2.ZERO, island_size)
+
+	var viewport_size := get_viewport_rect().size / camera.zoom
+	var margin := cell_size.length()
+	var visible_position := camera.position - viewport_size * 0.5 - Vector2(margin, margin)
+	var visible_size := viewport_size + Vector2(margin * 2.0, margin * 2.0)
+	return Rect2(visible_position, visible_size)
 
 
 func _draw_grid() -> void:
