@@ -146,11 +146,9 @@ func _draw_terrain_transitions() -> void:
 func _draw_grass_blend_on_sand(rect: Rect2, cell: Vector2i, mask: int) -> void:
 	var grass_color := Color("#3f7a57")
 	var widths := [
-		minf(cell_size.x, cell_size.y) * 0.18,
 		minf(cell_size.x, cell_size.y) * 0.10,
-		minf(cell_size.x, cell_size.y) * 0.05,
 	]
-	var alphas := [0.34, 0.18, 0.08]
+	var alphas := [1.0]
 
 	for index in range(widths.size()):
 		var color := grass_color
@@ -190,7 +188,7 @@ func _draw_edge_blend_shape(
 	max_width: float,
 	salt: float
 ) -> void:
-	var segments := 4
+	var segments := 6
 	var points := PackedVector2Array()
 	var pos := rect.position
 	var size := rect.size
