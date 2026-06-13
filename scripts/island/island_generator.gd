@@ -74,7 +74,7 @@ func _place_trees(island: IslandData) -> void:
 	for index in range(2):
 		var cell := _pick_open_grass_cell(island)
 		if cell != Vector2i(-1, -1):
-			island.place_resource(cell, IslandData.ResourceType.TREE)
+			island.place_resource(cell, IslandData.ResourceNodeType.TREE)
 
 
 func _pick_open_grass_cell(island: IslandData) -> Vector2i:

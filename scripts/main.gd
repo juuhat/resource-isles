@@ -3,6 +3,9 @@ extends Node2D
 const IslandGeneratorScript := preload("res://scripts/island/island_generator.gd")
 const IslandRendererScript := preload("res://scripts/island/island_renderer.gd")
 const BuildingMenuScript := preload("res://scripts/ui/building_menu.gd")
+const ResourceBarScript := preload("res://scripts/ui/resource_bar.gd")
+const ResourceManagerScript := preload("res://scripts/resources/resource_manager.gd")
+const ResourceNodeDatabaseScript := preload("res://scripts/resources/resource_node_database.gd")
 
 const NO_BUILDING := -1
 
@@ -15,12 +18,19 @@ var min_zoom := 0.25
 var max_zoom := 1.5
 var is_panning := false
 var selected_building_type := NO_BUILDING
+var resource_manager: ResourceManager
+var resource_node_database: ResourceNodeDatabase
+var resource_bar: ResourceBar
 var building_menu: BuildingMenu
 
 
 func _ready() -> void:
+	resource_manager = ResourceManagerScript.new()
+	resource_node_database = ResourceNodeDatabaseScript.new()
+
 	renderer = IslandRendererScript.new()
 	renderer.name = "IslandRenderer"
+	renderer.setup(resource_node_database)
 	add_child(renderer)
 
 	camera = Camera2D.new()
@@ -64,6 +74,9 @@ func _input(event: InputEvent) -> void:
 		elif event.button_index == MOUSE_BUTTON_MIDDLE or event.button_index == MOUSE_BUTTON_RIGHT:
 			is_panning = event.pressed
 		elif event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not is_over_ui:
+			if _try_harvest_resource():
+				return
+
 			if selected_building_type != NO_BUILDING:
 				renderer.try_place_hovered_building(selected_building_type)
 
@@ -78,6 +91,19 @@ func _set_zoom(new_zoom: float) -> void:
 	var clamped_zoom := clampf(new_zoom, min_zoom, max_zoom)
 	camera.zoom = Vector2(clamped_zoom, clamped_zoom)
 	renderer.queue_redraw()
+
+
+func _try_harvest_resource() -> bool:
+	var resource_node_type := renderer.try_harvest_hovered_resource()
+	if resource_node_type == -1:
+		return false
+
+	var definition := resource_node_database.get_definition(resource_node_type)
+	if definition == null:
+		return false
+
+	resource_manager.add_amount(definition.extracted_resource_type, definition.extraction_amount)
+	return true
 
 
 func _generate_island() -> void:
@@ -114,15 +140,9 @@ func _apply_selected_building() -> void:
 
 
 func _add_ui() -> void:
-	var canvas_layer := CanvasLayer.new()
-	canvas_layer.name = "UI"
-	add_child(canvas_layer)
-
-	var label := Label.new()
-	label.text = "Left click: place selected   Esc: clear/close   Enter: regenerate   Space: grid   Wheel: zoom   Right/middle drag: pan"
-	label.position = Vector2(16, 16)
-	label.add_theme_color_override("font_color", Color.html("#17343a"))
-	canvas_layer.add_child(label)
+	resource_bar = ResourceBarScript.new()
+	add_child(resource_bar)
+	resource_bar.setup(resource_manager)
 
 	building_menu = BuildingMenuScript.new()
 	building_menu.building_selected.connect(_select_building)

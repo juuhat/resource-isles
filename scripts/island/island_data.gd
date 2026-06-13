@@ -11,7 +11,7 @@ enum BuildingType {
 	CRATE,
 }
 
-enum ResourceType {
+enum ResourceNodeType {
 	TREE,
 }
 
@@ -58,12 +58,25 @@ func place_building(cell: Vector2i, building_type: int) -> bool:
 
 
 func can_place_resource(cell: Vector2i) -> bool:
-	return is_in_bounds(cell) and get_terrain(cell) == Terrain.GRASS and not resources.has(cell)
+	return (
+		is_in_bounds(cell)
+		and get_terrain(cell) == Terrain.GRASS
+		and not resources.has(cell)
+		and not buildings.has(cell)
+	)
 
 
-func place_resource(cell: Vector2i, resource_type: int) -> bool:
+func place_resource(cell: Vector2i, resource_node_type: int) -> bool:
 	if not can_place_resource(cell):
 		return false
 
-	resources[cell] = resource_type
+	resources[cell] = resource_node_type
 	return true
+
+
+func has_resource(cell: Vector2i) -> bool:
+	return resources.has(cell)
+
+
+func get_resource_node_type(cell: Vector2i) -> int:
+	return resources.get(cell, -1)

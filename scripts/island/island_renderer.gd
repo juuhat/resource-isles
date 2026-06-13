@@ -4,7 +4,6 @@ extends Node2D
 const WATER_TEXTURE := preload("res://assets/tiles/water.png")
 const SAND_TEXTURE := preload("res://assets/tiles/sand.png")
 const GRASS_TEXTURE := preload("res://assets/tiles/grass.png")
-const TREE_TEXTURE := preload("res://assets/resources/tree.png")
 const CRATE_TEXTURE := preload("res://assets/buildings/crate.png")
 
 @export var cell_size := Vector2(128.0, 128.0)
@@ -12,6 +11,7 @@ const CRATE_TEXTURE := preload("res://assets/buildings/crate.png")
 @export var grid_line_width := 1.0
 
 var island: IslandData
+var resource_node_database: ResourceNodeDatabase
 var hovered_cell := Vector2i(-1, -1)
 var placement_preview_enabled := false
 var placement_building_type := IslandData.BuildingType.CRATE
@@ -20,6 +20,10 @@ var placement_building_type := IslandData.BuildingType.CRATE
 func render(new_island: IslandData) -> void:
 	island = new_island
 	queue_redraw()
+
+
+func setup(new_resource_node_database: ResourceNodeDatabase) -> void:
+	resource_node_database = new_resource_node_database
 
 
 func _draw() -> void:
@@ -78,6 +82,13 @@ func try_place_hovered_building(building_type: int = IslandData.BuildingType.CRA
 	return placed
 
 
+func try_harvest_hovered_resource() -> int:
+	if island == null or hovered_cell == Vector2i(-1, -1):
+		return -1
+
+	return island.get_resource_node_type(hovered_cell)
+
+
 func _draw_terrain() -> void:
 	for y in range(island.height):
 		for x in range(island.width):
@@ -114,9 +125,13 @@ func _draw_grid() -> void:
 
 func _draw_resources() -> void:
 	for cell in island.resources.keys():
-		var resource_type: int = island.resources[cell]
+		var resource_node_type: int = island.resources[cell]
+		var texture := _texture_for_resource_node(resource_node_type)
+		if texture == null:
+			continue
+
 		var rect := Rect2(cell_to_world(cell), cell_size)
-		draw_texture_rect(_texture_for_resource(resource_type), rect, false)
+		draw_texture_rect(texture, rect, false)
 
 
 func _draw_buildings() -> void:
@@ -171,9 +186,9 @@ func _texture_for_building(building_type: int) -> Texture2D:
 			return CRATE_TEXTURE
 
 
-func _texture_for_resource(resource_type: int) -> Texture2D:
-	match resource_type:
-		IslandData.ResourceType.TREE:
-			return TREE_TEXTURE
-		_:
-			return TREE_TEXTURE
+func _texture_for_resource_node(resource_node_type: int) -> Texture2D:
+	var definition := resource_node_database.get_definition(resource_node_type)
+	if definition == null:
+		return null
+
+	return definition.texture

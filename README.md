@@ -59,12 +59,19 @@ The project now includes a code-driven terrain-only starter island scaffold:
 - `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
 - `scripts/island/island_generator.gd` creates a small starter island from a seed and places two random trees.
 - `scripts/island/island_renderer.gd` draws generated terrain, resources, placed buildings, hover highlighting, and placement preview.
+- `scripts/resources/resource_manager.gd` tracks current resource amounts.
+- `scripts/resources/resource_node_definition.gd` defines resource node properties such as extraction output and extraction interval.
+- `scripts/resources/resource_node_database.gd` registers resource node definitions such as trees.
+- `scripts/ui/resource_bar.gd` owns the always-visible top resource bar.
 - `scripts/ui/building_menu.gd` owns the bottom building menu UI and emits building selection events.
 - `scripts/main.gd` generates and displays the island when the game starts.
+
+Naming note: resource nodes are permanent map objects such as trees, while resources are stored inventory items such as wood. For example, `IslandData.ResourceNodeType.TREE` currently extracts into `ResourceManager.ResourceType.WOOD`.
 
 Prototype controls:
 
 - **Left click**: place the selected building
+- **Left click on a tree**: harvest it for 1 Wood
 - **Buildings button**: open or close the building menu
 - **Esc**: clear the selected building
 - **Enter**: regenerate the island with the next seed
