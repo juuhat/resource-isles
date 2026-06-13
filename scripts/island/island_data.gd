@@ -13,6 +13,7 @@ enum BuildingType {
 
 enum ResourceNodeType {
 	TREE,
+	BOULDER,
 }
 
 var width: int

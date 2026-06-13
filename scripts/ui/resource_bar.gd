@@ -47,6 +47,10 @@ func _build_ui() -> void:
 	resource_labels[ResourceManager.ResourceType.WOOD] = wood_label
 	row.add_child(wood_label)
 
+	var stone_label := Label.new()
+	resource_labels[ResourceManager.ResourceType.STONE] = stone_label
+	row.add_child(stone_label)
+
 
 func _refresh_all() -> void:
 	if resource_manager == null or resource_labels.is_empty():

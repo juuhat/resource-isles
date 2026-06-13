@@ -21,6 +21,7 @@ func generate_starter_island(seed_value: int = 0) -> IslandData:
 	_smooth_grass_edges(island, 2)
 	_add_sand_border(island, SAND_BORDER_WIDTH)
 	_place_trees(island)
+	_place_boulders(island)
 	return island
 
 
@@ -141,6 +142,13 @@ func _place_trees(island: IslandData) -> void:
 		var cell := _pick_open_grass_cell(island)
 		if cell != Vector2i(-1, -1):
 			island.place_resource(cell, IslandData.ResourceNodeType.TREE)
+
+
+func _place_boulders(island: IslandData) -> void:
+	for index in range(2):
+		var cell := _pick_open_grass_cell(island)
+		if cell != Vector2i(-1, -1):
+			island.place_resource(cell, IslandData.ResourceNodeType.BOULDER)
 
 
 func _pick_open_grass_cell(island: IslandData) -> Vector2i:

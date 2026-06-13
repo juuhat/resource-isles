@@ -65,10 +65,10 @@ The project is configured as a Godot 4 project and currently uses the mobile ren
 The project now includes a code-driven terrain-only starter island scaffold:
 
 - `assets/tiles/water.png`, `assets/tiles/sand.png`, and `assets/tiles/grass.png` provide the current terrain tiles.
-- `assets/resources/tree.png` provides the first harvestable map resource.
+- `assets/resources/tree.png` and `assets/resources/boulder.png` provide the first harvestable map resources.
 - `assets/buildings/crate.png` provides the first placeable building.
 - `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
-- `scripts/island/island_generator.gd` creates a small starter island from a seed and places two random trees.
+- `scripts/island/island_generator.gd` creates a small starter island from a seed and places two random trees and two random boulders.
 - `scripts/island/island_renderer.gd` draws generated terrain, Y-sorted resources/buildings, hover highlighting, and placement preview.
 - `scripts/resources/resource_manager.gd` tracks current resource amounts.
 - `scripts/resources/resource_node_definition.gd` defines resource node properties such as footprint, visual bounds, extraction output, and extraction interval.
@@ -78,13 +78,13 @@ The project now includes a code-driven terrain-only starter island scaffold:
 - `scripts/ui/building_info_panel.gd` owns the building info UI shown when a placed building is clicked.
 - `scripts/main.gd` generates and displays the island when the game starts.
 
-Naming note: resource nodes are permanent map objects such as trees, while resources are stored inventory items such as wood. For example, `IslandData.ResourceNodeType.TREE` currently extracts into `ResourceManager.ResourceType.WOOD` once per extraction interval.
+Naming note: resource nodes are permanent map objects such as trees and boulders, while resources are stored inventory items such as wood and stone. For example, `IslandData.ResourceNodeType.TREE` extracts into `ResourceManager.ResourceType.WOOD` once per extraction interval.
 
 Prototype controls:
 
 - **Left click**: place the selected building
 - **Left click on a building**: show building info
-- **Left click on a tree**: extract 1 Wood when its extraction interval is ready
+- **Left click on a tree or boulder**: extract its resource when its extraction interval is ready
 - **Buildings button**: open or close the building menu
 - **Esc**: clear the selected building
 - **Enter**: regenerate the island with the next seed
