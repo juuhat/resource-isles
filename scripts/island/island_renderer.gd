@@ -154,7 +154,7 @@ func _rebuild_terrain_cache() -> void:
 					"rect": rect,
 					"depth": _water_depth_factor(cell),
 					"shore_mask": _shore_mask_for_water_cell(cell),
-					"draw_shimmer": (x + y) % 3 == 0,
+					"draw_shimmer": _cell_noise(cell, 22.0) > 0.58,
 				})
 			else:
 				land_tiles.append({
@@ -175,8 +175,8 @@ func _create_water_gradient_texture() -> ImageTexture:
 	var texture_width := 256
 	var texture_height := maxi(1, roundi(texture_width * float(island.height) / float(island.width)))
 	var image := Image.create(texture_width, texture_height, false, Image.FORMAT_RGBA8)
-	var shallow_color := Color(0.24, 0.62, 0.75, 1.0)
-	var deep_color := Color(0.04, 0.24, 0.48, 1.0)
+	var shallow_color := Color("#47aba9")
+	var deep_color := Color("#468099")
 	var shallow_buffer_tiles := 3.0
 	var max_depth_tiles := 10.0
 	var land_rects := _get_land_rects_in_tile_space()
@@ -249,20 +249,23 @@ func _draw_water_shimmer(cell: Vector2i, depth: float) -> void:
 		return
 
 	var pos := cell_to_world(cell)
-	var phase := (cell.x * 0.77) + (cell.y * 1.23) + water_time * 2.1
-	var alpha := (sin(phase) * 0.5 + 0.5) * 0.11
-	var line_width := _screen_pixels_to_world(2.0)
+	var seed := _cell_noise(cell, 0.0)
+	var phase := seed * TAU + water_time * lerpf(0.45, 0.85, _cell_noise(cell, 3.7))
+	var alpha := 0.025 + (sin(phase) * 0.5 + 0.5) * 0.055
+	var line_width := _screen_pixels_to_world(1.0)
 	var shimmer_color := Color(0.82, 1.0, 1.0, alpha)
-	var wave_count := 1# + int(depth > 0.55)
+	var wave_count := 1 + int(depth > 0.65 and seed > 0.70)
 
 	for index in range(wave_count):
 		var local_phase := phase + index * 2.4
+		var x_noise := _cell_noise(cell, 8.0 + index)
+		var y_noise := _cell_noise(cell, 15.0 + index)
 		var center := pos + Vector2(
-			cell_size.x * (0.32 + 0.28 * index),
-			cell_size.y * (0.42 + sin(local_phase * 0.7) * 0.13)
+			cell_size.x * (0.24 + x_noise * 0.52),
+			cell_size.y * (0.30 + y_noise * 0.40 + sin(local_phase * 0.55) * 0.07)
 		)
-		var length := cell_size.x * (0.18 + depth * 0.10)
-		var height := cell_size.y * 0.025
+		var length := cell_size.x * (0.28 + depth * 0.18 + x_noise * 0.12)
+		var height := cell_size.y * (0.018 + y_noise * 0.018)
 		var points := PackedVector2Array([
 			center + Vector2(-length, height * sin(local_phase)),
 			center + Vector2(-length * 0.35, height * sin(local_phase + 1.2)),
@@ -271,6 +274,11 @@ func _draw_water_shimmer(cell: Vector2i, depth: float) -> void:
 		])
 
 		draw_polyline(points, shimmer_color, line_width, true)
+
+
+func _cell_noise(cell: Vector2i, salt: float) -> float:
+	var value := sin(float(cell.x) * 12.9898 + float(cell.y) * 78.233 + salt * 37.719) * 43758.5453
+	return value - floorf(value)
 
 
 func _draw_shoreline_foam(rect: Rect2, cell: Vector2i, shore_mask: int) -> void:
