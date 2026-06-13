@@ -14,7 +14,10 @@ func _init() -> void:
 		TREE_TEXTURE,
 		ResourceManager.ResourceType.WOOD,
 		1,
-		10.0
+		10.0,
+		Vector2i(1, 1),
+		Vector2(1.0, 1.5),
+		Vector2(0.0, -0.5)
 	))
 
 

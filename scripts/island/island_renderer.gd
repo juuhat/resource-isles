@@ -31,8 +31,7 @@ func _draw() -> void:
 		return
 
 	_draw_terrain()
-	_draw_resources()
-	_draw_buildings()
+	_draw_sorted_objects()
 
 	if show_grid:
 		_draw_grid()
@@ -82,7 +81,14 @@ func try_place_hovered_building(building_type: int = IslandData.BuildingType.CRA
 	return placed
 
 
-func try_harvest_hovered_resource() -> int:
+func get_hovered_building_type() -> int:
+	if island == null or hovered_cell == Vector2i(-1, -1):
+		return -1
+
+	return island.get_building_type(hovered_cell)
+
+
+func get_hovered_resource_node_type() -> int:
 	if island == null or hovered_cell == Vector2i(-1, -1):
 		return -1
 
@@ -123,22 +129,65 @@ func _draw_grid() -> void:
 		)
 
 
-func _draw_resources() -> void:
+func _draw_sorted_objects() -> void:
+	var draw_items: Array[Dictionary] = []
+
 	for cell in island.resources.keys():
-		var resource_node_type: int = island.resources[cell]
-		var texture := _texture_for_resource_node(resource_node_type)
-		if texture == null:
-			continue
+		draw_items.append({
+			"kind": "resource",
+			"cell": cell,
+			"type": island.resources[cell],
+		})
 
-		var rect := Rect2(cell_to_world(cell), cell_size)
-		draw_texture_rect(texture, rect, false)
-
-
-func _draw_buildings() -> void:
 	for cell in island.buildings.keys():
-		var building_type: int = island.buildings[cell]
-		var rect := Rect2(cell_to_world(cell), cell_size)
-		draw_texture_rect(_texture_for_building(building_type), rect, false)
+		draw_items.append({
+			"kind": "building",
+			"cell": cell,
+			"type": island.buildings[cell],
+		})
+
+	draw_items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var a_cell: Vector2i = a["cell"]
+		var b_cell: Vector2i = b["cell"]
+
+		if a_cell.y == b_cell.y:
+			return a_cell.x < b_cell.x
+
+		return a_cell.y < b_cell.y
+	)
+
+	for item in draw_items:
+		var kind: String = item["kind"]
+		var cell: Vector2i = item["cell"]
+		var object_type: int = item["type"]
+
+		if kind == "resource":
+			_draw_resource(cell, object_type)
+		else:
+			_draw_building(cell, object_type)
+
+
+func _draw_resource(cell: Vector2i, resource_node_type: int) -> void:
+	var definition := resource_node_database.get_definition(resource_node_type)
+	if definition == null or definition.texture == null:
+		return
+
+	var rect := Rect2(
+		cell_to_world(cell) + Vector2(
+			definition.visual_offset_tiles.x * cell_size.x,
+			definition.visual_offset_tiles.y * cell_size.y
+		),
+		Vector2(
+			definition.visual_size_tiles.x * cell_size.x,
+			definition.visual_size_tiles.y * cell_size.y
+		)
+	)
+	draw_texture_rect(definition.texture, rect, false)
+
+
+func _draw_building(cell: Vector2i, building_type: int) -> void:
+	var rect := Rect2(cell_to_world(cell), cell_size)
+	draw_texture_rect(_texture_for_building(building_type), rect, false)
 
 
 func _draw_hover() -> void:
@@ -184,11 +233,3 @@ func _texture_for_building(building_type: int) -> Texture2D:
 			return CRATE_TEXTURE
 		_:
 			return CRATE_TEXTURE
-
-
-func _texture_for_resource_node(resource_node_type: int) -> Texture2D:
-	var definition := resource_node_database.get_definition(resource_node_type)
-	if definition == null:
-		return null
-
-	return definition.texture

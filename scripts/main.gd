@@ -3,6 +3,7 @@ extends Node2D
 const IslandGeneratorScript := preload("res://scripts/island/island_generator.gd")
 const IslandRendererScript := preload("res://scripts/island/island_renderer.gd")
 const BuildingMenuScript := preload("res://scripts/ui/building_menu.gd")
+const BuildingInfoPanelScript := preload("res://scripts/ui/building_info_panel.gd")
 const ResourceBarScript := preload("res://scripts/ui/resource_bar.gd")
 const ResourceManagerScript := preload("res://scripts/resources/resource_manager.gd")
 const ResourceNodeDatabaseScript := preload("res://scripts/resources/resource_node_database.gd")
@@ -22,6 +23,7 @@ var resource_manager: ResourceManager
 var resource_node_database: ResourceNodeDatabase
 var resource_bar: ResourceBar
 var building_menu: BuildingMenu
+var building_info_panel: BuildingInfoPanel
 
 
 func _ready() -> void:
@@ -74,6 +76,9 @@ func _input(event: InputEvent) -> void:
 		elif event.button_index == MOUSE_BUTTON_MIDDLE or event.button_index == MOUSE_BUTTON_RIGHT:
 			is_panning = event.pressed
 		elif event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not is_over_ui:
+			if _try_select_building():
+				return
+
 			if _try_harvest_resource():
 				return
 
@@ -94,15 +99,32 @@ func _set_zoom(new_zoom: float) -> void:
 
 
 func _try_harvest_resource() -> bool:
-	var resource_node_type := renderer.try_harvest_hovered_resource()
+	var resource_node_type := renderer.get_hovered_resource_node_type()
 	if resource_node_type == -1:
 		return false
 
 	var definition := resource_node_database.get_definition(resource_node_type)
 	if definition == null:
-		return false
+		return true
+
+	var current_time_seconds := Time.get_ticks_msec() / 1000.0
+	if not renderer.island.can_extract_resource(renderer.hovered_cell, current_time_seconds):
+		return true
 
 	resource_manager.add_amount(definition.extracted_resource_type, definition.extraction_amount)
+	renderer.island.mark_resource_extracted(
+		renderer.hovered_cell,
+		current_time_seconds + definition.extraction_interval_seconds
+	)
+	return true
+
+
+func _try_select_building() -> bool:
+	var building_type := renderer.get_hovered_building_type()
+	if building_type == -1:
+		return false
+
+	building_info_panel.show_building(building_type, renderer.hovered_cell)
 	return true
 
 
@@ -143,6 +165,9 @@ func _add_ui() -> void:
 	resource_bar = ResourceBarScript.new()
 	add_child(resource_bar)
 	resource_bar.setup(resource_manager)
+
+	building_info_panel = BuildingInfoPanelScript.new()
+	add_child(building_info_panel)
 
 	building_menu = BuildingMenuScript.new()
 	building_menu.building_selected.connect(_select_building)
