@@ -15,6 +15,17 @@ The project is currently in early development. The core idea is to start on one 
 - Resources can move between islands using systems such as ships, pipes, power cables, and other transport infrastructure.
 - Power management is simple and capacity-based, using generated MW to support production and logistics.
 
+## Art Direction
+
+Resource Isles should feel like a relaxing little evening game: calm, readable, cozy, and a little darker than a bright tropical island game.
+
+- Use muted, blue-green water with a big soft depth gradient.
+- Keep water motion sparse and gentle, with subtle shimmer rather than busy waves.
+- Favor darker, calmer grass and sand colors over saturated or sunny colors.
+- Terrain should stay readable at a glance, but avoid harsh tile boundaries where possible.
+- Shorelines should feel soft and peaceful, with restrained foam and gradual water color changes.
+- Visual effects should support the quiet mood instead of calling attention to themselves.
+
 ## Project Status
 
 Early prototype setup:
