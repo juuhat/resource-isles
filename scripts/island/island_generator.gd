@@ -2,8 +2,8 @@ class_name IslandGenerator
 extends RefCounted
 
 const IslandDataScript := preload("res://scripts/island/island_data.gd")
-const STARTER_ISLAND_WIDTH := 34
-const STARTER_ISLAND_HEIGHT := 24
+const STARTER_ISLAND_WIDTH := 44
+const STARTER_ISLAND_HEIGHT := 32
 
 var rng := RandomNumberGenerator.new()
 
@@ -17,6 +17,7 @@ func generate_starter_island(seed_value: int = 0) -> IslandData:
 	var island := IslandDataScript.new(STARTER_ISLAND_WIDTH, STARTER_ISLAND_HEIGHT)
 	_fill_water(island)
 	_carve_grass_blob(island)
+	_smooth_grass_edges(island, 2)
 	_add_sand_border(island)
 	_place_trees(island)
 	return island
@@ -39,7 +40,7 @@ func _carve_grass_blob(island: IslandData) -> void:
 				(point.x - center.x) / 8.8,
 				(point.y - center.y) / 5.6
 			).length()
-			var edge_noise := rng.randf_range(-0.18, 0.18)
+			var edge_noise := rng.randf_range(-0.11, 0.11)
 
 			if normalized_distance + edge_noise < 1.0:
 				island.set_terrain(cell, IslandData.Terrain.GRASS)
@@ -49,6 +50,43 @@ func _carve_grass_blob(island: IslandData) -> void:
 	_fill_rect(island, Rect2i(center_cell.x - 7, center_cell.y - 3, 5, 4), IslandData.Terrain.GRASS)
 	_fill_rect(island, Rect2i(center_cell.x + 2, center_cell.y - 2, 5, 4), IslandData.Terrain.GRASS)
 	_fill_rect(island, Rect2i(center_cell.x - 2, center_cell.y + 2, 7, 2), IslandData.Terrain.GRASS)
+
+
+func _smooth_grass_edges(island: IslandData, passes: int) -> void:
+	for pass_index in range(passes):
+		var to_grass: Array[Vector2i] = []
+		var to_water: Array[Vector2i] = []
+
+		for y in range(island.height):
+			for x in range(island.width):
+				var cell := Vector2i(x, y)
+				var land_neighbors := _neighbor_land_count(island, cell)
+
+				if island.get_terrain(cell) == IslandData.Terrain.GRASS:
+					if land_neighbors <= 2:
+						to_water.append(cell)
+				elif land_neighbors >= 5:
+					to_grass.append(cell)
+
+		for cell in to_water:
+			island.set_terrain(cell, IslandData.Terrain.WATER)
+
+		for cell in to_grass:
+			island.set_terrain(cell, IslandData.Terrain.GRASS)
+
+
+func _neighbor_land_count(island: IslandData, cell: Vector2i) -> int:
+	var count := 0
+
+	for y in range(-1, 2):
+		for x in range(-1, 2):
+			if x == 0 and y == 0:
+				continue
+
+			if island.get_terrain(cell + Vector2i(x, y)) == IslandData.Terrain.GRASS:
+				count += 1
+
+	return count
 
 
 func _add_sand_border(island: IslandData) -> void:
