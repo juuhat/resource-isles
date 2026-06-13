@@ -53,16 +53,24 @@ The project is configured as a Godot 4 project and currently uses the mobile ren
 
 The project now includes a code-driven terrain-only starter island scaffold:
 
-- `assets/water.png`, `assets/sand.png`, and `assets/grass.png` provide the current terrain tiles.
-- `scripts/island/island_data.gd` stores island size and terrain cells.
-- `scripts/island/island_generator.gd` creates a small starter island from a seed.
-- `scripts/island/island_renderer.gd` draws the generated terrain using the texture assets.
+- `assets/tiles/water.png`, `assets/tiles/sand.png`, and `assets/tiles/grass.png` provide the current terrain tiles.
+- `assets/resources/tree.png` provides the first harvestable map resource.
+- `assets/buildings/crate.png` provides the first placeable building.
+- `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
+- `scripts/island/island_generator.gd` creates a small starter island from a seed and places two random trees.
+- `scripts/island/island_renderer.gd` draws generated terrain, resources, placed buildings, hover highlighting, and placement preview.
+- `scripts/ui/building_menu.gd` owns the bottom building menu UI and emits building selection events.
 - `scripts/main.gd` generates and displays the island when the game starts.
 
 Prototype controls:
 
+- **Left click**: place the selected building
+- **Buildings button**: open or close the building menu
+- **Esc**: clear the selected building
 - **Enter**: regenerate the island with the next seed
 - **Space**: toggle the tile grid overlay
+- **Mouse wheel**: zoom camera
+- **Right or middle mouse drag**: pan camera
 
 ## Planned Direction
 

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bhr6136kkul5"
-path="res://.godot/imported/sand.png-9f865ffb29e91443d533cc74947c6644.ctex"
+uid="uid://b72h8a3rnkug0"
+path="res://.godot/imported/tree.png-7cdbe6514359a1362df104558ecf877e.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sand.png"
-dest_files=["res://.godot/imported/sand.png-9f865ffb29e91443d533cc74947c6644.ctex"]
+source_file="res://assets/resources/tree.png"
+dest_files=["res://.godot/imported/tree.png-7cdbe6514359a1362df104558ecf877e.ctex"]
 
 [params]
 

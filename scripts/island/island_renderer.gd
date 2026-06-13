@@ -1,15 +1,20 @@
 class_name IslandRenderer
 extends Node2D
 
-const WATER_TEXTURE := preload("res://assets/water.png")
-const SAND_TEXTURE := preload("res://assets/sand.png")
-const GRASS_TEXTURE := preload("res://assets/grass.png")
+const WATER_TEXTURE := preload("res://assets/tiles/water.png")
+const SAND_TEXTURE := preload("res://assets/tiles/sand.png")
+const GRASS_TEXTURE := preload("res://assets/tiles/grass.png")
+const TREE_TEXTURE := preload("res://assets/resources/tree.png")
+const CRATE_TEXTURE := preload("res://assets/buildings/crate.png")
 
 @export var cell_size := Vector2(128.0, 128.0)
 @export var show_grid := false
 @export var grid_line_width := 1.0
 
 var island: IslandData
+var hovered_cell := Vector2i(-1, -1)
+var placement_preview_enabled := false
+var placement_building_type := IslandData.BuildingType.CRATE
 
 
 func render(new_island: IslandData) -> void:
@@ -22,13 +27,55 @@ func _draw() -> void:
 		return
 
 	_draw_terrain()
+	_draw_resources()
+	_draw_buildings()
 
 	if show_grid:
 		_draw_grid()
 
+	_draw_hover()
+	_draw_placement_preview()
+
 
 func cell_to_world(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x * cell_size.x, cell.y * cell_size.y)
+
+
+func world_to_cell(world_position: Vector2) -> Vector2i:
+	return Vector2i(
+		floori(world_position.x / cell_size.x),
+		floori(world_position.y / cell_size.y)
+	)
+
+
+func set_hovered_world_position(world_position: Vector2) -> void:
+	var cell := world_to_cell(world_position)
+
+	if island == null or not island.is_in_bounds(cell):
+		cell = Vector2i(-1, -1)
+
+	if hovered_cell == cell:
+		return
+
+	hovered_cell = cell
+	queue_redraw()
+
+
+func set_placement_preview(enabled: bool, building_type: int = IslandData.BuildingType.CRATE) -> void:
+	placement_preview_enabled = enabled
+	placement_building_type = building_type
+	queue_redraw()
+
+
+func try_place_hovered_building(building_type: int = IslandData.BuildingType.CRATE) -> bool:
+	if island == null or hovered_cell == Vector2i(-1, -1):
+		return false
+
+	var placed := island.place_building(hovered_cell, building_type)
+	if placed:
+		queue_redraw()
+
+	return placed
 
 
 func _draw_terrain() -> void:
@@ -65,6 +112,39 @@ func _draw_grid() -> void:
 		)
 
 
+func _draw_resources() -> void:
+	for cell in island.resources.keys():
+		var resource_type: int = island.resources[cell]
+		var rect := Rect2(cell_to_world(cell), cell_size)
+		draw_texture_rect(_texture_for_resource(resource_type), rect, false)
+
+
+func _draw_buildings() -> void:
+	for cell in island.buildings.keys():
+		var building_type: int = island.buildings[cell]
+		var rect := Rect2(cell_to_world(cell), cell_size)
+		draw_texture_rect(_texture_for_building(building_type), rect, false)
+
+
+func _draw_hover() -> void:
+	if hovered_cell == Vector2i(-1, -1):
+		return
+
+	var rect := Rect2(cell_to_world(hovered_cell), cell_size)
+	draw_rect(rect, Color(1.0, 1.0, 1.0, 0.16), true)
+
+
+func _draw_placement_preview() -> void:
+	if not placement_preview_enabled or hovered_cell == Vector2i(-1, -1):
+		return
+
+	var rect := Rect2(cell_to_world(hovered_cell), cell_size)
+	var can_place := island.can_place_building(hovered_cell)
+	var tint := Color(1.0, 1.0, 1.0, 0.55) if can_place else Color(1.0, 0.2, 0.2, 0.45)
+
+	draw_texture_rect(_texture_for_building(placement_building_type), rect, false, tint)
+
+
 func _screen_pixels_to_world(screen_pixels: float) -> float:
 	var camera := get_viewport().get_camera_2d()
 	if camera == null:
@@ -81,3 +161,19 @@ func _texture_for_terrain(terrain_type: int) -> Texture2D:
 			return SAND_TEXTURE
 		_:
 			return WATER_TEXTURE
+
+
+func _texture_for_building(building_type: int) -> Texture2D:
+	match building_type:
+		IslandData.BuildingType.CRATE:
+			return CRATE_TEXTURE
+		_:
+			return CRATE_TEXTURE
+
+
+func _texture_for_resource(resource_type: int) -> Texture2D:
+	match resource_type:
+		IslandData.ResourceType.TREE:
+			return TREE_TEXTURE
+		_:
+			return TREE_TEXTURE

@@ -16,6 +16,7 @@ func generate_starter_island(seed_value: int = 0) -> IslandData:
 	_fill_water(island)
 	_carve_grass_blob(island)
 	_add_sand_border(island)
+	_place_trees(island)
 	return island
 
 
@@ -67,6 +68,26 @@ func _fill_rect(island: IslandData, rect: Rect2i, terrain_type: int) -> void:
 	for y in range(rect.position.y, rect.position.y + rect.size.y):
 		for x in range(rect.position.x, rect.position.x + rect.size.x):
 			island.set_terrain(Vector2i(x, y), terrain_type)
+
+
+func _place_trees(island: IslandData) -> void:
+	for index in range(2):
+		var cell := _pick_open_grass_cell(island)
+		if cell != Vector2i(-1, -1):
+			island.place_resource(cell, IslandData.ResourceType.TREE)
+
+
+func _pick_open_grass_cell(island: IslandData) -> Vector2i:
+	var candidates: Array[Vector2i] = []
+
+	for cell in island.terrain.keys():
+		if island.can_place_resource(cell):
+			candidates.append(cell)
+
+	if candidates.is_empty():
+		return Vector2i(-1, -1)
+
+	return candidates[rng.randi_range(0, candidates.size() - 1)]
 
 
 func _cardinal_neighbors(cell: Vector2i) -> Array[Vector2i]:
