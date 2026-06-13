@@ -9,6 +9,10 @@ const SHORE_UP := 1
 const SHORE_DOWN := 2
 const SHORE_LEFT := 4
 const SHORE_RIGHT := 8
+const SHORE_UP_LEFT := 16
+const SHORE_UP_RIGHT := 32
+const SHORE_DOWN_LEFT := 64
+const SHORE_DOWN_RIGHT := 128
 
 @export var cell_size := Vector2(128.0, 128.0)
 @export var show_grid := false
@@ -385,6 +389,7 @@ func _cell_noise(cell: Vector2i, salt: float) -> float:
 
 func _draw_shoreline_foam(rect: Rect2, cell: Vector2i, shore_mask: int) -> void:
 	var pos := rect.position
+	var size := rect.size
 	var foam_phase := water_time * 0.9 + cell.x * 0.9 + cell.y * 0.6
 	var pulse := sin(foam_phase) * 0.5 + 0.5
 	var drift := sin(foam_phase * 0.7 + 1.8) * 0.5 + 0.5
@@ -396,24 +401,96 @@ func _draw_shoreline_foam(rect: Rect2, cell: Vector2i, shore_mask: int) -> void:
 	foam_color.a = 0.26 + pulse * 0.08
 
 	if (shore_mask & SHORE_UP) != 0:
-		draw_rect(Rect2(pos, Vector2(cell_size.x, foam_width)), foam_color, true)
+		var up_x_start := foam_width if (shore_mask & SHORE_LEFT) != 0 else 0.0
+		var up_x_end := size.x - foam_width if (shore_mask & SHORE_RIGHT) != 0 else size.x
+		if up_x_end > up_x_start:
+			draw_rect(Rect2(pos + Vector2(up_x_start, 0.0), Vector2(up_x_end - up_x_start, foam_width)), foam_color, true)
 
 	if (shore_mask & SHORE_DOWN) != 0:
-		draw_rect(
-			Rect2(pos + Vector2(0.0, cell_size.y - foam_width), Vector2(cell_size.x, foam_width)),
-			foam_color,
-			true
-		)
+		var down_x_start := foam_width if (shore_mask & SHORE_LEFT) != 0 else 0.0
+		var down_x_end := size.x - foam_width if (shore_mask & SHORE_RIGHT) != 0 else size.x
+		if down_x_end > down_x_start:
+			draw_rect(
+				Rect2(pos + Vector2(down_x_start, size.y - foam_width), Vector2(down_x_end - down_x_start, foam_width)),
+				foam_color,
+				true
+			)
 
 	if (shore_mask & SHORE_LEFT) != 0:
-		draw_rect(Rect2(pos, Vector2(foam_width, cell_size.y)), foam_color, true)
+		var left_y_start := foam_width if (shore_mask & SHORE_UP) != 0 else 0.0
+		var left_y_end := size.y - foam_width if (shore_mask & SHORE_DOWN) != 0 else size.y
+		if left_y_end > left_y_start:
+			draw_rect(Rect2(pos + Vector2(0.0, left_y_start), Vector2(foam_width, left_y_end - left_y_start)), foam_color, true)
 
 	if (shore_mask & SHORE_RIGHT) != 0:
+		var right_y_start := foam_width if (shore_mask & SHORE_UP) != 0 else 0.0
+		var right_y_end := size.y - foam_width if (shore_mask & SHORE_DOWN) != 0 else size.y
+		if right_y_end > right_y_start:
+			draw_rect(
+				Rect2(pos + Vector2(size.x - foam_width, right_y_start), Vector2(foam_width, right_y_end - right_y_start)),
+				foam_color,
+				true
+			)
+
+	if (shore_mask & SHORE_UP) != 0 and (shore_mask & SHORE_LEFT) != 0:
+		draw_rect(Rect2(pos, Vector2(foam_width, foam_width)), foam_color, true)
+
+	if (shore_mask & SHORE_UP) != 0 and (shore_mask & SHORE_RIGHT) != 0:
 		draw_rect(
-			Rect2(pos + Vector2(cell_size.x - foam_width, 0.0), Vector2(foam_width, cell_size.y)),
+			Rect2(pos + Vector2(size.x - foam_width, 0.0), Vector2(foam_width, foam_width)),
 			foam_color,
 			true
 		)
+
+	if (shore_mask & SHORE_DOWN) != 0 and (shore_mask & SHORE_LEFT) != 0:
+		draw_rect(
+			Rect2(pos + Vector2(0.0, size.y - foam_width), Vector2(foam_width, foam_width)),
+			foam_color,
+			true
+		)
+
+	if (shore_mask & SHORE_DOWN) != 0 and (shore_mask & SHORE_RIGHT) != 0:
+		draw_rect(
+			Rect2(pos + Vector2(size.x - foam_width, size.y - foam_width), Vector2(foam_width, foam_width)),
+			foam_color,
+			true
+		)
+
+	if (shore_mask & SHORE_UP_LEFT) != 0 and (shore_mask & SHORE_UP) == 0 and (shore_mask & SHORE_LEFT) == 0:
+		_draw_corner_foam(pos, foam_width, foam_color, SHORE_UP_LEFT)
+
+	if (shore_mask & SHORE_UP_RIGHT) != 0 and (shore_mask & SHORE_UP) == 0 and (shore_mask & SHORE_RIGHT) == 0:
+		_draw_corner_foam(pos + Vector2(size.x, 0.0), foam_width, foam_color, SHORE_UP_RIGHT)
+
+	if (shore_mask & SHORE_DOWN_LEFT) != 0 and (shore_mask & SHORE_DOWN) == 0 and (shore_mask & SHORE_LEFT) == 0:
+		_draw_corner_foam(pos + Vector2(0.0, size.y), foam_width, foam_color, SHORE_DOWN_LEFT)
+
+	if (shore_mask & SHORE_DOWN_RIGHT) != 0 and (shore_mask & SHORE_DOWN) == 0 and (shore_mask & SHORE_RIGHT) == 0:
+		_draw_corner_foam(pos + size, foam_width, foam_color, SHORE_DOWN_RIGHT)
+
+
+func _draw_corner_foam(corner: Vector2, foam_width: float, foam_color: Color, side: int) -> void:
+	var points := PackedVector2Array()
+
+	match side:
+		SHORE_UP_LEFT:
+			points.append(corner)
+			points.append(corner + Vector2(foam_width, 0.0))
+			points.append(corner + Vector2(0.0, foam_width))
+		SHORE_UP_RIGHT:
+			points.append(corner)
+			points.append(corner + Vector2(-foam_width, 0.0))
+			points.append(corner + Vector2(0.0, foam_width))
+		SHORE_DOWN_LEFT:
+			points.append(corner)
+			points.append(corner + Vector2(foam_width, 0.0))
+			points.append(corner + Vector2(0.0, -foam_width))
+		SHORE_DOWN_RIGHT:
+			points.append(corner)
+			points.append(corner + Vector2(-foam_width, 0.0))
+			points.append(corner + Vector2(0.0, -foam_width))
+
+	draw_colored_polygon(points, foam_color)
 
 
 func _shore_mask_for_water_cell(cell: Vector2i) -> int:
@@ -430,6 +507,18 @@ func _shore_mask_for_water_cell(cell: Vector2i) -> int:
 
 	if _is_land(cell + Vector2i.RIGHT):
 		mask |= SHORE_RIGHT
+
+	if _is_land(cell + Vector2i(-1, -1)):
+		mask |= SHORE_UP_LEFT
+
+	if _is_land(cell + Vector2i(1, -1)):
+		mask |= SHORE_UP_RIGHT
+
+	if _is_land(cell + Vector2i(-1, 1)):
+		mask |= SHORE_DOWN_LEFT
+
+	if _is_land(cell + Vector2i(1, 1)):
+		mask |= SHORE_DOWN_RIGHT
 
 	return mask
 
