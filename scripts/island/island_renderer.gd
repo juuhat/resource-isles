@@ -470,27 +470,15 @@ func _draw_shoreline_foam(rect: Rect2, cell: Vector2i, shore_mask: int) -> void:
 
 
 func _draw_corner_foam(corner: Vector2, foam_width: float, foam_color: Color, side: int) -> void:
-	var points := PackedVector2Array()
-
 	match side:
 		SHORE_UP_LEFT:
-			points.append(corner)
-			points.append(corner + Vector2(foam_width, 0.0))
-			points.append(corner + Vector2(0.0, foam_width))
+			draw_rect(Rect2(corner, Vector2(foam_width, foam_width)), foam_color, true)
 		SHORE_UP_RIGHT:
-			points.append(corner)
-			points.append(corner + Vector2(-foam_width, 0.0))
-			points.append(corner + Vector2(0.0, foam_width))
+			draw_rect(Rect2(corner + Vector2(-foam_width, 0.0), Vector2(foam_width, foam_width)), foam_color, true)
 		SHORE_DOWN_LEFT:
-			points.append(corner)
-			points.append(corner + Vector2(foam_width, 0.0))
-			points.append(corner + Vector2(0.0, -foam_width))
+			draw_rect(Rect2(corner + Vector2(0.0, -foam_width), Vector2(foam_width, foam_width)), foam_color, true)
 		SHORE_DOWN_RIGHT:
-			points.append(corner)
-			points.append(corner + Vector2(-foam_width, 0.0))
-			points.append(corner + Vector2(0.0, -foam_width))
-
-	draw_colored_polygon(points, foam_color)
+			draw_rect(Rect2(corner - Vector2(foam_width, foam_width), Vector2(foam_width, foam_width)), foam_color, true)
 
 
 func _shore_mask_for_water_cell(cell: Vector2i) -> int:
