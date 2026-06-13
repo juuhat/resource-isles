@@ -9,16 +9,28 @@ const CRATE_TEXTURE := preload("res://assets/buildings/crate.png")
 @export var cell_size := Vector2(128.0, 128.0)
 @export var show_grid := false
 @export var grid_line_width := 1.0
+@export var animate_water := false
 
 var island: IslandData
 var resource_node_database: ResourceNodeDatabase
 var hovered_cell := Vector2i(-1, -1)
 var placement_preview_enabled := false
 var placement_building_type := IslandData.BuildingType.CRATE
+var water_time := 0.0
+var water_gradient_texture: ImageTexture
+
+
+func _process(delta: float) -> void:
+	if not animate_water:
+		return
+
+	water_time += delta
+	queue_redraw()
 
 
 func render(new_island: IslandData) -> void:
 	island = new_island
+	water_gradient_texture = null
 	queue_redraw()
 
 
@@ -96,6 +108,8 @@ func get_hovered_resource_node_type() -> int:
 
 
 func _draw_terrain() -> void:
+	_draw_water_background()
+
 	for y in range(island.height):
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
@@ -103,7 +117,136 @@ func _draw_terrain() -> void:
 
 			var pos := cell_to_world(cell)
 			var rect := Rect2(pos, cell_size)
-			draw_texture_rect(_texture_for_terrain(terrain_type), rect, false)
+
+			if terrain_type == IslandData.Terrain.WATER:
+				_draw_water_tile(cell, rect)
+			else:
+				draw_texture_rect(_texture_for_terrain(terrain_type), rect, false)
+
+	_draw_water_surface_details()
+
+
+func _draw_water_tile(_cell: Vector2i, rect: Rect2) -> void:
+	draw_texture_rect(WATER_TEXTURE, rect, false, Color(1.0, 1.0, 1.0, 0.20))
+
+
+func _draw_water_background() -> void:
+	if water_gradient_texture == null:
+		water_gradient_texture = _create_water_gradient_texture()
+
+	var island_size := Vector2(island.width * cell_size.x, island.height * cell_size.y)
+	draw_texture_rect(water_gradient_texture, Rect2(Vector2.ZERO, island_size), false)
+
+
+func _create_water_gradient_texture() -> ImageTexture:
+	var texture_width := 384
+	var texture_height := maxi(1, roundi(texture_width * float(island.height) / float(island.width)))
+	var image := Image.create(texture_width, texture_height, false, Image.FORMAT_RGBA8)
+	var shallow_color := Color(0.43, 0.84, 0.88, 1.0)
+	var deep_color := Color(0.03, 0.20, 0.45, 1.0)
+	var center := Vector2(texture_width, texture_height) * 0.5
+	var max_radius := center.length()
+
+	for y in range(texture_height):
+		for x in range(texture_width):
+			var point := Vector2(x, y)
+			var distance := point.distance_to(center)
+			var gradient := clampf(distance / max_radius, 0.0, 1.0)
+			gradient = gradient * gradient * (3.0 - 2.0 * gradient)
+			image.set_pixel(x, y, shallow_color.lerp(deep_color, gradient))
+
+	return ImageTexture.create_from_image(image)
+
+
+func _draw_water_surface_details() -> void:
+	for y in range(island.height):
+		for x in range(island.width):
+			var cell := Vector2i(x, y)
+			if not _is_water(cell):
+				continue
+
+			_draw_water_shimmer(cell)
+			_draw_shoreline_foam(cell)
+
+
+func _draw_water_shimmer(cell: Vector2i) -> void:
+	var depth := _water_depth_factor(cell)
+	if depth < 0.18:
+		return
+
+	var pos := cell_to_world(cell)
+	var phase := (cell.x * 0.77) + (cell.y * 1.23) + water_time * 2.1
+	var alpha := (sin(phase) * 0.5 + 0.5) * 0.11
+	var line_width := _screen_pixels_to_world(0.5)
+	var shimmer_color := Color(0.82, 1.0, 1.0, alpha)
+	var wave_count := 1 + int(depth > 0.55)
+
+	for index in range(wave_count):
+		var local_phase := phase + index * 2.4
+		var center := pos + Vector2(
+			cell_size.x * (0.32 + 0.28 * index),
+			cell_size.y * (0.42 + sin(local_phase * 0.7) * 0.13)
+		)
+		var length := cell_size.x * (0.18 + depth * 0.10)
+		var height := cell_size.y * 0.025
+		var points := PackedVector2Array([
+			center + Vector2(-length, height * sin(local_phase)),
+			center + Vector2(-length * 0.35, height * sin(local_phase + 1.2)),
+			center + Vector2(length * 0.35, height * sin(local_phase + 2.4)),
+			center + Vector2(length, height * sin(local_phase + 3.6)),
+		])
+
+		draw_polyline(points, shimmer_color, line_width, true)
+
+
+func _draw_shoreline_foam(cell: Vector2i) -> void:
+	var pos := cell_to_world(cell)
+	var foam_width := minf(cell_size.x, cell_size.y) * 0.14
+	var pulse := (sin(water_time * 3.0 + cell.x * 0.9 + cell.y * 0.6) * 0.5 + 0.5)
+	var foam_color := Color(0.92, 1.0, 0.96, 0.30 + pulse * 0.18)
+
+	if _is_land(cell + Vector2i.UP):
+		draw_rect(Rect2(pos, Vector2(cell_size.x, foam_width)), foam_color, true)
+
+	if _is_land(cell + Vector2i.DOWN):
+		draw_rect(
+			Rect2(pos + Vector2(0.0, cell_size.y - foam_width), Vector2(cell_size.x, foam_width)),
+			foam_color,
+			true
+		)
+
+	if _is_land(cell + Vector2i.LEFT):
+		draw_rect(Rect2(pos, Vector2(foam_width, cell_size.y)), foam_color, true)
+
+	if _is_land(cell + Vector2i.RIGHT):
+		draw_rect(
+			Rect2(pos + Vector2(cell_size.x - foam_width, 0.0), Vector2(foam_width, cell_size.y)),
+			foam_color,
+			true
+		)
+
+
+func _water_depth_factor(cell: Vector2i) -> float:
+	var max_distance := 5
+
+	for distance in range(1, max_distance + 1):
+		for offset_x in range(-distance, distance + 1):
+			var offset_y := distance - absi(offset_x)
+			if _is_land(cell + Vector2i(offset_x, offset_y)):
+				return float(distance - 1) / float(max_distance)
+
+			if offset_y != 0 and _is_land(cell + Vector2i(offset_x, -offset_y)):
+				return float(distance - 1) / float(max_distance)
+
+	return 1.0
+
+
+func _is_water(cell: Vector2i) -> bool:
+	return island.is_in_bounds(cell) and island.get_terrain(cell) == IslandData.Terrain.WATER
+
+
+func _is_land(cell: Vector2i) -> bool:
+	return island.is_in_bounds(cell) and island.get_terrain(cell) != IslandData.Terrain.WATER
 
 
 func _draw_grid() -> void:
