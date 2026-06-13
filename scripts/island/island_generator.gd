@@ -4,6 +4,7 @@ extends RefCounted
 const IslandDataScript := preload("res://scripts/island/island_data.gd")
 const STARTER_ISLAND_WIDTH := 44
 const STARTER_ISLAND_HEIGHT := 32
+const SAND_BORDER_WIDTH := 2
 
 var rng := RandomNumberGenerator.new()
 
@@ -18,7 +19,7 @@ func generate_starter_island(seed_value: int = 0) -> IslandData:
 	_fill_water(island)
 	_carve_grass_blob(island)
 	_smooth_grass_edges(island, 2)
-	_add_sand_border(island)
+	_add_sand_border(island, SAND_BORDER_WIDTH)
 	_place_trees(island)
 	return island
 
@@ -89,7 +90,10 @@ func _neighbor_land_count(island: IslandData, cell: Vector2i) -> int:
 	return count
 
 
-func _add_sand_border(island: IslandData) -> void:
+func _add_sand_border(island: IslandData, width: int) -> void:
+	if width <= 0:
+		return
+
 	var to_sand: Array[Vector2i] = []
 
 	for cell in island.terrain.keys():
@@ -100,6 +104,27 @@ func _add_sand_border(island: IslandData) -> void:
 			if island.get_terrain(neighbor) == IslandData.Terrain.WATER:
 				to_sand.append(cell)
 				break
+
+	for cell in to_sand:
+		island.set_terrain(cell, IslandData.Terrain.SAND)
+
+	for pass_index in range(width - 1):
+		_expand_sand_into_water(island)
+
+
+func _expand_sand_into_water(island: IslandData) -> void:
+	var to_sand: Array[Vector2i] = []
+
+	for y in range(island.height):
+		for x in range(island.width):
+			var cell := Vector2i(x, y)
+			if island.get_terrain(cell) != IslandData.Terrain.WATER:
+				continue
+
+			for neighbor in _cardinal_neighbors(cell):
+				if island.get_terrain(neighbor) == IslandData.Terrain.SAND:
+					to_sand.append(cell)
+					break
 
 	for cell in to_sand:
 		island.set_terrain(cell, IslandData.Terrain.SAND)

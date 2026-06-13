@@ -25,6 +25,7 @@ var water_gradient_texture: ImageTexture
 var land_tiles: Array[Dictionary] = []
 var water_tiles: Array[Rect2] = []
 var water_surface_tiles: Array[Dictionary] = []
+var terrain_transition_tiles: Array[Dictionary] = []
 
 
 func _process(delta: float) -> void:
@@ -126,6 +127,7 @@ func _draw_terrain() -> void:
 		var rect: Rect2 = tile["rect"]
 		draw_texture_rect(texture, rect, false)
 
+	_draw_terrain_transitions()
 	_draw_water_surface_details()
 
 
@@ -133,10 +135,104 @@ func _draw_water_tile(rect: Rect2) -> void:
 	draw_texture_rect(WATER_TEXTURE, rect, false, Color(1.0, 1.0, 1.0, 0.20))
 
 
+func _draw_terrain_transitions() -> void:
+	for tile in terrain_transition_tiles:
+		var cell: Vector2i = tile["cell"]
+		var rect: Rect2 = tile["rect"]
+		var mask: int = tile["mask"]
+		_draw_grass_blend_on_sand(rect, cell, mask)
+
+
+func _draw_grass_blend_on_sand(rect: Rect2, cell: Vector2i, mask: int) -> void:
+	var grass_color := Color("#3f7a57")
+	var widths := [
+		minf(cell_size.x, cell_size.y) * 0.18,
+		minf(cell_size.x, cell_size.y) * 0.10,
+		minf(cell_size.x, cell_size.y) * 0.05,
+	]
+	var alphas := [0.34, 0.18, 0.08]
+
+	for index in range(widths.size()):
+		var color := grass_color
+		color.a = alphas[index]
+		var width: float = widths[index]
+		_draw_edge_blend_shapes(rect, cell, mask, color, width * 0.55, width, 31.0 + index)
+
+
+func _draw_edge_blend_shapes(
+	rect: Rect2,
+	cell: Vector2i,
+	mask: int,
+	color: Color,
+	min_width: float,
+	max_width: float,
+	salt: float
+) -> void:
+	if (mask & SHORE_UP) != 0:
+		_draw_edge_blend_shape(rect, cell, SHORE_UP, color, min_width, max_width, salt)
+
+	if (mask & SHORE_DOWN) != 0:
+		_draw_edge_blend_shape(rect, cell, SHORE_DOWN, color, min_width, max_width, salt)
+
+	if (mask & SHORE_LEFT) != 0:
+		_draw_edge_blend_shape(rect, cell, SHORE_LEFT, color, min_width, max_width, salt)
+
+	if (mask & SHORE_RIGHT) != 0:
+		_draw_edge_blend_shape(rect, cell, SHORE_RIGHT, color, min_width, max_width, salt)
+
+
+func _draw_edge_blend_shape(
+	rect: Rect2,
+	cell: Vector2i,
+	side: int,
+	color: Color,
+	min_width: float,
+	max_width: float,
+	salt: float
+) -> void:
+	var segments := 4
+	var points := PackedVector2Array()
+	var pos := rect.position
+	var size := rect.size
+
+	match side:
+		SHORE_UP:
+			points.append(pos)
+			points.append(pos + Vector2(size.x, 0.0))
+			for index in range(segments, -1, -1):
+				var t := float(index) / float(segments)
+				var edge_width := lerpf(min_width, max_width, _cell_noise(cell, salt + t * 9.0))
+				points.append(pos + Vector2(size.x * t, edge_width))
+		SHORE_DOWN:
+			points.append(pos + Vector2(size.x, size.y))
+			points.append(pos + Vector2(0.0, size.y))
+			for index in range(segments + 1):
+				var t := float(index) / float(segments)
+				var edge_width := lerpf(min_width, max_width, _cell_noise(cell, salt + t * 9.0))
+				points.append(pos + Vector2(size.x * t, size.y - edge_width))
+		SHORE_LEFT:
+			points.append(pos + Vector2(0.0, size.y))
+			points.append(pos)
+			for index in range(segments + 1):
+				var t := float(index) / float(segments)
+				var edge_width := lerpf(min_width, max_width, _cell_noise(cell, salt + t * 9.0))
+				points.append(pos + Vector2(edge_width, size.y * t))
+		SHORE_RIGHT:
+			points.append(pos + Vector2(size.x, 0.0))
+			points.append(pos + Vector2(size.x, size.y))
+			for index in range(segments, -1, -1):
+				var t := float(index) / float(segments)
+				var edge_width := lerpf(min_width, max_width, _cell_noise(cell, salt + t * 9.0))
+				points.append(pos + Vector2(size.x - edge_width, size.y * t))
+
+	draw_colored_polygon(points, color)
+
+
 func _rebuild_terrain_cache() -> void:
 	land_tiles.clear()
 	water_tiles.clear()
 	water_surface_tiles.clear()
+	terrain_transition_tiles.clear()
 
 	if island == null:
 		return
@@ -161,6 +257,14 @@ func _rebuild_terrain_cache() -> void:
 					"texture": _texture_for_terrain(terrain_type),
 					"rect": rect,
 				})
+
+				var transition_mask := _grass_neighbor_mask_for_sand_cell(cell, terrain_type)
+				if transition_mask != 0:
+					terrain_transition_tiles.append({
+						"cell": cell,
+						"rect": rect,
+						"mask": transition_mask,
+					})
 
 
 func _draw_water_background() -> void:
@@ -327,6 +431,27 @@ func _shore_mask_for_water_cell(cell: Vector2i) -> int:
 		mask |= SHORE_LEFT
 
 	if _is_land(cell + Vector2i.RIGHT):
+		mask |= SHORE_RIGHT
+
+	return mask
+
+
+func _grass_neighbor_mask_for_sand_cell(cell: Vector2i, terrain_type: int) -> int:
+	if terrain_type != IslandData.Terrain.SAND:
+		return 0
+
+	var mask := 0
+
+	if island.get_terrain(cell + Vector2i.UP) == IslandData.Terrain.GRASS:
+		mask |= SHORE_UP
+
+	if island.get_terrain(cell + Vector2i.DOWN) == IslandData.Terrain.GRASS:
+		mask |= SHORE_DOWN
+
+	if island.get_terrain(cell + Vector2i.LEFT) == IslandData.Terrain.GRASS:
+		mask |= SHORE_LEFT
+
+	if island.get_terrain(cell + Vector2i.RIGHT) == IslandData.Terrain.GRASS:
 		mask |= SHORE_RIGHT
 
 	return mask
