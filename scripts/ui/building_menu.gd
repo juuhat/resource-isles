@@ -4,6 +4,7 @@ extends CanvasLayer
 signal building_selected(building_type: int)
 signal selection_cleared
 
+const BuildingCatalogScript := preload("res://scripts/buildings/building_catalog.gd")
 const NO_BUILDING := -1
 
 var selected_building_type := NO_BUILDING
@@ -43,6 +44,11 @@ func toggle_menu() -> void:
 
 func _select_crate() -> void:
 	set_selected_building(IslandData.BuildingType.CRATE)
+	building_selected.emit(selected_building_type)
+
+
+func _select_dock() -> void:
+	set_selected_building(IslandData.BuildingType.DOCK)
 	building_selected.emit(selected_building_type)
 
 
@@ -91,9 +97,14 @@ func _build_ui() -> void:
 	menu.add_child(title)
 
 	var crate_button := Button.new()
-	crate_button.text = "Crate"
+	crate_button.text = BuildingCatalogScript.get_label(IslandData.BuildingType.CRATE)
 	crate_button.pressed.connect(_select_crate)
 	menu.add_child(crate_button)
+
+	var dock_button := Button.new()
+	dock_button.text = BuildingCatalogScript.get_label(IslandData.BuildingType.DOCK)
+	dock_button.pressed.connect(_select_dock)
+	menu.add_child(dock_button)
 
 	var clear_button := Button.new()
 	clear_button.text = "Clear selection"
@@ -110,5 +121,6 @@ func _apply_selection_label() -> void:
 
 	if selected_building_type == NO_BUILDING:
 		selected_building_label.text = "Selected: none"
-	else:
-		selected_building_label.text = "Selected: Crate"
+		return
+
+	selected_building_label.text = "Selected: %s" % BuildingCatalogScript.get_label(selected_building_type)

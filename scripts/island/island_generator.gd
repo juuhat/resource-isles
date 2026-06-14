@@ -5,6 +5,15 @@ const IslandDataScript := preload("res://scripts/island/island_data.gd")
 const STARTER_ISLAND_WIDTH := 44
 const STARTER_ISLAND_HEIGHT := 32
 const SAND_BORDER_WIDTH := 2
+const STONE_PATCH_OFFSETS: Array[Vector2i] = [
+	Vector2i.ZERO,
+	Vector2i.LEFT,
+	Vector2i.RIGHT,
+	Vector2i.UP,
+	Vector2i.DOWN,
+	Vector2i(-1, -1),
+	Vector2i(1, 1),
+]
 
 var rng := RandomNumberGenerator.new()
 
@@ -20,6 +29,7 @@ func generate_starter_island(seed_value: int = 0) -> IslandData:
 	_carve_grass_blob(island)
 	_smooth_grass_edges(island, 2)
 	_add_sand_border(island, SAND_BORDER_WIDTH)
+	_place_stone_patch(island)
 	_place_trees(island)
 	_place_boulders(island)
 	return island
@@ -139,23 +149,53 @@ func _fill_rect(island: IslandData, rect: Rect2i, terrain_type: int) -> void:
 
 func _place_trees(island: IslandData) -> void:
 	for index in range(2):
-		var cell := _pick_open_grass_cell(island)
+		var cell := _pick_open_resource_cell(island, IslandData.ResourceNodeType.TREE)
 		if cell != Vector2i(-1, -1):
 			island.place_resource(cell, IslandData.ResourceNodeType.TREE)
 
 
 func _place_boulders(island: IslandData) -> void:
 	for index in range(2):
-		var cell := _pick_open_grass_cell(island)
+		var cell := _pick_open_resource_cell(island, IslandData.ResourceNodeType.BOULDER)
 		if cell != Vector2i(-1, -1):
 			island.place_resource(cell, IslandData.ResourceNodeType.BOULDER)
 
 
-func _pick_open_grass_cell(island: IslandData) -> Vector2i:
+func _place_stone_patch(island: IslandData) -> void:
+	var center := _pick_stone_patch_center(island)
+	if center == Vector2i(-1, -1):
+		return
+
+	for offset in STONE_PATCH_OFFSETS:
+		island.set_terrain(center + offset, IslandData.Terrain.STONE)
+
+
+func _pick_stone_patch_center(island: IslandData) -> Vector2i:
 	var candidates: Array[Vector2i] = []
 
 	for cell in island.terrain.keys():
-		if island.can_place_resource(cell):
+		if _can_place_stone_patch_at(island, cell):
+			candidates.append(cell)
+
+	if candidates.is_empty():
+		return Vector2i(-1, -1)
+
+	return candidates[rng.randi_range(0, candidates.size() - 1)]
+
+
+func _can_place_stone_patch_at(island: IslandData, center: Vector2i) -> bool:
+	for offset in STONE_PATCH_OFFSETS:
+		if island.get_terrain(center + offset) != IslandData.Terrain.GRASS:
+			return false
+
+	return true
+
+
+func _pick_open_resource_cell(island: IslandData, resource_node_type: int) -> Vector2i:
+	var candidates: Array[Vector2i] = []
+
+	for cell in island.terrain.keys():
+		if island.can_place_resource(cell, resource_node_type):
 			candidates.append(cell)
 
 	if candidates.is_empty():

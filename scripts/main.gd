@@ -7,6 +7,7 @@ const BuildingInfoPanelScript := preload("res://scripts/ui/building_info_panel.g
 const ResourceBarScript := preload("res://scripts/ui/resource_bar.gd")
 const ResourceManagerScript := preload("res://scripts/resources/resource_manager.gd")
 const ResourceNodeDatabaseScript := preload("res://scripts/resources/resource_node_database.gd")
+const BuildingCatalogScript := preload("res://scripts/buildings/building_catalog.gd")
 
 const NO_BUILDING := -1
 
@@ -28,6 +29,7 @@ var building_info_panel: BuildingInfoPanel
 
 func _ready() -> void:
 	resource_manager = ResourceManagerScript.new()
+	resource_manager.resource_changed.connect(_on_resource_changed)
 	resource_node_database = ResourceNodeDatabaseScript.new()
 
 	renderer = IslandRendererScript.new()
@@ -83,7 +85,7 @@ func _input(event: InputEvent) -> void:
 				return
 
 			if selected_building_type != NO_BUILDING:
-				renderer.try_place_hovered_building(selected_building_type)
+				_try_place_selected_building()
 
 	if event is InputEventMouseMotion and is_panning:
 		camera.position -= event.relative / camera.zoom.x
@@ -128,6 +130,22 @@ func _try_select_building() -> bool:
 	return true
 
 
+func _try_place_selected_building() -> bool:
+	var cost := _get_building_cost(selected_building_type)
+	if not resource_manager.can_afford(cost):
+		return false
+
+	if not renderer.try_place_hovered_building(selected_building_type):
+		return false
+
+	resource_manager.spend(cost)
+	return true
+
+
+func _get_building_cost(building_type: int) -> Dictionary:
+	return BuildingCatalogScript.get_cost(building_type)
+
+
 func _generate_island() -> void:
 	var island := generator.generate_starter_island(seed_value)
 	renderer.render(island)
@@ -158,7 +176,15 @@ func _apply_selected_building() -> void:
 		renderer.set_placement_preview(false)
 		return
 
-	renderer.set_placement_preview(true, selected_building_type)
+	renderer.set_placement_preview(
+		true,
+		selected_building_type,
+		resource_manager.can_afford(_get_building_cost(selected_building_type))
+	)
+
+
+func _on_resource_changed(_resource_type: int, _amount: int) -> void:
+	_apply_selected_building()
 
 
 func _add_ui() -> void:

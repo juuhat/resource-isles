@@ -66,7 +66,7 @@ The project now includes a code-driven terrain-only starter island scaffold:
 
 - `assets/tiles/water.png`, `assets/tiles/sand.png`, and `assets/tiles/grass.png` provide the current terrain tiles.
 - `assets/resources/tree.png` and `assets/resources/boulder.png` provide the first harvestable map resources.
-- `assets/buildings/crate.png` provides the first placeable building.
+- `assets/buildings/crate.png` and `assets/buildings/dock.png` provide the first placeable buildings.
 - `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
 - `scripts/island/island_generator.gd` creates a small starter island from a seed and places two random trees and two random boulders.
 - `scripts/island/island_renderer.gd` draws generated terrain, Y-sorted resources/buildings, hover highlighting, and placement preview.
@@ -79,6 +79,8 @@ The project now includes a code-driven terrain-only starter island scaffold:
 - `scripts/main.gd` generates and displays the island when the game starts.
 
 Naming note: resource nodes are permanent map objects such as trees and boulders, while resources are stored inventory items such as wood and stone. For example, `IslandData.ResourceNodeType.TREE` extracts into `ResourceManager.ResourceType.WOOD` once per extraction interval.
+Building footprints can be larger than one tile. For example, crates occupy a 1x1 footprint while docks occupy a 2x2 footprint.
+Buildings require resources to place. Crates cost 3 Wood, and docks cost 10 Wood.
 
 Prototype controls:
 

@@ -4,7 +4,9 @@ extends Node2D
 const WATER_TEXTURE := preload("res://assets/tiles/water.png")
 const SAND_TEXTURE := preload("res://assets/tiles/sand.png")
 const GRASS_TEXTURE := preload("res://assets/tiles/grass.png")
+const STONE_TEXTURE := preload("res://assets/tiles/stone.png")
 const CRATE_TEXTURE := preload("res://assets/buildings/crate.png")
+const DOCK_TEXTURE := preload("res://assets/buildings/dock.png")
 const SHORE_UP := 1
 const SHORE_DOWN := 2
 const SHORE_LEFT := 4
@@ -24,6 +26,7 @@ var resource_node_database: ResourceNodeDatabase
 var hovered_cell := Vector2i(-1, -1)
 var placement_preview_enabled := false
 var placement_building_type := IslandData.BuildingType.CRATE
+var placement_can_afford := true
 var water_time := 0.0
 var water_gradient_texture: ImageTexture
 var land_tiles: Array[Dictionary] = []
@@ -89,9 +92,14 @@ func set_hovered_world_position(world_position: Vector2) -> void:
 	queue_redraw()
 
 
-func set_placement_preview(enabled: bool, building_type: int = IslandData.BuildingType.CRATE) -> void:
+func set_placement_preview(
+	enabled: bool,
+	building_type: int = IslandData.BuildingType.CRATE,
+	can_afford: bool = true
+) -> void:
 	placement_preview_enabled = enabled
 	placement_building_type = building_type
+	placement_can_afford = can_afford
 	queue_redraw()
 
 
@@ -589,15 +597,17 @@ func _draw_sorted_objects() -> void:
 		})
 
 	for cell in island.buildings.keys():
+		var footprint_size := island.get_building_footprint_size(island.buildings[cell])
 		draw_items.append({
 			"kind": "building",
 			"cell": cell,
+			"sort_cell": cell + footprint_size - Vector2i.ONE,
 			"type": island.buildings[cell],
 		})
 
 	draw_items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var a_cell: Vector2i = a["cell"]
-		var b_cell: Vector2i = b["cell"]
+		var a_cell: Vector2i = a.get("sort_cell", a["cell"])
+		var b_cell: Vector2i = b.get("sort_cell", b["cell"])
 
 		if a_cell.y == b_cell.y:
 			return a_cell.x < b_cell.x
@@ -635,7 +645,8 @@ func _draw_resource(cell: Vector2i, resource_node_type: int) -> void:
 
 
 func _draw_building(cell: Vector2i, building_type: int) -> void:
-	var rect := Rect2(cell_to_world(cell), cell_size)
+	var footprint_size := island.get_building_footprint_size(building_type)
+	var rect := Rect2(cell_to_world(cell), Vector2(footprint_size.x, footprint_size.y) * cell_size)
 	draw_texture_rect(_texture_for_building(building_type), rect, false)
 
 
@@ -651,8 +662,9 @@ func _draw_placement_preview() -> void:
 	if not placement_preview_enabled or hovered_cell == Vector2i(-1, -1):
 		return
 
-	var rect := Rect2(cell_to_world(hovered_cell), cell_size)
-	var can_place := island.can_place_building(hovered_cell)
+	var footprint_size := island.get_building_footprint_size(placement_building_type)
+	var rect := Rect2(cell_to_world(hovered_cell), Vector2(footprint_size.x, footprint_size.y) * cell_size)
+	var can_place := island.can_place_building(hovered_cell, placement_building_type) and placement_can_afford
 	var tint := Color(1.0, 1.0, 1.0, 0.55) if can_place else Color(1.0, 0.2, 0.2, 0.45)
 
 	draw_texture_rect(_texture_for_building(placement_building_type), rect, false, tint)
@@ -672,6 +684,8 @@ func _texture_for_terrain(terrain_type: int) -> Texture2D:
 			return GRASS_TEXTURE
 		IslandData.Terrain.SAND:
 			return SAND_TEXTURE
+		IslandData.Terrain.STONE:
+			return STONE_TEXTURE
 		_:
 			return WATER_TEXTURE
 
@@ -680,5 +694,7 @@ func _texture_for_building(building_type: int) -> Texture2D:
 	match building_type:
 		IslandData.BuildingType.CRATE:
 			return CRATE_TEXTURE
+		IslandData.BuildingType.DOCK:
+			return DOCK_TEXTURE
 		_:
 			return CRATE_TEXTURE

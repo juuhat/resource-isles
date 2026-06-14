@@ -1,6 +1,8 @@
 class_name BuildingInfoPanel
 extends CanvasLayer
 
+const BuildingCatalogScript := preload("res://scripts/buildings/building_catalog.gd")
+
 var panel: PanelContainer
 var title_label: Label
 var detail_label: Label
@@ -63,8 +65,4 @@ func _build_ui() -> void:
 
 
 func _get_building_name(building_type: int) -> String:
-	match building_type:
-		IslandData.BuildingType.CRATE:
-			return "Crate"
-		_:
-			return "Unknown Building"
+	return BuildingCatalogScript.get_display_name(building_type)
