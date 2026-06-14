@@ -26,6 +26,24 @@ Resource Isles should feel like a relaxing little evening game: calm, readable, 
 - Shorelines should feel soft and peaceful, with restrained foam and gradual water color changes.
 - Visual effects should support the quiet mood instead of calling attention to themselves.
 
+### Asset Style
+
+Resource and building sprites should lean cartoony rather than painterly or realistic.
+
+- Use chunky, readable silhouettes that still work at normal zoom.
+- Favor bold simple shapes, soft highlights, and modest dark outlines.
+- Keep detail broad and graphic; avoid tiny leaves, noisy texture, or dense concept-art rendering.
+- Use teal greens, blue-green shadows, muted warm highlights, and calm earthy accents.
+- Sprites should feel like compact toy-like game pieces placed on the hex map.
+- A resource tile can represent a larger concept than one object. For example, a forest tile should show a small cluster of trees, while still occupying one gameplay tile.
+- Generated assets should use transparent PNG output or a clean chroma-key background that can be removed.
+
+Current visual references:
+
+- `assets/resources/tree.png`: simple cartoony pine tree with teal-green branch layers.
+- `assets/resources/boulder.png`: chunky cartoon rock with faceted shapes and a dark outline.
+- `assets/resources/forest.png`: clustered forest tile with simplified pine shapes.
+
 ## Project Status
 
 Early prototype setup:
