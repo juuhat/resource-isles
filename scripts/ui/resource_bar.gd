@@ -44,11 +44,11 @@ func _build_ui() -> void:
 	margin.add_child(row)
 
 	var wood_label := Label.new()
-	resource_labels[ResourceManager.ResourceType.WOOD] = wood_label
+	resource_labels[GameTypes.ResourceType.WOOD] = wood_label
 	row.add_child(wood_label)
 
 	var stone_label := Label.new()
-	resource_labels[ResourceManager.ResourceType.STONE] = stone_label
+	resource_labels[GameTypes.ResourceType.STONE] = stone_label
 	row.add_child(stone_label)
 
 
@@ -70,6 +70,6 @@ func _update_label(resource_type: int) -> void:
 
 	var label: Label = resource_labels[resource_type]
 	label.text = "%s: %d" % [
-		resource_manager.get_display_name(resource_type),
+		ResourceManager.get_display_name_for_type(resource_type),
 		resource_manager.get_amount(resource_type),
 	]

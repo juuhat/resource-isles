@@ -10,22 +10,26 @@ var definitions: Dictionary = {}
 
 func _init() -> void:
 	_add_definition(BuildingDefinitionScript.new(
-		IslandData.BuildingType.HUB,
+		GameTypes.BuildingType.HUB,
 		"Hub",
 		HUB_TEXTURE,
 		{
-			ResourceManager.ResourceType.WOOD: 8,
-			ResourceManager.ResourceType.STONE: 4,
+			GameTypes.ResourceType.WOOD: 8,
+			GameTypes.ResourceType.STONE: 4,
 		}
 	))
 	_add_definition(BuildingDefinitionScript.new(
-		IslandData.BuildingType.LOGGER_CAMP,
+		GameTypes.BuildingType.LOGGER_CAMP,
 		"Logger's Camp",
 		LOGGER_CAMP_TEXTURE,
 		{
-			ResourceManager.ResourceType.WOOD: 6,
+			GameTypes.ResourceType.WOOD: 6,
 		}
 	))
+
+
+func get_footprint_cells(anchor_cell: Vector2i, building_type: int) -> Array[Vector2i]:
+	return [anchor_cell]
 
 
 func get_definition(building_type: int) -> BuildingDefinition:

@@ -3,23 +3,6 @@ extends RefCounted
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 
-enum Terrain {
-	WATER,
-	SAND,
-	GRASS,
-	STONE,
-}
-
-enum BuildingType {
-	HUB,
-	LOGGER_CAMP,
-}
-
-enum ResourceNodeType {
-	TREE,
-	STONE,
-}
-
 var width: int
 var height: int
 var terrain: Dictionary = {}
@@ -43,14 +26,14 @@ func set_terrain(cell: Vector2i, terrain_type: int) -> void:
 
 
 func get_terrain(cell: Vector2i) -> int:
-	return terrain.get(cell, Terrain.WATER)
+	return terrain.get(cell, GameTypes.Terrain.WATER)
 
 
-func can_place_building(cell: Vector2i, building_type: int = BuildingType.LOGGER_CAMP) -> bool:
-	for footprint_cell in get_building_footprint_cells(cell, building_type):
+func can_place_building(cell: Vector2i, footprint_cells: Array[Vector2i]) -> bool:
+	for footprint_cell in footprint_cells:
 		if (
 			not is_in_bounds(footprint_cell)
-			or get_terrain(footprint_cell) != Terrain.GRASS
+			or get_terrain(footprint_cell) != GameTypes.Terrain.GRASS
 			or resources.has(footprint_cell)
 			or _has_building_on_cell(footprint_cell)
 		):
@@ -59,11 +42,11 @@ func can_place_building(cell: Vector2i, building_type: int = BuildingType.LOGGER
 	return true
 
 
-func place_building(cell: Vector2i, building_type: int) -> bool:
-	if not can_place_building(cell, building_type):
+func place_building(cell: Vector2i, building_type: int, footprint_cells: Array[Vector2i]) -> bool:
+	if not can_place_building(cell, footprint_cells):
 		return false
 
-	buildings[cell] = building_type
+	buildings[cell] = {type = building_type, cells = footprint_cells}
 	return true
 
 
@@ -76,34 +59,25 @@ func get_building_type(cell: Vector2i) -> int:
 	if anchor_cell == Vector2i(-1, -1):
 		return -1
 
-	return buildings.get(anchor_cell, -1)
+	return buildings[anchor_cell].type
 
 
 func get_building_anchor_cell(cell: Vector2i) -> Vector2i:
 	for anchor_cell in buildings.keys():
-		if get_building_footprint_cells(anchor_cell, buildings[anchor_cell]).has(cell):
+		if (buildings[anchor_cell].cells as Array).has(cell):
 			return anchor_cell
 
 	return Vector2i(-1, -1)
 
 
-func get_building_footprint_size(building_type: int) -> Vector2i:
-	match building_type:
-		_:
-			return Vector2i.ONE
+func get_building_footprint_cells(anchor_cell: Vector2i) -> Array[Vector2i]:
+	if not buildings.has(anchor_cell):
+		return []
+
+	return buildings[anchor_cell].cells
 
 
-func get_building_footprint_cells(cell: Vector2i, building_type: int) -> Array[Vector2i]:
-	var cells: Array[Vector2i] = []
-
-	match building_type:
-		_:
-			cells.append(cell)
-
-	return cells
-
-
-func can_place_resource(cell: Vector2i, resource_node_type: int = ResourceNodeType.TREE) -> bool:
+func can_place_resource(cell: Vector2i, resource_node_type: int = GameTypes.ResourceNodeType.TREE) -> bool:
 	return (
 		is_in_bounds(cell)
 		and get_terrain(cell) == _terrain_for_resource(resource_node_type)
@@ -144,10 +118,10 @@ func get_next_extraction_time(cell: Vector2i) -> float:
 
 func _terrain_for_resource(resource_node_type: int) -> int:
 	match resource_node_type:
-		ResourceNodeType.STONE:
-			return Terrain.STONE
+		GameTypes.ResourceNodeType.STONE:
+			return GameTypes.Terrain.STONE
 		_:
-			return Terrain.GRASS
+			return GameTypes.Terrain.GRASS
 
 
 func _has_building_on_cell(cell: Vector2i) -> bool:

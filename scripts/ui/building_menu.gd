@@ -47,12 +47,12 @@ func toggle_menu() -> void:
 
 
 func _select_logger_camp() -> void:
-	set_selected_building(IslandData.BuildingType.LOGGER_CAMP)
+	set_selected_building(GameTypes.BuildingType.LOGGER_CAMP)
 	building_selected.emit(selected_building_type)
 
 
 func _select_hub() -> void:
-	set_selected_building(IslandData.BuildingType.HUB)
+	set_selected_building(GameTypes.BuildingType.HUB)
 	building_selected.emit(selected_building_type)
 
 
@@ -101,12 +101,12 @@ func _build_ui() -> void:
 	menu.add_child(title)
 
 	var hub_button := Button.new()
-	hub_button.text = building_manager.get_label(IslandData.BuildingType.HUB)
+	hub_button.text = building_manager.get_label(GameTypes.BuildingType.HUB)
 	hub_button.pressed.connect(_select_hub)
 	menu.add_child(hub_button)
 
 	var logger_camp_button := Button.new()
-	logger_camp_button.text = building_manager.get_label(IslandData.BuildingType.LOGGER_CAMP)
+	logger_camp_button.text = building_manager.get_label(GameTypes.BuildingType.LOGGER_CAMP)
 	logger_camp_button.pressed.connect(_select_logger_camp)
 	menu.add_child(logger_camp_button)
 

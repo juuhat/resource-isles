@@ -20,6 +20,7 @@ var min_zoom := 0.25
 var max_zoom := 1.5
 var is_panning := false
 var selected_building_type := NO_BUILDING
+var current_island: IslandData
 var building_manager: BuildingManager
 var resource_manager: ResourceManager
 var resource_node_database: ResourceNodeDatabase
@@ -112,11 +113,11 @@ func _try_harvest_resource() -> bool:
 		return true
 
 	var current_time_seconds := Time.get_ticks_msec() / 1000.0
-	if not renderer.island.can_extract_resource(renderer.hovered_cell, current_time_seconds):
+	if not current_island.can_extract_resource(renderer.hovered_cell, current_time_seconds):
 		return true
 
 	resource_manager.add_amount(definition.extracted_resource_type, definition.extraction_amount)
-	renderer.island.mark_resource_extracted(
+	current_island.mark_resource_extracted(
 		renderer.hovered_cell,
 		current_time_seconds + definition.extraction_interval_seconds
 	)
@@ -149,10 +150,10 @@ func _get_building_cost(building_type: int) -> Dictionary:
 
 
 func _generate_island() -> void:
-	var island := generator.generate_starter_island(seed_value)
-	renderer.render(island)
+	current_island = generator.generate_starter_island(seed_value, building_manager)
+	renderer.render(current_island)
 	_apply_selected_building()
-	_center_camera(island)
+	_center_camera(current_island)
 
 
 func _center_camera(_island: IslandData) -> void:

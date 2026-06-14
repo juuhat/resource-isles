@@ -22,7 +22,7 @@ var resource_node_database: ResourceNodeDatabase
 var building_manager: BuildingManager
 var hovered_cell := Vector2i(-1, -1)
 var placement_preview_enabled := false
-var placement_building_type := IslandData.BuildingType.LOGGER_CAMP
+var placement_building_type := GameTypes.BuildingType.LOGGER_CAMP
 var placement_can_afford := true
 var water_time := 0.0
 var water_redraw_elapsed := 0.0
@@ -139,7 +139,7 @@ func set_hovered_world_position(world_position: Vector2) -> void:
 
 func set_placement_preview(
 	enabled: bool,
-	building_type: int = IslandData.BuildingType.LOGGER_CAMP,
+	building_type: int = GameTypes.BuildingType.LOGGER_CAMP,
 	can_afford: bool = true
 ) -> void:
 	placement_preview_enabled = enabled
@@ -148,11 +148,12 @@ func set_placement_preview(
 	queue_redraw()
 
 
-func try_place_hovered_building(building_type: int = IslandData.BuildingType.LOGGER_CAMP) -> bool:
+func try_place_hovered_building(building_type: int = GameTypes.BuildingType.LOGGER_CAMP) -> bool:
 	if island == null or hovered_cell == Vector2i(-1, -1):
 		return false
 
-	var placed := island.place_building(hovered_cell, building_type)
+	var footprint := building_manager.get_footprint_cells(hovered_cell, building_type)
+	var placed := island.place_building(hovered_cell, building_type, footprint)
 	if placed:
 		queue_redraw()
 
@@ -210,7 +211,7 @@ func _rebuild_terrain_cache() -> void:
 			var terrain_type := island.get_terrain(cell)
 			var rect := Rect2(cell_to_world(cell), cell_size)
 
-			if terrain_type == IslandData.Terrain.WATER:
+			if terrain_type == GameTypes.Terrain.WATER:
 				var depth := _water_depth_factor(cell)
 				water_tiles.append({
 					"rect": rect,
@@ -415,11 +416,11 @@ func _water_depth_factor(cell: Vector2i) -> float:
 
 
 func _is_water(cell: Vector2i) -> bool:
-	return island.is_in_bounds(cell) and island.get_terrain(cell) == IslandData.Terrain.WATER
+	return island.is_in_bounds(cell) and island.get_terrain(cell) == GameTypes.Terrain.WATER
 
 
 func _is_land(cell: Vector2i) -> bool:
-	return island.is_in_bounds(cell) and island.get_terrain(cell) != IslandData.Terrain.WATER
+	return island.is_in_bounds(cell) and island.get_terrain(cell) != GameTypes.Terrain.WATER
 
 
 func _draw_grid() -> void:
@@ -433,7 +434,7 @@ func _rebuild_grid_cache() -> void:
 	for y in range(island.height):
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
-			if island.get_terrain(cell) == IslandData.Terrain.WATER and _water_depth_factor(cell) > 0.2:
+			if island.get_terrain(cell) == GameTypes.Terrain.WATER and _water_depth_factor(cell) > 0.2:
 				continue
 
 			var points := HexGridScript.hex_points(cell_to_world(cell), cell_size)
@@ -454,11 +455,12 @@ func _draw_sorted_objects() -> void:
 		})
 
 	for cell in island.buildings.keys():
+		var building_type: int = island.buildings[cell].type
 		draw_items.append({
 			"kind": "building",
 			"cell": cell,
-			"sort_cell": _get_last_footprint_cell(cell, island.buildings[cell]),
-			"type": island.buildings[cell],
+			"sort_cell": _get_last_footprint_cell(cell),
+			"type": building_type,
 		})
 
 	draw_items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -524,10 +526,11 @@ func _draw_placement_preview() -> void:
 		return
 
 	var rect := _visual_bounds(hovered_cell, placement_building_type)
-	var can_place := island.can_place_building(hovered_cell, placement_building_type) and placement_can_afford
+	var preview_footprint := building_manager.get_footprint_cells(hovered_cell, placement_building_type)
+	var can_place := island.can_place_building(hovered_cell, preview_footprint) and placement_can_afford
 	var tint := Color(1.0, 1.0, 1.0, 0.55) if can_place else Color(1.0, 0.2, 0.2, 0.45)
 
-	for cell in island.get_building_footprint_cells(hovered_cell, placement_building_type):
+	for cell in preview_footprint:
 		if island.is_in_bounds(cell):
 			draw_colored_polygon(HexGridScript.hex_points(cell_to_world(cell), cell_size), tint)
 
@@ -564,8 +567,9 @@ func _hex_edge_points(top_left: Vector2, direction_index: int) -> PackedVector2A
 
 func _footprint_bounds(cell: Vector2i, building_type: int) -> Rect2:
 	var bounds := Rect2(cell_to_world(cell), cell_size)
+	var cells := island.get_building_footprint_cells(cell) if island.buildings.has(cell) else building_manager.get_footprint_cells(cell, building_type)
 
-	for footprint_cell in island.get_building_footprint_cells(cell, building_type):
+	for footprint_cell in cells:
 		bounds = bounds.merge(Rect2(cell_to_world(footprint_cell), cell_size))
 
 	return bounds
@@ -599,10 +603,10 @@ func _visual_size_for_building(building_type: int) -> Vector2:
 	)
 
 
-func _get_last_footprint_cell(cell: Vector2i, building_type: int) -> Vector2i:
+func _get_last_footprint_cell(cell: Vector2i) -> Vector2i:
 	var last_cell := cell
 
-	for footprint_cell in island.get_building_footprint_cells(cell, building_type):
+	for footprint_cell in island.get_building_footprint_cells(cell):
 		if footprint_cell.y > last_cell.y or (
 			footprint_cell.y == last_cell.y
 			and footprint_cell.x > last_cell.x
@@ -622,11 +626,11 @@ func _screen_pixels_to_world(screen_pixels: float) -> float:
 
 func _color_for_terrain(terrain_type: int) -> Color:
 	match terrain_type:
-		IslandData.Terrain.GRASS:
+		GameTypes.Terrain.GRASS:
 			return GRASS_COLOR
-		IslandData.Terrain.SAND:
+		GameTypes.Terrain.SAND:
 			return SAND_COLOR
-		IslandData.Terrain.STONE:
+		GameTypes.Terrain.STONE:
 			return STONE_COLOR
 		_:
 			return SHALLOW_WATER_COLOR

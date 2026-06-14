@@ -3,14 +3,9 @@ extends RefCounted
 
 signal resource_changed(resource_type: int, amount: int)
 
-enum ResourceType {
-	WOOD,
-	STONE,
-}
-
 var amounts: Dictionary = {
-	ResourceType.WOOD: 100,
-	ResourceType.STONE: 100,
+	GameTypes.ResourceType.WOOD: 100,
+	GameTypes.ResourceType.STONE: 100,
 }
 
 
@@ -45,15 +40,11 @@ func spend(cost: Dictionary) -> bool:
 	return true
 
 
-func get_display_name(resource_type: int) -> String:
-	return get_display_name_for_type(resource_type)
-
-
 static func get_display_name_for_type(resource_type: int) -> String:
 	match resource_type:
-		ResourceType.WOOD:
+		GameTypes.ResourceType.WOOD:
 			return "Wood"
-		ResourceType.STONE:
+		GameTypes.ResourceType.STONE:
 			return "Stone"
 		_:
 			return "Unknown"

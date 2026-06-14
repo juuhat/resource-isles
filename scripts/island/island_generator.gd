@@ -10,7 +10,7 @@ const SAND_BORDER_WIDTH := 1
 var rng := RandomNumberGenerator.new()
 
 
-func generate_starter_island(seed_value: int = 0) -> IslandData:
+func generate_starter_island(seed_value: int = 0, building_manager: BuildingManager = null) -> IslandData:
 	if seed_value == 0:
 		rng.randomize()
 	else:
@@ -21,7 +21,7 @@ func generate_starter_island(seed_value: int = 0) -> IslandData:
 	_carve_grass_blob(island)
 	_smooth_grass_edges(island, 2)
 	_add_sand_border(island, SAND_BORDER_WIDTH)
-	_place_required_hub(island)
+	_place_required_hub(island, building_manager)
 	_place_stone_patch(island)
 	_place_trees(island)
 	_place_stones(island)
@@ -31,7 +31,7 @@ func generate_starter_island(seed_value: int = 0) -> IslandData:
 func _fill_water(island: IslandData) -> void:
 	for y in range(island.height):
 		for x in range(island.width):
-			island.set_terrain(Vector2i(x, y), IslandData.Terrain.WATER)
+			island.set_terrain(Vector2i(x, y), GameTypes.Terrain.WATER)
 
 
 func _carve_grass_blob(island: IslandData) -> void:
@@ -48,7 +48,7 @@ func _carve_grass_blob(island: IslandData) -> void:
 			var edge_noise := rng.randf_range(-0.055, 0.055)
 
 			if normalized_distance + edge_noise < 1.0:
-				island.set_terrain(cell, IslandData.Terrain.GRASS)
+				island.set_terrain(cell, GameTypes.Terrain.GRASS)
 
 
 func _smooth_grass_edges(island: IslandData, passes: int) -> void:
@@ -61,24 +61,24 @@ func _smooth_grass_edges(island: IslandData, passes: int) -> void:
 				var cell := Vector2i(x, y)
 				var land_neighbors := _neighbor_land_count(island, cell)
 
-				if island.get_terrain(cell) == IslandData.Terrain.GRASS:
+				if island.get_terrain(cell) == GameTypes.Terrain.GRASS:
 					if land_neighbors <= 1:
 						to_water.append(cell)
 				elif land_neighbors >= 4:
 					to_grass.append(cell)
 
 		for cell in to_water:
-			island.set_terrain(cell, IslandData.Terrain.WATER)
+			island.set_terrain(cell, GameTypes.Terrain.WATER)
 
 		for cell in to_grass:
-			island.set_terrain(cell, IslandData.Terrain.GRASS)
+			island.set_terrain(cell, GameTypes.Terrain.GRASS)
 
 
 func _neighbor_land_count(island: IslandData, cell: Vector2i) -> int:
 	var count := 0
 
 	for neighbor in HexGridScript.neighbors(cell):
-		if island.get_terrain(neighbor) == IslandData.Terrain.GRASS:
+		if island.get_terrain(neighbor) == GameTypes.Terrain.GRASS:
 			count += 1
 
 	return count
@@ -91,16 +91,16 @@ func _add_sand_border(island: IslandData, width: int) -> void:
 	var to_sand: Array[Vector2i] = []
 
 	for cell in island.terrain.keys():
-		if island.get_terrain(cell) != IslandData.Terrain.GRASS:
+		if island.get_terrain(cell) != GameTypes.Terrain.GRASS:
 			continue
 
 		for neighbor in HexGridScript.neighbors(cell):
-			if island.get_terrain(neighbor) == IslandData.Terrain.WATER:
+			if island.get_terrain(neighbor) == GameTypes.Terrain.WATER:
 				to_sand.append(cell)
 				break
 
 	for cell in to_sand:
-		island.set_terrain(cell, IslandData.Terrain.SAND)
+		island.set_terrain(cell, GameTypes.Terrain.SAND)
 
 	for pass_index in range(width - 1):
 		_expand_sand_into_water(island)
@@ -112,16 +112,16 @@ func _expand_sand_into_water(island: IslandData) -> void:
 	for y in range(island.height):
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
-			if island.get_terrain(cell) != IslandData.Terrain.WATER:
+			if island.get_terrain(cell) != GameTypes.Terrain.WATER:
 				continue
 
 			for neighbor in HexGridScript.neighbors(cell):
-				if island.get_terrain(neighbor) == IslandData.Terrain.SAND:
+				if island.get_terrain(neighbor) == GameTypes.Terrain.SAND:
 					to_sand.append(cell)
 					break
 
 	for cell in to_sand:
-		island.set_terrain(cell, IslandData.Terrain.SAND)
+		island.set_terrain(cell, GameTypes.Terrain.SAND)
 
 
 func _place_trees(island: IslandData) -> void:
@@ -130,14 +130,14 @@ func _place_trees(island: IslandData) -> void:
 		return
 
 	for cell in cluster:
-		island.place_resource(cell, IslandData.ResourceNodeType.TREE)
+		island.place_resource(cell, GameTypes.ResourceNodeType.TREE)
 
 
 func _place_stones(island: IslandData) -> void:
 	for index in range(2):
-		var cell := _pick_open_resource_cell(island, IslandData.ResourceNodeType.STONE)
+		var cell := _pick_open_resource_cell(island, GameTypes.ResourceNodeType.STONE)
 		if cell != Vector2i(-1, -1):
-			island.place_resource(cell, IslandData.ResourceNodeType.STONE)
+			island.place_resource(cell, GameTypes.ResourceNodeType.STONE)
 
 
 func _place_stone_patch(island: IslandData) -> void:
@@ -146,16 +146,17 @@ func _place_stone_patch(island: IslandData) -> void:
 		return
 
 	for cell in _stone_patch_cells(center):
-		island.set_terrain(cell, IslandData.Terrain.STONE)
+		island.set_terrain(cell, GameTypes.Terrain.STONE)
 
 
-func _place_required_hub(island: IslandData) -> void:
+func _place_required_hub(island: IslandData, building_manager: BuildingManager) -> void:
 	var center := Vector2(island.width * 0.5, island.height * 0.52)
 	var best_cell := Vector2i(-1, -1)
 	var best_distance := INF
 
 	for cell in island.terrain.keys():
-		if not island.can_place_building(cell, IslandData.BuildingType.HUB):
+		var footprint := building_manager.get_footprint_cells(cell, GameTypes.BuildingType.HUB) if building_manager else [cell] as Array[Vector2i]
+		if not island.can_place_building(cell, footprint):
 			continue
 
 		var distance := Vector2(float(cell.x), float(cell.y)).distance_squared_to(center)
@@ -164,15 +165,17 @@ func _place_required_hub(island: IslandData) -> void:
 			best_cell = cell
 
 	if best_cell != Vector2i(-1, -1):
-		island.place_building(best_cell, IslandData.BuildingType.HUB)
+		var footprint := building_manager.get_footprint_cells(best_cell, GameTypes.BuildingType.HUB) if building_manager else [best_cell] as Array[Vector2i]
+		island.place_building(best_cell, GameTypes.BuildingType.HUB, footprint)
 		return
 
 	var fallback_cell := Vector2i(
 		clampi(roundi(center.x), 0, island.width - 1),
 		clampi(roundi(center.y), 0, island.height - 1)
 	)
-	island.set_terrain(fallback_cell, IslandData.Terrain.GRASS)
-	island.place_building(fallback_cell, IslandData.BuildingType.HUB)
+	island.set_terrain(fallback_cell, GameTypes.Terrain.GRASS)
+	var fallback_footprint := building_manager.get_footprint_cells(fallback_cell, GameTypes.BuildingType.HUB) if building_manager else [fallback_cell] as Array[Vector2i]
+	island.place_building(fallback_cell, GameTypes.BuildingType.HUB, fallback_footprint)
 
 
 func _pick_stone_patch_center(island: IslandData) -> Vector2i:
@@ -190,7 +193,7 @@ func _pick_stone_patch_center(island: IslandData) -> Vector2i:
 
 func _can_place_stone_patch_at(island: IslandData, center: Vector2i) -> bool:
 	for cell in _stone_patch_cells(center):
-		if island.get_terrain(cell) != IslandData.Terrain.GRASS or island.has_building(cell):
+		if island.get_terrain(cell) != GameTypes.Terrain.GRASS or island.has_building(cell):
 			return false
 
 	return true
@@ -228,7 +231,7 @@ func _forest_cluster_cells(cell: Vector2i, direction_index: int) -> Array:
 
 func _can_place_forest_cluster(island: IslandData, cells: Array) -> bool:
 	for cell in cells:
-		if not island.can_place_resource(cell, IslandData.ResourceNodeType.TREE):
+		if not island.can_place_resource(cell, GameTypes.ResourceNodeType.TREE):
 			return false
 
 	return true

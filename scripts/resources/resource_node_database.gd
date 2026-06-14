@@ -10,10 +10,10 @@ var definitions: Dictionary = {}
 
 func _init() -> void:
 	_add_definition(ResourceNodeDefinitionScript.new(
-		IslandData.ResourceNodeType.TREE,
+		GameTypes.ResourceNodeType.TREE,
 		"Forest",
 		FOREST_TEXTURE,
-		ResourceManager.ResourceType.WOOD,
+		GameTypes.ResourceType.WOOD,
 		1,
 		10.0,
 		Vector2i(1, 1),
@@ -21,10 +21,10 @@ func _init() -> void:
 		Vector2(0.0, -0.25)
 	))
 	_add_definition(ResourceNodeDefinitionScript.new(
-		IslandData.ResourceNodeType.STONE,
+		GameTypes.ResourceNodeType.STONE,
 		"Stone",
 		STONE_TEXTURE,
-		ResourceManager.ResourceType.STONE,
+		GameTypes.ResourceType.STONE,
 		1,
 		12.0,
 		Vector2i(1, 1),
