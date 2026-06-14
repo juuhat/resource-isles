@@ -64,7 +64,7 @@ The project is configured as a Godot 4 project and currently uses the mobile ren
 
 The project now includes a code-driven hex-tile starter island scaffold:
 
-- Terrain hexes are drawn in code with flat colors, leaving PNG assets free for optional decorations on top.
+- `assets/tiles/tile.png` provides a shared white hex mask that terrain draws and tints in code, leaving decorative PNGs free to layer on top.
 - `assets/resources/tree.png` and `assets/resources/boulder.png` provide the first harvestable map resources.
 - `assets/buildings/crate.png` and `assets/buildings/dock.png` provide the first placeable buildings.
 - `scripts/island/hex_grid.gd` provides pointy-top hex coordinates, neighbors, polygon points, and picking helpers.

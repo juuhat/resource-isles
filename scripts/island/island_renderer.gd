@@ -2,6 +2,7 @@ class_name IslandRenderer
 extends Node2D
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
+const TILE_TEXTURE := preload("res://assets/tiles/tile.png")
 const CRATE_TEXTURE := preload("res://assets/buildings/crate.png")
 const DOCK_TEXTURE := preload("res://assets/buildings/dock.png")
 
@@ -30,6 +31,10 @@ var land_tiles: Array[Dictionary] = []
 var water_tiles: Array[Dictionary] = []
 var water_surface_tiles: Array[Dictionary] = []
 var grid_line_segments := PackedVector2Array()
+
+
+func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
 
 func _process(delta: float) -> void:
@@ -173,16 +178,16 @@ func _draw_terrain() -> void:
 		_draw_water_tile(tile)
 
 	for tile in land_tiles:
-		var points: PackedVector2Array = tile["points"]
 		var terrain_type: int = tile["terrain_type"]
-		draw_colored_polygon(points, _color_for_terrain(terrain_type))
+		var rect: Rect2 = tile["rect"]
+		draw_texture_rect(TILE_TEXTURE, rect, false, _color_for_terrain(terrain_type))
 
 	_draw_water_surface_details()
 
 
 func _draw_water_tile(tile: Dictionary) -> void:
-	var points: PackedVector2Array = tile["points"]
-	draw_colored_polygon(points, WATER_COLOR)
+	var rect: Rect2 = tile["rect"]
+	draw_texture_rect(TILE_TEXTURE, rect, false, WATER_COLOR)
 
 
 func _rebuild_terrain_cache() -> void:
@@ -201,11 +206,10 @@ func _rebuild_terrain_cache() -> void:
 			var cell := Vector2i(x, y)
 			var terrain_type := island.get_terrain(cell)
 			var rect := Rect2(cell_to_world(cell), cell_size)
-			var points := HexGridScript.hex_points(rect.position, rect.size)
 
 			if terrain_type == IslandData.Terrain.WATER:
 				water_tiles.append({
-					"points": points,
+					"rect": rect,
 				})
 				water_surface_tiles.append({
 					"cell": cell,
@@ -218,7 +222,6 @@ func _rebuild_terrain_cache() -> void:
 				land_tiles.append({
 					"terrain_type": terrain_type,
 					"rect": rect,
-					"points": points,
 				})
 
 	_rebuild_grid_cache()
