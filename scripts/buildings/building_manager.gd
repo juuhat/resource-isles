@@ -36,6 +36,9 @@ func _init() -> void:
 		_yield_rule(GameTypes.AdjacencyKind.RESOURCE, GameTypes.ResourceNodeType.TREE, 1),
 		_yield_rule(GameTypes.AdjacencyKind.BUILDING, GameTypes.BuildingType.LOGGER_CAMP, -1),
 	]
+	logger_camp.production_resource_type = GameTypes.ResourceType.WOOD
+	logger_camp.production_base_amount = 1
+	logger_camp.production_interval_seconds = 3.0
 	_add_definition(logger_camp)
 
 
@@ -105,6 +108,16 @@ func get_adjacency_yield(anchor_cell: Vector2i, building_type: int, island: Isla
 		})
 
 	return result
+
+
+# Per-tick output for a placed building: base plus adjacency total, never below zero.
+func get_production_amount(anchor_cell: Vector2i, building_type: int, island: IslandData) -> int:
+	var definition := get_definition(building_type)
+	if definition == null or definition.production_resource_type == -1:
+		return 0
+
+	var bonus: int = get_adjacency_yield(anchor_cell, building_type, island).total
+	return maxi(0, definition.production_base_amount + bonus)
 
 
 func get_definition(building_type: int) -> BuildingDefinition:

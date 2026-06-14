@@ -1,6 +1,7 @@
 # Resource Isles
 
 Resource Isles is a 2D resource management and building game made with the Godot game engine. It uses a 3/4 top-down perspective, aiming for the readable building layouts of Factorio with the cozy spatial feel of games like Stardew Valley.
+Also Civilization VI style hex grid, with building adjanciencies.
 
 The project is currently in early development. The core idea is to start on one small island, build a compact production base, unlock new technologies, and expand to nearby islands with new or larger resource deposits.
 
@@ -70,7 +71,9 @@ Early prototype setup:
 - Godot project created
 - Main scene scaffolded in `game.tscn`
 - Mobile-friendly Godot renderer settings enabled
-- Gameplay systems, UI, art, and balancing are still to be built
+- Procedural hex island generation, terrain rendering, and camera controls in place
+- Resource gathering, building placement with cost checks, adjacency rules/bonuses, and timed production implemented
+- Tech progression, inter-island logistics, power, art, and balancing are still to be built
 
 ## Requirements
 
@@ -108,19 +111,36 @@ The project now includes a code-driven hex-tile starter island scaffold:
 - `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
 - `scripts/island/island_generator.gd` creates a small starter island from a seed, places a three-forest triangle cluster, and places two random stones.
 - `scripts/island/island_renderer.gd` draws generated terrain, Y-sorted resources/buildings, hover highlighting, and placement preview.
+- `scripts/game_types.gd` centralizes the shared gameplay enums (`Terrain`, `BuildingType`, `ResourceNodeType`, `ResourceType`, `AdjacencyKind`) so data and manager classes stay decoupled.
 - `scripts/resources/resource_manager.gd` tracks current resource amounts.
 - `scripts/resources/resource_node_definition.gd` defines resource node properties such as footprint, visual bounds, extraction output, and extraction interval.
 - `scripts/resources/resource_node_database.gd` registers resource node definitions such as trees.
-- `scripts/buildings/building_definition.gd` defines building properties such as display name, texture, cost, footprint, and visual bounds.
-- `scripts/buildings/building_manager.gd` registers building definitions such as the hub and logger's camp.
+- `scripts/buildings/building_definition.gd` defines building properties such as display name, texture, cost, footprint, placement rules, adjacency yields, and production output.
+- `scripts/buildings/building_manager.gd` registers building definitions and owns placement validation (`can_place`/`try_place`), adjacency yield calculation, and per-tick production amounts.
+- `scripts/buildings/production_manager.gd` runs the production tick, paying out each producing building's resource on its interval.
 - `scripts/ui/resource_bar.gd` owns the always-visible top resource bar.
 - `scripts/ui/building_menu.gd` owns the bottom building menu UI and emits building selection events.
-- `scripts/ui/building_info_panel.gd` owns the building info UI shown when a placed building is clicked.
-- `scripts/main.gd` generates and displays the island when the game starts.
+- `scripts/ui/building_info_panel.gd` owns the building info UI shown when a placed building is clicked, including its live adjacency and production breakdown.
+- `scripts/main.gd` generates and displays the island, owns the current island data, and drives the production tick each frame.
 
-Naming note: resource nodes are permanent map objects such as forests and stones, while resources are stored inventory items such as wood and stone. For example, `IslandData.ResourceNodeType.TREE` extracts into `ResourceManager.ResourceType.WOOD` once per extraction interval.
-Building footprints can be larger than one tile, though the current prototype buildings occupy one hex.
+Naming note: resource nodes are permanent map objects such as forests and stones, while resources are stored inventory items such as wood and stone. For example, `GameTypes.ResourceNodeType.TREE` extracts into `GameTypes.ResourceType.WOOD` once per extraction interval.
+Building footprints can be larger than one tile, though the current prototype buildings occupy one hex. `BuildingManager` computes footprint cells and stores them with each placed building.
 Each generated island starts with a required central hub. Buildings require resources to place. Logger's camps cost 6 Wood, and additional hubs cost 8 Wood plus 4 Stone.
+
+### Placement Rules And Adjacency
+
+Buildings declare data-driven placement and adjacency behavior on their `BuildingDefinition`:
+
+- `required_terrain`: the terrain every footprint cell must sit on (grass by default).
+- `required_adjacent`: each entry must have at least one matching neighbor, or placement is blocked. For example, a logger's camp must be built next to a forest.
+- `forbidden_adjacent`: placement is blocked if any neighbor matches.
+- `adjacency_yields`: Civilization VI style bonuses, where each neighbor matching a `{ kind, type, amount }` rule contributes `amount`. A logger's camp earns +1 per adjacent forest but -1 per adjacent logger's camp, discouraging clustering and rewarding sustainable spacing.
+
+The placement preview tints red when a rule is unmet, and the building info panel shows the live adjacency breakdown for a placed building.
+
+### Production
+
+Producing buildings declare a `production_resource_type`, `production_base_amount`, and `production_interval_seconds`. Each interval the building pays out `base + adjacency total` (clamped to zero) of its resource into the inventory. A logger's camp produces Wood every 3 seconds, scaling with the number of adjacent forests. Newly placed buildings wait one full interval before their first payout.
 
 Prototype controls:
 

@@ -8,6 +8,7 @@ const ResourceBarScript := preload("res://scripts/ui/resource_bar.gd")
 const ResourceManagerScript := preload("res://scripts/resources/resource_manager.gd")
 const ResourceNodeDatabaseScript := preload("res://scripts/resources/resource_node_database.gd")
 const BuildingManagerScript := preload("res://scripts/buildings/building_manager.gd")
+const ProductionManagerScript := preload("res://scripts/buildings/production_manager.gd")
 
 const NO_BUILDING := -1
 
@@ -22,6 +23,7 @@ var is_panning := false
 var selected_building_type := NO_BUILDING
 var current_island: IslandData
 var building_manager: BuildingManager
+var production_manager: ProductionManager
 var resource_manager: ResourceManager
 var resource_node_database: ResourceNodeDatabase
 var resource_bar: ResourceBar
@@ -35,6 +37,8 @@ func _ready() -> void:
 	resource_manager.resource_changed.connect(_on_resource_changed)
 	resource_node_database = ResourceNodeDatabaseScript.new()
 	building_manager.setup(resource_node_database)
+	production_manager = ProductionManagerScript.new()
+	production_manager.setup(building_manager, resource_manager)
 
 	renderer = IslandRendererScript.new()
 	renderer.name = "IslandRenderer"
@@ -49,6 +53,13 @@ func _ready() -> void:
 
 	_add_ui()
 	_generate_island()
+
+
+func _process(_delta: float) -> void:
+	if current_island == null:
+		return
+
+	production_manager.update(current_island, Time.get_ticks_msec() / 1000.0)
 
 
 func _unhandled_input(event: InputEvent) -> void:

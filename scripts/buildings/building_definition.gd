@@ -18,6 +18,11 @@ var forbidden_adjacent: Array[Dictionary] = []
 # Each entry { kind, type, amount } grants amount per matching neighbor.
 var adjacency_yields: Array[Dictionary] = []
 
+# Production: -1 resource type means the building produces nothing.
+var production_resource_type: int = -1
+var production_base_amount: int = 0
+var production_interval_seconds: float = 0.0
+
 
 func _init(
 	new_id: int,

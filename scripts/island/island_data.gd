@@ -9,6 +9,7 @@ var terrain: Dictionary = {}
 var resources: Dictionary = {}
 var resource_next_extraction_times: Dictionary = {}
 var buildings: Dictionary = {}
+var building_next_production_times: Dictionary = {}
 
 
 func _init(new_width: int = 0, new_height: int = 0) -> void:
@@ -84,6 +85,18 @@ func get_building_footprint_cells(anchor_cell: Vector2i) -> Array[Vector2i]:
 		return []
 
 	return buildings[anchor_cell].cells
+
+
+func has_production_time(anchor_cell: Vector2i) -> bool:
+	return building_next_production_times.has(anchor_cell)
+
+
+func get_next_production_time(anchor_cell: Vector2i) -> float:
+	return building_next_production_times.get(anchor_cell, 0.0)
+
+
+func set_next_production_time(anchor_cell: Vector2i, next_time_seconds: float) -> void:
+	building_next_production_times[anchor_cell] = next_time_seconds
 
 
 func can_place_resource(cell: Vector2i, resource_node_type: int = GameTypes.ResourceNodeType.TREE) -> bool:

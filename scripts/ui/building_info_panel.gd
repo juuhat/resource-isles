@@ -21,11 +21,22 @@ func show_building(building_type: int, cell: Vector2i, island: IslandData) -> vo
 		return
 
 	title_label.text = _get_building_name(building_type)
-	detail_label.text = "Location: %d, %d\n%s" % [
-		cell.x,
-		cell.y,
-		_format_adjacency(building_type, cell, island),
-	]
+
+	var anchor_cell := cell
+	if island != null:
+		var resolved := island.get_building_anchor_cell(cell)
+		if resolved != Vector2i(-1, -1):
+			anchor_cell = resolved
+
+	var lines: Array[String] = ["Location: %d, %d" % [cell.x, cell.y]]
+
+	var production_line := _format_production(building_type, anchor_cell, island)
+	if not production_line.is_empty():
+		lines.append(production_line)
+
+	lines.append(_format_adjacency(building_type, anchor_cell, island))
+
+	detail_label.text = "\n".join(lines)
 	panel.visible = true
 
 
@@ -75,13 +86,25 @@ func _get_building_name(building_type: int) -> String:
 	return building_manager.get_display_name(building_type)
 
 
-func _format_adjacency(building_type: int, cell: Vector2i, island: IslandData) -> String:
+func _format_production(building_type: int, anchor_cell: Vector2i, island: IslandData) -> String:
 	if island == null:
 		return ""
 
-	var anchor_cell := island.get_building_anchor_cell(cell)
-	if anchor_cell == Vector2i(-1, -1):
-		anchor_cell = cell
+	var definition := building_manager.get_definition(building_type)
+	if definition == null or definition.production_resource_type == -1:
+		return ""
+
+	var amount := building_manager.get_production_amount(anchor_cell, building_type, island)
+	return "Produces: %d %s / %.0fs" % [
+		amount,
+		ResourceManager.get_display_name_for_type(definition.production_resource_type),
+		definition.production_interval_seconds,
+	]
+
+
+func _format_adjacency(building_type: int, anchor_cell: Vector2i, island: IslandData) -> String:
+	if island == null:
+		return ""
 
 	var adjacency := building_manager.get_adjacency_yield(anchor_cell, building_type, island)
 	if adjacency.breakdown.is_empty():
