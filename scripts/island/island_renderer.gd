@@ -36,7 +36,7 @@ var grid_line_segments := PackedVector2Array()
 
 
 func _ready() -> void:
-	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 
 
 func _process(delta: float) -> void:
