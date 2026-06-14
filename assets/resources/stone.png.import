@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ch4witfh2m052"
-path="res://.godot/imported/boulder.png-a7399940fbcd9fd0bc6e3676dd1619ac.ctex"
+uid="uid://cpv7j1wcq6usu"
+path="res://.godot/imported/stone.png-a2f94a1b87743869ebb3ace2098f95f2.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/resources/boulder.png"
-dest_files=["res://.godot/imported/boulder.png-a7399940fbcd9fd0bc6e3676dd1619ac.ctex"]
+source_file="res://assets/resources/stone.png"
+dest_files=["res://.godot/imported/stone.png-a2f94a1b87743869ebb3ace2098f95f2.ctex"]
 
 [params]
 

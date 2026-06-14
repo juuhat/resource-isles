@@ -18,7 +18,7 @@ enum BuildingType {
 
 enum ResourceNodeType {
 	TREE,
-	BOULDER,
+	STONE,
 }
 
 var width: int
@@ -155,7 +155,7 @@ func get_next_extraction_time(cell: Vector2i) -> float:
 
 func _terrain_for_resource(resource_node_type: int) -> int:
 	match resource_node_type:
-		ResourceNodeType.BOULDER:
+		ResourceNodeType.STONE:
 			return Terrain.STONE
 		_:
 			return Terrain.GRASS

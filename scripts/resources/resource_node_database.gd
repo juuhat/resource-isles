@@ -2,8 +2,8 @@ class_name ResourceNodeDatabase
 extends RefCounted
 
 const ResourceNodeDefinitionScript := preload("res://scripts/resources/resource_node_definition.gd")
-const FOREST_TEXTURE := preload("res://assets/resources/forest_simple.png")
-const BOULDER_TEXTURE := preload("res://assets/resources/boulder.png")
+const FOREST_TEXTURE := preload("res://assets/resources/forest.png")
+const STONE_TEXTURE := preload("res://assets/resources/stone.png")
 
 var definitions: Dictionary = {}
 
@@ -21,9 +21,9 @@ func _init() -> void:
 		Vector2(0.0, -0.25)
 	))
 	_add_definition(ResourceNodeDefinitionScript.new(
-		IslandData.ResourceNodeType.BOULDER,
-		"Stone Deposit",
-		BOULDER_TEXTURE,
+		IslandData.ResourceNodeType.STONE,
+		"Stone",
+		STONE_TEXTURE,
 		ResourceManager.ResourceType.STONE,
 		1,
 		12.0,

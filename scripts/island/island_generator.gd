@@ -24,7 +24,7 @@ func generate_starter_island(seed_value: int = 0) -> IslandData:
 	_place_required_hub(island)
 	_place_stone_patch(island)
 	_place_trees(island)
-	_place_boulders(island)
+	_place_stones(island)
 	return island
 
 
@@ -131,11 +131,11 @@ func _place_trees(island: IslandData) -> void:
 			island.place_resource(cell, IslandData.ResourceNodeType.TREE)
 
 
-func _place_boulders(island: IslandData) -> void:
+func _place_stones(island: IslandData) -> void:
 	for index in range(2):
-		var cell := _pick_open_resource_cell(island, IslandData.ResourceNodeType.BOULDER)
+		var cell := _pick_open_resource_cell(island, IslandData.ResourceNodeType.STONE)
 		if cell != Vector2i(-1, -1):
-			island.place_resource(cell, IslandData.ResourceNodeType.BOULDER)
+			island.place_resource(cell, IslandData.ResourceNodeType.STONE)
 
 
 func _place_stone_patch(island: IslandData) -> void:

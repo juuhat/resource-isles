@@ -28,22 +28,22 @@ Resource Isles should feel like a relaxing little evening game: calm, readable, 
 
 ### Asset Style
 
-Resource and building sprites should lean cartoony rather than painterly or realistic.
+Resource and building sprites should lean simple, cartoony, and board-game-like rather than painterly or realistic.
 
 - Use chunky, readable silhouettes that still work at normal zoom.
-- Favor bold simple shapes, soft highlights, and modest dark outlines.
-- Keep detail broad and graphic; avoid tiny leaves, noisy texture, or dense concept-art rendering.
-- Use teal greens, blue-green shadows, muted warm highlights, and calm earthy accents.
-- Sprites should feel like compact toy-like game pieces placed on the hex map.
+- Favor flat colors, bold simple shapes, and thick dark purple-brown outlines.
+- Keep detail broad and symbolic; avoid tiny leaves, noisy texture, gradients, soft rendering, or dense concept-art detail.
+- Use olive greens, yellow-greens, blue water, warm browns, muted oranges, and calm earthy accents.
+- Sprites should feel like compact sticker-like map tokens placed on the hex map.
 - Single-tile resources and buildings should fit within one tile of visual width. Tall sprites may extend upward, but should not spill sideways into neighboring hexes.
 - A resource tile can represent a larger concept than one object. For example, a forest tile should show a small cluster of trees, while still occupying one gameplay tile.
 - Generated assets should use transparent PNG output or a clean chroma-key background that can be removed.
 
 Current visual references:
 
-- `assets/resources/tree.png`: simple cartoony pine tree with teal-green branch layers.
-- `assets/resources/boulder.png`: clustered stone deposit with chunky faceted rocks and a dark outline.
-- `assets/resources/forest.png`: clustered forest tile with simplified pine shapes.
+- `assets/resources/forest.png`: flat symbolic tree cluster with thick dark outlines.
+- `assets/resources/stone.png`: flat symbolic stone cluster with thick dark outlines.
+- Reference screenshot style: simple board-game hex tiles with flat fills, heavy outlines, and icon-like terrain objects.
 
 ## Project Status
 
@@ -84,11 +84,11 @@ The project is configured as a Godot 4 project and currently uses the mobile ren
 The project now includes a code-driven hex-tile starter island scaffold:
 
 - `assets/tiles/tile.png` provides a shared white hex mask that terrain draws and tints in code, leaving decorative PNGs free to layer on top.
-- `assets/resources/tree.png`, `assets/resources/forest.png`, and `assets/resources/boulder.png` provide the first harvestable map resources.
+- `assets/resources/tree.png`, `assets/resources/forest.png`, and `assets/resources/stone.png` provide the first harvestable map resources.
 - `assets/buildings/crate.png`, `assets/buildings/dock.png`, and `assets/buildings/hub.png` provide the first placeable buildings.
 - `scripts/island/hex_grid.gd` provides pointy-top hex coordinates, neighbors, polygon points, and picking helpers.
 - `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
-- `scripts/island/island_generator.gd` creates a small starter island from a seed and places two random trees and two random boulders.
+- `scripts/island/island_generator.gd` creates a small starter island from a seed and places two random forests and two random stones.
 - `scripts/island/island_renderer.gd` draws generated terrain, Y-sorted resources/buildings, hover highlighting, and placement preview.
 - `scripts/resources/resource_manager.gd` tracks current resource amounts.
 - `scripts/resources/resource_node_definition.gd` defines resource node properties such as footprint, visual bounds, extraction output, and extraction interval.
@@ -98,7 +98,7 @@ The project now includes a code-driven hex-tile starter island scaffold:
 - `scripts/ui/building_info_panel.gd` owns the building info UI shown when a placed building is clicked.
 - `scripts/main.gd` generates and displays the island when the game starts.
 
-Naming note: resource nodes are permanent map objects such as forests and stone deposits, while resources are stored inventory items such as wood and stone. For example, `IslandData.ResourceNodeType.TREE` extracts into `ResourceManager.ResourceType.WOOD` once per extraction interval.
+Naming note: resource nodes are permanent map objects such as forests and stones, while resources are stored inventory items such as wood and stone. For example, `IslandData.ResourceNodeType.TREE` extracts into `ResourceManager.ResourceType.WOOD` once per extraction interval.
 Building footprints can be larger than one tile. For example, crates occupy one hex while docks occupy a four-hex footprint.
 Each generated island starts with a required central hub. Buildings require resources to place. Crates cost 3 Wood, docks cost 10 Wood, and additional hubs cost 8 Wood plus 4 Stone.
 
@@ -106,7 +106,7 @@ Prototype controls:
 
 - **Left click**: place the selected building
 - **Left click on a building**: show building info
-- **Left click on a forest or stone deposit**: extract its resource when its extraction interval is ready
+- **Left click on a forest or stone**: extract its resource when its extraction interval is ready
 - **Buildings button**: open or close the building menu
 - **Esc**: clear the selected building
 - **Enter**: regenerate the island with the next seed
