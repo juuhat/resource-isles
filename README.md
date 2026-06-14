@@ -39,10 +39,26 @@ Resource and building sprites should lean simple, cartoony, and board-game-like 
 - A resource tile can represent a larger concept than one object. For example, a forest tile should show a small cluster of trees, while still occupying one gameplay tile.
 - Generated assets should use transparent PNG output or a clean chroma-key background that can be removed.
 
+### Building And House Style
+
+Building sprites should read as cozy map tokens first and architectural drawings second. Use the `assets/references/Houses/` images as the main style reference for houses and landmark buildings.
+
+- Favor big, rounded, iconic silhouettes with thick dark plum or purple-brown outlines.
+- Keep buildings mostly front-facing with slight roof/top visibility. Avoid strict isometric construction or realistic perspective.
+- Use flat fills with one-step shadow and highlight shapes. Avoid gradients, painterly texture, tiny material noise, or realistic lighting.
+- Make the roof, doorway, and one signature feature carry most of the identity. For example, a shop can use an awning and sign, a lighthouse can use stripes, and a castle can use towers.
+- Keep doors and windows oversized, simple, rounded, and readable at normal gameplay zoom.
+- Use warm creams, muted browns, olive greens, roof reds, saturated-but-simple blues, soft grays, and occasional earthy accents.
+- Color variants should mostly recolor roofs, flags, awnings, or trim while preserving the same silhouette.
+- Let specialty buildings be symbolic and playful: shell houses, tree houses, mushroom houses, ruins, towers, and windmills should still follow the same chunky outline and flat-color rules.
+- Avoid dense roof shingles, small bricks, realistic wood grain, narrow outlines, hard black strokes, thin antennas, and decorative details that disappear at map scale.
+- When building sprites are tall, leave visual height above the tile but keep their footprint compact so they do not spill sideways into neighboring hexes.
+
 Current visual references:
 
 - `assets/resources/forest.png`: flat symbolic tree cluster with thick dark outlines.
 - `assets/resources/stone.png`: flat symbolic stone cluster with thick dark outlines.
+- `assets/references/Houses/`: chunky, rounded, flat-color house and landmark references with strong silhouettes and thick plum outlines.
 - Reference screenshot style: simple board-game hex tiles with flat fills, heavy outlines, and icon-like terrain objects.
 
 ## Project Status
