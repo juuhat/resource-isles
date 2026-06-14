@@ -3,9 +3,8 @@ extends Node2D
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const TILE_TEXTURE := preload("res://assets/tiles/tile.png")
-const CRATE_TEXTURE := preload("res://assets/buildings/crate.png")
-const DOCK_TEXTURE := preload("res://assets/buildings/dock.png")
 const HUB_TEXTURE := preload("res://assets/buildings/hub.png")
+const LOGGER_CAMP_TEXTURE := preload("res://assets/buildings/logger_camp.png")
 
 const SHALLOW_WATER_COLOR := Color("#29a9ef")
 const DEEP_WATER_COLOR := Color("#176fa8")
@@ -24,7 +23,7 @@ var island: IslandData
 var resource_node_database: ResourceNodeDatabase
 var hovered_cell := Vector2i(-1, -1)
 var placement_preview_enabled := false
-var placement_building_type := IslandData.BuildingType.CRATE
+var placement_building_type := IslandData.BuildingType.LOGGER_CAMP
 var placement_can_afford := true
 var water_time := 0.0
 var water_redraw_elapsed := 0.0
@@ -140,7 +139,7 @@ func set_hovered_world_position(world_position: Vector2) -> void:
 
 func set_placement_preview(
 	enabled: bool,
-	building_type: int = IslandData.BuildingType.CRATE,
+	building_type: int = IslandData.BuildingType.LOGGER_CAMP,
 	can_afford: bool = true
 ) -> void:
 	placement_preview_enabled = enabled
@@ -149,7 +148,7 @@ func set_placement_preview(
 	queue_redraw()
 
 
-func try_place_hovered_building(building_type: int = IslandData.BuildingType.CRATE) -> bool:
+func try_place_hovered_building(building_type: int = IslandData.BuildingType.LOGGER_CAMP) -> bool:
 	if island == null or hovered_cell == Vector2i(-1, -1):
 		return false
 
@@ -502,7 +501,7 @@ func _draw_resource(cell: Vector2i, resource_node_type: int) -> void:
 
 
 func _draw_building(cell: Vector2i, building_type: int) -> void:
-	var rect := _footprint_bounds(cell, building_type)
+	var rect := _visual_bounds(cell, building_type)
 	draw_texture_rect(_texture_for_building(building_type), rect, false)
 
 
@@ -520,7 +519,7 @@ func _draw_placement_preview() -> void:
 	if not placement_preview_enabled or hovered_cell == Vector2i(-1, -1):
 		return
 
-	var rect := _footprint_bounds(hovered_cell, placement_building_type)
+	var rect := _visual_bounds(hovered_cell, placement_building_type)
 	var can_place := island.can_place_building(hovered_cell, placement_building_type) and placement_can_afford
 	var tint := Color(1.0, 1.0, 1.0, 0.55) if can_place else Color(1.0, 0.2, 0.2, 0.45)
 
@@ -566,6 +565,23 @@ func _footprint_bounds(cell: Vector2i, building_type: int) -> Rect2:
 	return bounds
 
 
+func _visual_bounds(cell: Vector2i, building_type: int) -> Rect2:
+	var footprint := _footprint_bounds(cell, building_type)
+	var size := _visual_size_for_building(building_type)
+	var position := Vector2(
+		footprint.position.x + footprint.size.x * 0.5 - size.x * 0.5,
+		footprint.position.y + footprint.size.y * 0.5 - size.y * 0.5
+	)
+	return Rect2(position, size)
+
+
+func _visual_size_for_building(building_type: int) -> Vector2:
+	var texture := _texture_for_building(building_type)
+	var target_width := cell_size.x * island.get_building_footprint_size(building_type).x
+	var aspect_ratio := float(texture.get_height()) / float(texture.get_width())
+	return Vector2(target_width, target_width * aspect_ratio)
+
+
 func _get_last_footprint_cell(cell: Vector2i, building_type: int) -> Vector2i:
 	var last_cell := cell
 
@@ -605,11 +621,9 @@ func _water_color_for_depth(depth: float) -> Color:
 
 func _texture_for_building(building_type: int) -> Texture2D:
 	match building_type:
-		IslandData.BuildingType.CRATE:
-			return CRATE_TEXTURE
-		IslandData.BuildingType.DOCK:
-			return DOCK_TEXTURE
 		IslandData.BuildingType.HUB:
 			return HUB_TEXTURE
+		IslandData.BuildingType.LOGGER_CAMP:
+			return LOGGER_CAMP_TEXTURE
 		_:
-			return CRATE_TEXTURE
+			return HUB_TEXTURE

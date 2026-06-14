@@ -4,30 +4,24 @@ extends RefCounted
 
 static func get_display_name(building_type: int) -> String:
 	match building_type:
-		IslandData.BuildingType.CRATE:
-			return "Crate"
-		IslandData.BuildingType.DOCK:
-			return "Dock"
 		IslandData.BuildingType.HUB:
 			return "Hub"
+		IslandData.BuildingType.LOGGER_CAMP:
+			return "Logger's Camp"
 		_:
 			return "Unknown"
 
 
 static func get_cost(building_type: int) -> Dictionary:
 	match building_type:
-		IslandData.BuildingType.CRATE:
-			return {
-				ResourceManager.ResourceType.WOOD: 3,
-			}
-		IslandData.BuildingType.DOCK:
-			return {
-				ResourceManager.ResourceType.WOOD: 10,
-			}
 		IslandData.BuildingType.HUB:
 			return {
 				ResourceManager.ResourceType.WOOD: 8,
 				ResourceManager.ResourceType.STONE: 4,
+			}
+		IslandData.BuildingType.LOGGER_CAMP:
+			return {
+				ResourceManager.ResourceType.WOOD: 6,
 			}
 		_:
 			return {}

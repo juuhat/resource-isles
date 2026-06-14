@@ -11,9 +11,8 @@ enum Terrain {
 }
 
 enum BuildingType {
-	CRATE,
-	DOCK,
 	HUB,
+	LOGGER_CAMP,
 }
 
 enum ResourceNodeType {
@@ -47,10 +46,7 @@ func get_terrain(cell: Vector2i) -> int:
 	return terrain.get(cell, Terrain.WATER)
 
 
-func can_place_building(cell: Vector2i, building_type: int = BuildingType.CRATE) -> bool:
-	if building_type == BuildingType.DOCK:
-		return _can_place_dock(cell)
-
+func can_place_building(cell: Vector2i, building_type: int = BuildingType.LOGGER_CAMP) -> bool:
 	for footprint_cell in get_building_footprint_cells(cell, building_type):
 		if (
 			not is_in_bounds(footprint_cell)
@@ -93,8 +89,6 @@ func get_building_anchor_cell(cell: Vector2i) -> Vector2i:
 
 func get_building_footprint_size(building_type: int) -> Vector2i:
 	match building_type:
-		BuildingType.DOCK:
-			return Vector2i(2, 2)
 		_:
 			return Vector2i.ONE
 
@@ -103,11 +97,6 @@ func get_building_footprint_cells(cell: Vector2i, building_type: int) -> Array[V
 	var cells: Array[Vector2i] = []
 
 	match building_type:
-		BuildingType.DOCK:
-			cells.append(cell)
-			cells.append(HexGridScript.neighbor(cell, 0))
-			cells.append(HexGridScript.neighbor(cell, 5))
-			cells.append(HexGridScript.neighbor(HexGridScript.neighbor(cell, 0), 5))
 		_:
 			cells.append(cell)
 
@@ -163,26 +152,3 @@ func _terrain_for_resource(resource_node_type: int) -> int:
 
 func _has_building_on_cell(cell: Vector2i) -> bool:
 	return get_building_anchor_cell(cell) != Vector2i(-1, -1)
-
-
-func _can_place_dock(cell: Vector2i) -> bool:
-	var sand_count := 0
-	var water_count := 0
-
-	for footprint_cell in get_building_footprint_cells(cell, BuildingType.DOCK):
-		if (
-			not is_in_bounds(footprint_cell)
-			or resources.has(footprint_cell)
-			or _has_building_on_cell(footprint_cell)
-		):
-			return false
-
-		match get_terrain(footprint_cell):
-			Terrain.SAND:
-				sand_count += 1
-			Terrain.WATER:
-				water_count += 1
-			_:
-				return false
-
-	return sand_count == 2 and water_count == 2

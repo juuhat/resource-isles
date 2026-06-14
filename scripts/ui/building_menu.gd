@@ -42,13 +42,8 @@ func toggle_menu() -> void:
 		menu_panel.visible = not menu_panel.visible
 
 
-func _select_crate() -> void:
-	set_selected_building(IslandData.BuildingType.CRATE)
-	building_selected.emit(selected_building_type)
-
-
-func _select_dock() -> void:
-	set_selected_building(IslandData.BuildingType.DOCK)
+func _select_logger_camp() -> void:
+	set_selected_building(IslandData.BuildingType.LOGGER_CAMP)
 	building_selected.emit(selected_building_type)
 
 
@@ -101,20 +96,15 @@ func _build_ui() -> void:
 	title.custom_minimum_size = Vector2(80, 0)
 	menu.add_child(title)
 
-	var crate_button := Button.new()
-	crate_button.text = BuildingCatalogScript.get_label(IslandData.BuildingType.CRATE)
-	crate_button.pressed.connect(_select_crate)
-	menu.add_child(crate_button)
-
-	var dock_button := Button.new()
-	dock_button.text = BuildingCatalogScript.get_label(IslandData.BuildingType.DOCK)
-	dock_button.pressed.connect(_select_dock)
-	menu.add_child(dock_button)
-
 	var hub_button := Button.new()
 	hub_button.text = BuildingCatalogScript.get_label(IslandData.BuildingType.HUB)
 	hub_button.pressed.connect(_select_hub)
 	menu.add_child(hub_button)
+
+	var logger_camp_button := Button.new()
+	logger_camp_button.text = BuildingCatalogScript.get_label(IslandData.BuildingType.LOGGER_CAMP)
+	logger_camp_button.pressed.connect(_select_logger_camp)
+	menu.add_child(logger_camp_button)
 
 	var clear_button := Button.new()
 	clear_button.text = "Clear selection"

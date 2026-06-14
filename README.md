@@ -31,34 +31,36 @@ Resource Isles should feel like a relaxing little evening game: calm, readable, 
 Resource and building sprites should lean simple, cartoony, and board-game-like rather than painterly or realistic.
 
 - Use chunky, readable silhouettes that still work at normal zoom.
-- Favor flat colors, bold simple shapes, and thick dark purple-brown outlines.
+- Favor flat colors, bold simple shapes, and thick dark outlines.
 - Keep detail broad and symbolic; avoid tiny leaves, noisy texture, gradients, soft rendering, or dense concept-art detail.
 - Use olive greens, yellow-greens, blue water, warm browns, muted oranges, and calm earthy accents.
-- Sprites should feel like compact sticker-like map tokens placed on the hex map.
+- Sprites should feel like compact, iconic map tokens placed on the hex map. They should read clearly by silhouette before small details matter.
 - Single-tile resources and buildings should fit within one tile of visual width. Tall sprites may extend upward, but should not spill sideways into neighboring hexes.
 - A resource tile can represent a larger concept than one object. For example, a forest tile should show a small cluster of trees, while still occupying one gameplay tile.
 - Generated assets should use transparent PNG output or a clean chroma-key background that can be removed.
 
 ### Building And House Style
 
-Building sprites should read as cozy map tokens first and architectural drawings second. Use the `assets/references/Houses/` images as the main style reference for houses and landmark buildings.
+Building sprites should read as iconic map tokens first and architectural drawings second. Their job is to communicate function, category, and mood instantly at normal gameplay zoom. Use the `assets/references/Houses/` images as the main style reference for houses and landmark buildings.
 
-- Favor big, rounded, iconic silhouettes with thick dark plum or purple-brown outlines.
-- Keep buildings mostly front-facing with slight roof/top visibility. Avoid strict isometric construction or realistic perspective.
+- Favor big, rounded, iconic silhouettes with thick black or very dark outlines.
+- Use the same thick outline language for important internal details such as doors, roof edges, log ends, windows, signs, and trim.
+- Use a readable top-down map perspective that sits naturally on hex tiles: show enough roof/top surface to anchor the building to the tile, while keeping the front face, doorway, and signature feature visible. Avoid realistic perspective, deep vanishing lines, or side-heavy angles that make the sprite feel detached from the hex grid.
 - Use flat fills with one-step shadow and highlight shapes. Avoid gradients, painterly texture, tiny material noise, or realistic lighting.
 - Make the roof, doorway, and one signature feature carry most of the identity. For example, a shop can use an awning and sign, a lighthouse can use stripes, and a castle can use towers.
 - Keep doors and windows oversized, simple, rounded, and readable at normal gameplay zoom.
 - Use warm creams, muted browns, olive greens, roof reds, saturated-but-simple blues, soft grays, and occasional earthy accents.
 - Color variants should mostly recolor roofs, flags, awnings, or trim while preserving the same silhouette.
 - Let specialty buildings be symbolic and playful: shell houses, tree houses, mushroom houses, ruins, towers, and windmills should still follow the same chunky outline and flat-color rules.
-- Avoid dense roof shingles, small bricks, realistic wood grain, narrow outlines, hard black strokes, thin antennas, and decorative details that disappear at map scale.
+- Avoid dense roof shingles, small bricks, realistic wood grain, narrow outlines, thin antennas, and decorative details that disappear at map scale.
 - When building sprites are tall, leave visual height above the tile but keep their footprint compact so they do not spill sideways into neighboring hexes.
+- Final gameplay building sprites should usually be around 256 px wide for single-tile buildings. Use 128 px wide for very small/simple props, and reserve 384-512 px wide only for large landmarks or multi-tile buildings. Generated source images may be larger, but final imported assets should be cropped, transparent, and downscaled to the smallest size that stays crisp in-game.
 
 Current visual references:
 
 - `assets/resources/forest.png`: flat symbolic tree cluster with thick dark outlines.
 - `assets/resources/stone.png`: flat symbolic stone cluster with thick dark outlines.
-- `assets/references/Houses/`: chunky, rounded, flat-color house and landmark references with strong silhouettes and thick plum outlines.
+- `assets/references/Houses/`: chunky, rounded, flat-color house and landmark references with strong token silhouettes and thick dark outlines.
 - Reference screenshot style: simple board-game hex tiles with flat fills, heavy outlines, and icon-like terrain objects.
 
 ## Project Status
@@ -101,7 +103,7 @@ The project now includes a code-driven hex-tile starter island scaffold:
 
 - `assets/tiles/tile.png` provides a shared white hex mask that terrain draws and tints in code, leaving decorative PNGs free to layer on top.
 - `assets/resources/tree.png`, `assets/resources/forest.png`, and `assets/resources/stone.png` provide the first harvestable map resources.
-- `assets/buildings/crate.png`, `assets/buildings/dock.png`, and `assets/buildings/hub.png` provide the first placeable buildings.
+- `assets/buildings/hub.png` and `assets/buildings/logger_camp.png` provide the first placeable buildings.
 - `scripts/island/hex_grid.gd` provides pointy-top hex coordinates, neighbors, polygon points, and picking helpers.
 - `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
 - `scripts/island/island_generator.gd` creates a small starter island from a seed and places two random forests and two random stones.
@@ -115,8 +117,8 @@ The project now includes a code-driven hex-tile starter island scaffold:
 - `scripts/main.gd` generates and displays the island when the game starts.
 
 Naming note: resource nodes are permanent map objects such as forests and stones, while resources are stored inventory items such as wood and stone. For example, `IslandData.ResourceNodeType.TREE` extracts into `ResourceManager.ResourceType.WOOD` once per extraction interval.
-Building footprints can be larger than one tile. For example, crates occupy one hex while docks occupy a four-hex footprint.
-Each generated island starts with a required central hub. Buildings require resources to place. Crates cost 3 Wood, docks cost 10 Wood, and additional hubs cost 8 Wood plus 4 Stone.
+Building footprints can be larger than one tile, though the current prototype buildings occupy one hex.
+Each generated island starts with a required central hub. Buildings require resources to place. Logger's camps cost 6 Wood, and additional hubs cost 8 Wood plus 4 Stone.
 
 Prototype controls:
 
