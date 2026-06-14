@@ -3,9 +3,9 @@ extends RefCounted
 
 const IslandDataScript := preload("res://scripts/island/island_data.gd")
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
-const STARTER_ISLAND_WIDTH := 44
-const STARTER_ISLAND_HEIGHT := 32
-const SAND_BORDER_WIDTH := 2
+const STARTER_ISLAND_WIDTH := 30
+const STARTER_ISLAND_HEIGHT := 24
+const SAND_BORDER_WIDTH := 1
 
 var rng := RandomNumberGenerator.new()
 
@@ -41,19 +41,13 @@ func _carve_grass_blob(island: IslandData) -> void:
 			var cell := Vector2i(x, y)
 			var point := Vector2(x, y)
 			var normalized_distance := Vector2(
-				(point.x - center.x) / 8.8,
-				(point.y - center.y) / 5.6
+				(point.x - center.x) / 5.6,
+				(point.y - center.y) / 4.6
 			).length()
-			var edge_noise := rng.randf_range(-0.11, 0.11)
+			var edge_noise := rng.randf_range(-0.055, 0.055)
 
 			if normalized_distance + edge_noise < 1.0:
 				island.set_terrain(cell, IslandData.Terrain.GRASS)
-
-	# Add a couple of chunky peninsulas so the shape feels authored.
-	var center_cell := Vector2i(roundi(center.x), roundi(center.y))
-	_fill_rect(island, Rect2i(center_cell.x - 7, center_cell.y - 3, 5, 4), IslandData.Terrain.GRASS)
-	_fill_rect(island, Rect2i(center_cell.x + 2, center_cell.y - 2, 5, 4), IslandData.Terrain.GRASS)
-	_fill_rect(island, Rect2i(center_cell.x - 2, center_cell.y + 2, 7, 2), IslandData.Terrain.GRASS)
 
 
 func _smooth_grass_edges(island: IslandData, passes: int) -> void:
@@ -127,12 +121,6 @@ func _expand_sand_into_water(island: IslandData) -> void:
 
 	for cell in to_sand:
 		island.set_terrain(cell, IslandData.Terrain.SAND)
-
-
-func _fill_rect(island: IslandData, rect: Rect2i, terrain_type: int) -> void:
-	for y in range(rect.position.y, rect.position.y + rect.size.y):
-		for x in range(rect.position.x, rect.position.x + rect.size.x):
-			island.set_terrain(Vector2i(x, y), terrain_type)
 
 
 func _place_trees(island: IslandData) -> void:

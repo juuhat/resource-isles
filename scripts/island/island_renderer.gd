@@ -15,7 +15,7 @@ const WATER_REDRAW_INTERVAL := 0.08
 const NORTH_SHORE_WATER_DIRECTIONS := [4, 5]
 
 @export var cell_size := Vector2(128.0, 128.0)
-@export var show_grid := false
+@export var show_grid := true
 @export var grid_line_width := 1.0
 @export var animate_water := true
 
@@ -432,7 +432,11 @@ func _draw_grid() -> void:
 func _rebuild_grid_cache() -> void:
 	for y in range(island.height):
 		for x in range(island.width):
-			var points := HexGridScript.hex_points(cell_to_world(Vector2i(x, y)), cell_size)
+			var cell := Vector2i(x, y)
+			if island.get_terrain(cell) == IslandData.Terrain.WATER and _water_depth_factor(cell) > 0.2:
+				continue
+
+			var points := HexGridScript.hex_points(cell_to_world(cell), cell_size)
 
 			for index in range(points.size()):
 				grid_line_segments.append(points[index])
