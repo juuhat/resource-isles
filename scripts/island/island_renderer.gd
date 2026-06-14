@@ -11,6 +11,7 @@ const SAND_COLOR := Color("#f2a215")
 const GRASS_COLOR := Color("#9bad18")
 const STONE_COLOR := Color("#8e8791")
 const WATER_REDRAW_INTERVAL := 0.08
+const NORTH_SHORE_WATER_DIRECTIONS := [4, 5]
 
 @export var cell_size := Vector2(128.0, 128.0)
 @export var show_grid := false
@@ -367,6 +368,9 @@ func _draw_shoreline_foam(rect: Rect2, cell: Vector2i, shore_mask: int) -> void:
 	foam_color.a = 0.26 + pulse * 0.08
 
 	for direction_index in range(6):
+		if NORTH_SHORE_WATER_DIRECTIONS.has(direction_index):
+			continue
+
 		if (shore_mask & _shore_bit(direction_index)) != 0:
 			draw_polyline(_hex_edge_points(rect.position, direction_index), foam_color, foam_width, true)
 
