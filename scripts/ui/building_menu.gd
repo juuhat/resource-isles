@@ -52,6 +52,11 @@ func _select_dock() -> void:
 	building_selected.emit(selected_building_type)
 
 
+func _select_hub() -> void:
+	set_selected_building(IslandData.BuildingType.HUB)
+	building_selected.emit(selected_building_type)
+
+
 func _build_ui() -> void:
 	name = "BuildingMenu"
 
@@ -105,6 +110,11 @@ func _build_ui() -> void:
 	dock_button.text = BuildingCatalogScript.get_label(IslandData.BuildingType.DOCK)
 	dock_button.pressed.connect(_select_dock)
 	menu.add_child(dock_button)
+
+	var hub_button := Button.new()
+	hub_button.text = BuildingCatalogScript.get_label(IslandData.BuildingType.HUB)
+	hub_button.pressed.connect(_select_hub)
+	menu.add_child(hub_button)
 
 	var clear_button := Button.new()
 	clear_button.text = "Clear selection"

@@ -13,6 +13,7 @@ enum Terrain {
 enum BuildingType {
 	CRATE,
 	DOCK,
+	HUB,
 }
 
 enum ResourceNodeType {

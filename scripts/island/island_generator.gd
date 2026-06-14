@@ -21,6 +21,7 @@ func generate_starter_island(seed_value: int = 0) -> IslandData:
 	_carve_grass_blob(island)
 	_smooth_grass_edges(island, 2)
 	_add_sand_border(island, SAND_BORDER_WIDTH)
+	_place_required_hub(island)
 	_place_stone_patch(island)
 	_place_trees(island)
 	_place_boulders(island)
@@ -146,6 +147,32 @@ func _place_stone_patch(island: IslandData) -> void:
 		island.set_terrain(cell, IslandData.Terrain.STONE)
 
 
+func _place_required_hub(island: IslandData) -> void:
+	var center := Vector2(island.width * 0.5, island.height * 0.52)
+	var best_cell := Vector2i(-1, -1)
+	var best_distance := INF
+
+	for cell in island.terrain.keys():
+		if not island.can_place_building(cell, IslandData.BuildingType.HUB):
+			continue
+
+		var distance := Vector2(float(cell.x), float(cell.y)).distance_squared_to(center)
+		if distance < best_distance:
+			best_distance = distance
+			best_cell = cell
+
+	if best_cell != Vector2i(-1, -1):
+		island.place_building(best_cell, IslandData.BuildingType.HUB)
+		return
+
+	var fallback_cell := Vector2i(
+		clampi(roundi(center.x), 0, island.width - 1),
+		clampi(roundi(center.y), 0, island.height - 1)
+	)
+	island.set_terrain(fallback_cell, IslandData.Terrain.GRASS)
+	island.place_building(fallback_cell, IslandData.BuildingType.HUB)
+
+
 func _pick_stone_patch_center(island: IslandData) -> Vector2i:
 	var candidates: Array[Vector2i] = []
 
@@ -161,7 +188,7 @@ func _pick_stone_patch_center(island: IslandData) -> Vector2i:
 
 func _can_place_stone_patch_at(island: IslandData, center: Vector2i) -> bool:
 	for cell in _stone_patch_cells(center):
-		if island.get_terrain(cell) != IslandData.Terrain.GRASS:
+		if island.get_terrain(cell) != IslandData.Terrain.GRASS or island.has_building(cell):
 			return false
 
 	return true

@@ -8,6 +8,8 @@ static func get_display_name(building_type: int) -> String:
 			return "Crate"
 		IslandData.BuildingType.DOCK:
 			return "Dock"
+		IslandData.BuildingType.HUB:
+			return "Hub"
 		_:
 			return "Unknown"
 
@@ -21,6 +23,11 @@ static func get_cost(building_type: int) -> Dictionary:
 		IslandData.BuildingType.DOCK:
 			return {
 				ResourceManager.ResourceType.WOOD: 10,
+			}
+		IslandData.BuildingType.HUB:
+			return {
+				ResourceManager.ResourceType.WOOD: 8,
+				ResourceManager.ResourceType.STONE: 4,
 			}
 		_:
 			return {}

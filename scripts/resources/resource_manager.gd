@@ -9,8 +9,8 @@ enum ResourceType {
 }
 
 var amounts: Dictionary = {
-	ResourceType.WOOD: 0,
-	ResourceType.STONE: 0,
+	ResourceType.WOOD: 100,
+	ResourceType.STONE: 100,
 }
 
 
