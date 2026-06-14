@@ -7,7 +7,7 @@ const BuildingInfoPanelScript := preload("res://scripts/ui/building_info_panel.g
 const ResourceBarScript := preload("res://scripts/ui/resource_bar.gd")
 const ResourceManagerScript := preload("res://scripts/resources/resource_manager.gd")
 const ResourceNodeDatabaseScript := preload("res://scripts/resources/resource_node_database.gd")
-const BuildingCatalogScript := preload("res://scripts/buildings/building_catalog.gd")
+const BuildingManagerScript := preload("res://scripts/buildings/building_manager.gd")
 
 const NO_BUILDING := -1
 
@@ -20,6 +20,7 @@ var min_zoom := 0.25
 var max_zoom := 1.5
 var is_panning := false
 var selected_building_type := NO_BUILDING
+var building_manager: BuildingManager
 var resource_manager: ResourceManager
 var resource_node_database: ResourceNodeDatabase
 var resource_bar: ResourceBar
@@ -28,13 +29,14 @@ var building_info_panel: BuildingInfoPanel
 
 
 func _ready() -> void:
+	building_manager = BuildingManagerScript.new()
 	resource_manager = ResourceManagerScript.new()
 	resource_manager.resource_changed.connect(_on_resource_changed)
 	resource_node_database = ResourceNodeDatabaseScript.new()
 
 	renderer = IslandRendererScript.new()
 	renderer.name = "IslandRenderer"
-	renderer.setup(resource_node_database)
+	renderer.setup(resource_node_database, building_manager)
 	add_child(renderer)
 
 	camera = Camera2D.new()
@@ -143,7 +145,7 @@ func _try_place_selected_building() -> bool:
 
 
 func _get_building_cost(building_type: int) -> Dictionary:
-	return BuildingCatalogScript.get_cost(building_type)
+	return building_manager.get_cost(building_type)
 
 
 func _generate_island() -> void:
@@ -190,9 +192,11 @@ func _add_ui() -> void:
 	resource_bar.setup(resource_manager)
 
 	building_info_panel = BuildingInfoPanelScript.new()
+	building_info_panel.setup(building_manager)
 	add_child(building_info_panel)
 
 	building_menu = BuildingMenuScript.new()
+	building_menu.setup(building_manager)
 	building_menu.building_selected.connect(_select_building)
 	building_menu.selection_cleared.connect(_select_no_building)
 	add_child(building_menu)

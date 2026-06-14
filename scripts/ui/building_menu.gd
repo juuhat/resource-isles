@@ -4,12 +4,16 @@ extends CanvasLayer
 signal building_selected(building_type: int)
 signal selection_cleared
 
-const BuildingCatalogScript := preload("res://scripts/buildings/building_catalog.gd")
 const NO_BUILDING := -1
 
+var building_manager: BuildingManager
 var selected_building_type := NO_BUILDING
 var menu_panel: PanelContainer
 var selected_building_label: Label
+
+
+func setup(new_building_manager: BuildingManager) -> void:
+	building_manager = new_building_manager
 
 
 func _ready() -> void:
@@ -97,12 +101,12 @@ func _build_ui() -> void:
 	menu.add_child(title)
 
 	var hub_button := Button.new()
-	hub_button.text = BuildingCatalogScript.get_label(IslandData.BuildingType.HUB)
+	hub_button.text = building_manager.get_label(IslandData.BuildingType.HUB)
 	hub_button.pressed.connect(_select_hub)
 	menu.add_child(hub_button)
 
 	var logger_camp_button := Button.new()
-	logger_camp_button.text = BuildingCatalogScript.get_label(IslandData.BuildingType.LOGGER_CAMP)
+	logger_camp_button.text = building_manager.get_label(IslandData.BuildingType.LOGGER_CAMP)
 	logger_camp_button.pressed.connect(_select_logger_camp)
 	menu.add_child(logger_camp_button)
 
@@ -123,4 +127,4 @@ func _apply_selection_label() -> void:
 		selected_building_label.text = "Selected: none"
 		return
 
-	selected_building_label.text = "Selected: %s" % BuildingCatalogScript.get_label(selected_building_type)
+	selected_building_label.text = "Selected: %s" % building_manager.get_label(selected_building_type)

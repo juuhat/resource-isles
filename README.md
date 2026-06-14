@@ -106,11 +106,13 @@ The project now includes a code-driven hex-tile starter island scaffold:
 - `assets/buildings/hub.png` and `assets/buildings/logger_camp.png` provide the first placeable buildings.
 - `scripts/island/hex_grid.gd` provides pointy-top hex coordinates, neighbors, polygon points, and picking helpers.
 - `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
-- `scripts/island/island_generator.gd` creates a small starter island from a seed and places two random forests and two random stones.
+- `scripts/island/island_generator.gd` creates a small starter island from a seed, places a three-forest triangle cluster, and places two random stones.
 - `scripts/island/island_renderer.gd` draws generated terrain, Y-sorted resources/buildings, hover highlighting, and placement preview.
 - `scripts/resources/resource_manager.gd` tracks current resource amounts.
 - `scripts/resources/resource_node_definition.gd` defines resource node properties such as footprint, visual bounds, extraction output, and extraction interval.
 - `scripts/resources/resource_node_database.gd` registers resource node definitions such as trees.
+- `scripts/buildings/building_definition.gd` defines building properties such as display name, texture, cost, footprint, and visual bounds.
+- `scripts/buildings/building_manager.gd` registers building definitions such as the hub and logger's camp.
 - `scripts/ui/resource_bar.gd` owns the always-visible top resource bar.
 - `scripts/ui/building_menu.gd` owns the bottom building menu UI and emits building selection events.
 - `scripts/ui/building_info_panel.gd` owns the building info UI shown when a placed building is clicked.

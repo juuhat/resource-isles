@@ -125,10 +125,12 @@ func _expand_sand_into_water(island: IslandData) -> void:
 
 
 func _place_trees(island: IslandData) -> void:
-	for index in range(2):
-		var cell := _pick_open_resource_cell(island, IslandData.ResourceNodeType.TREE)
-		if cell != Vector2i(-1, -1):
-			island.place_resource(cell, IslandData.ResourceNodeType.TREE)
+	var cluster := _pick_forest_cluster(island)
+	if cluster.is_empty():
+		return
+
+	for cell in cluster:
+		island.place_resource(cell, IslandData.ResourceNodeType.TREE)
 
 
 func _place_stones(island: IslandData) -> void:
@@ -199,6 +201,37 @@ func _stone_patch_cells(center: Vector2i) -> Array[Vector2i]:
 	cells.append(center)
 	cells.append_array(HexGridScript.neighbors(center))
 	return cells
+
+
+func _pick_forest_cluster(island: IslandData) -> Array:
+	var candidates: Array = []
+
+	for cell in island.terrain.keys():
+		for direction_index in range(6):
+			var cluster := _forest_cluster_cells(cell, direction_index)
+			if _can_place_forest_cluster(island, cluster):
+				candidates.append(cluster)
+
+	if candidates.is_empty():
+		return []
+
+	return candidates[rng.randi_range(0, candidates.size() - 1)]
+
+
+func _forest_cluster_cells(cell: Vector2i, direction_index: int) -> Array:
+	return [
+		cell,
+		HexGridScript.neighbor(cell, direction_index),
+		HexGridScript.neighbor(cell, direction_index + 1),
+	]
+
+
+func _can_place_forest_cluster(island: IslandData, cells: Array) -> bool:
+	for cell in cells:
+		if not island.can_place_resource(cell, IslandData.ResourceNodeType.TREE):
+			return false
+
+	return true
 
 
 func _pick_open_resource_cell(island: IslandData, resource_node_type: int) -> Vector2i:

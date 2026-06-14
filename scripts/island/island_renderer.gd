@@ -3,8 +3,6 @@ extends Node2D
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const TILE_TEXTURE := preload("res://assets/tiles/tile.png")
-const HUB_TEXTURE := preload("res://assets/buildings/hub.png")
-const LOGGER_CAMP_TEXTURE := preload("res://assets/buildings/logger_camp.png")
 
 const SHALLOW_WATER_COLOR := Color("#29a9ef")
 const DEEP_WATER_COLOR := Color("#176fa8")
@@ -21,6 +19,7 @@ const NORTH_SHORE_WATER_DIRECTIONS := [0, 4, 5]
 
 var island: IslandData
 var resource_node_database: ResourceNodeDatabase
+var building_manager: BuildingManager
 var hovered_cell := Vector2i(-1, -1)
 var placement_preview_enabled := false
 var placement_building_type := IslandData.BuildingType.LOGGER_CAMP
@@ -59,8 +58,9 @@ func render(new_island: IslandData) -> void:
 	queue_redraw()
 
 
-func setup(new_resource_node_database: ResourceNodeDatabase) -> void:
+func setup(new_resource_node_database: ResourceNodeDatabase, new_building_manager: BuildingManager) -> void:
 	resource_node_database = new_resource_node_database
+	building_manager = new_building_manager
 
 
 func _draw() -> void:
@@ -501,8 +501,12 @@ func _draw_resource(cell: Vector2i, resource_node_type: int) -> void:
 
 
 func _draw_building(cell: Vector2i, building_type: int) -> void:
+	var definition := building_manager.get_definition(building_type)
+	if definition == null or definition.texture == null:
+		return
+
 	var rect := _visual_bounds(cell, building_type)
-	draw_texture_rect(_texture_for_building(building_type), rect, false)
+	draw_texture_rect(definition.texture, rect, false)
 
 
 func _draw_hover() -> void:
@@ -527,7 +531,9 @@ func _draw_placement_preview() -> void:
 		if island.is_in_bounds(cell):
 			draw_colored_polygon(HexGridScript.hex_points(cell_to_world(cell), cell_size), tint)
 
-	draw_texture_rect(_texture_for_building(placement_building_type), rect, false, tint)
+	var definition := building_manager.get_definition(placement_building_type)
+	if definition != null and definition.texture != null:
+		draw_texture_rect(definition.texture, rect, false, tint)
 
 
 func _row_column_offset(row: int) -> float:
@@ -566,20 +572,31 @@ func _footprint_bounds(cell: Vector2i, building_type: int) -> Rect2:
 
 
 func _visual_bounds(cell: Vector2i, building_type: int) -> Rect2:
+	var definition := building_manager.get_definition(building_type)
+	if definition == null:
+		return _footprint_bounds(cell, building_type)
+
 	var footprint := _footprint_bounds(cell, building_type)
 	var size := _visual_size_for_building(building_type)
 	var position := Vector2(
 		footprint.position.x + footprint.size.x * 0.5 - size.x * 0.5,
 		footprint.position.y + footprint.size.y * 0.5 - size.y * 0.5
+	) + Vector2(
+		definition.visual_offset_tiles.x * cell_size.x,
+		definition.visual_offset_tiles.y * cell_size.y
 	)
 	return Rect2(position, size)
 
 
 func _visual_size_for_building(building_type: int) -> Vector2:
-	var texture := _texture_for_building(building_type)
-	var target_width := cell_size.x * island.get_building_footprint_size(building_type).x
-	var aspect_ratio := float(texture.get_height()) / float(texture.get_width())
-	return Vector2(target_width, target_width * aspect_ratio)
+	var definition := building_manager.get_definition(building_type)
+	if definition == null or definition.texture == null:
+		return cell_size
+
+	return Vector2(
+		definition.visual_size_tiles.x * cell_size.x,
+		definition.visual_size_tiles.y * cell_size.y
+	)
 
 
 func _get_last_footprint_cell(cell: Vector2i, building_type: int) -> Vector2i:
@@ -617,13 +634,3 @@ func _color_for_terrain(terrain_type: int) -> Color:
 
 func _water_color_for_depth(depth: float) -> Color:
 	return SHALLOW_WATER_COLOR if depth <= 0.2 else DEEP_WATER_COLOR
-
-
-func _texture_for_building(building_type: int) -> Texture2D:
-	match building_type:
-		IslandData.BuildingType.HUB:
-			return HUB_TEXTURE
-		IslandData.BuildingType.LOGGER_CAMP:
-			return LOGGER_CAMP_TEXTURE
-		_:
-			return HUB_TEXTURE
