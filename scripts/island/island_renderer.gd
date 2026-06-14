@@ -6,7 +6,8 @@ const TILE_TEXTURE := preload("res://assets/tiles/tile.png")
 const CRATE_TEXTURE := preload("res://assets/buildings/crate.png")
 const DOCK_TEXTURE := preload("res://assets/buildings/dock.png")
 
-const WATER_COLOR := Color("#29a9ef")
+const SHALLOW_WATER_COLOR := Color("#29a9ef")
+const DEEP_WATER_COLOR := Color("#176fa8")
 const SAND_COLOR := Color("#f2a215")
 const GRASS_COLOR := Color("#9bad18")
 const STONE_COLOR := Color("#8e8791")
@@ -188,7 +189,8 @@ func _draw_terrain() -> void:
 
 func _draw_water_tile(tile: Dictionary) -> void:
 	var rect: Rect2 = tile["rect"]
-	draw_texture_rect(TILE_TEXTURE, rect, false, WATER_COLOR)
+	var depth: float = tile["depth"]
+	draw_texture_rect(TILE_TEXTURE, rect, false, _water_color_for_depth(depth))
 
 
 func _rebuild_terrain_cache() -> void:
@@ -209,13 +211,15 @@ func _rebuild_terrain_cache() -> void:
 			var rect := Rect2(cell_to_world(cell), cell_size)
 
 			if terrain_type == IslandData.Terrain.WATER:
+				var depth := _water_depth_factor(cell)
 				water_tiles.append({
 					"rect": rect,
+					"depth": depth,
 				})
 				water_surface_tiles.append({
 					"cell": cell,
 					"rect": rect,
-					"depth": _water_depth_factor(cell),
+					"depth": depth,
 					"shore_mask": _shore_mask_for_water_cell(cell),
 					"draw_shimmer": _cell_noise(cell, 22.0) > 0.58,
 				})
@@ -419,7 +423,7 @@ func _is_land(cell: Vector2i) -> bool:
 
 
 func _draw_grid() -> void:
-	var color := Color(0.0, 0.0, 0.0, 0.10)
+	var color := Color(0.0, 0.0, 0.0, 0.03)
 	var line_width := _screen_pixels_to_world(grid_line_width)
 
 	draw_multiline(grid_line_segments, color, line_width, true)
@@ -587,7 +591,11 @@ func _color_for_terrain(terrain_type: int) -> Color:
 		IslandData.Terrain.STONE:
 			return STONE_COLOR
 		_:
-			return WATER_COLOR
+			return SHALLOW_WATER_COLOR
+
+
+func _water_color_for_depth(depth: float) -> Color:
+	return SHALLOW_WATER_COLOR if depth <= 0.2 else DEEP_WATER_COLOR
 
 
 func _texture_for_building(building_type: int) -> Texture2D:
