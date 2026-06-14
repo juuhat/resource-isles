@@ -34,6 +34,7 @@ func _ready() -> void:
 	resource_manager = ResourceManagerScript.new()
 	resource_manager.resource_changed.connect(_on_resource_changed)
 	resource_node_database = ResourceNodeDatabaseScript.new()
+	building_manager.setup(resource_node_database)
 
 	renderer = IslandRendererScript.new()
 	renderer.name = "IslandRenderer"
@@ -129,7 +130,7 @@ func _try_select_building() -> bool:
 	if building_type == -1:
 		return false
 
-	building_info_panel.show_building(building_type, renderer.hovered_cell)
+	building_info_panel.show_building(building_type, renderer.hovered_cell, current_island)
 	return true
 
 

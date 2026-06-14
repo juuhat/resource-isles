@@ -9,6 +9,15 @@ var footprint_size: Vector2i
 var visual_size_tiles: Vector2
 var visual_offset_tiles: Vector2
 
+# Footprint cells must sit on this terrain.
+var required_terrain: int = GameTypes.Terrain.GRASS
+# Each entry { kind, type } must have at least one matching neighbor for placement to be legal.
+var required_adjacent: Array[Dictionary] = []
+# Placement is blocked if any neighbor matches any { kind, type } entry here.
+var forbidden_adjacent: Array[Dictionary] = []
+# Each entry { kind, type, amount } grants amount per matching neighbor.
+var adjacency_yields: Array[Dictionary] = []
+
 
 func _init(
 	new_id: int,

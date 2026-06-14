@@ -16,12 +16,16 @@ func _ready() -> void:
 	hide_info()
 
 
-func show_building(building_type: int, cell: Vector2i) -> void:
+func show_building(building_type: int, cell: Vector2i, island: IslandData) -> void:
 	if panel == null:
 		return
 
 	title_label.text = _get_building_name(building_type)
-	detail_label.text = "Location: %d, %d" % [cell.x, cell.y]
+	detail_label.text = "Location: %d, %d\n%s" % [
+		cell.x,
+		cell.y,
+		_format_adjacency(building_type, cell, island),
+	]
 	panel.visible = true
 
 
@@ -69,3 +73,26 @@ func _build_ui() -> void:
 
 func _get_building_name(building_type: int) -> String:
 	return building_manager.get_display_name(building_type)
+
+
+func _format_adjacency(building_type: int, cell: Vector2i, island: IslandData) -> String:
+	if island == null:
+		return ""
+
+	var anchor_cell := island.get_building_anchor_cell(cell)
+	if anchor_cell == Vector2i(-1, -1):
+		anchor_cell = cell
+
+	var adjacency := building_manager.get_adjacency_yield(anchor_cell, building_type, island)
+	if adjacency.breakdown.is_empty():
+		return "Adjacency: none"
+
+	var lines: Array[String] = ["Adjacency: %s" % _signed(adjacency.total)]
+	for entry in adjacency.breakdown:
+		lines.append("  %s from %d %s" % [_signed(entry.amount), entry.count, entry.label])
+
+	return "\n".join(lines)
+
+
+func _signed(amount: int) -> String:
+	return "+%d" % amount if amount >= 0 else str(amount)

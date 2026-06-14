@@ -29,11 +29,15 @@ func get_terrain(cell: Vector2i) -> int:
 	return terrain.get(cell, GameTypes.Terrain.WATER)
 
 
-func can_place_building(cell: Vector2i, footprint_cells: Array[Vector2i]) -> bool:
+func can_place_building(
+	cell: Vector2i,
+	footprint_cells: Array[Vector2i],
+	required_terrain: int = GameTypes.Terrain.GRASS
+) -> bool:
 	for footprint_cell in footprint_cells:
 		if (
 			not is_in_bounds(footprint_cell)
-			or get_terrain(footprint_cell) != GameTypes.Terrain.GRASS
+			or get_terrain(footprint_cell) != required_terrain
 			or resources.has(footprint_cell)
 			or _has_building_on_cell(footprint_cell)
 		):
@@ -42,8 +46,13 @@ func can_place_building(cell: Vector2i, footprint_cells: Array[Vector2i]) -> boo
 	return true
 
 
-func place_building(cell: Vector2i, building_type: int, footprint_cells: Array[Vector2i]) -> bool:
-	if not can_place_building(cell, footprint_cells):
+func place_building(
+	cell: Vector2i,
+	building_type: int,
+	footprint_cells: Array[Vector2i],
+	required_terrain: int = GameTypes.Terrain.GRASS
+) -> bool:
+	if not can_place_building(cell, footprint_cells, required_terrain):
 		return false
 
 	buildings[cell] = {type = building_type, cells = footprint_cells}

@@ -152,8 +152,7 @@ func try_place_hovered_building(building_type: int = GameTypes.BuildingType.LOGG
 	if island == null or hovered_cell == Vector2i(-1, -1):
 		return false
 
-	var footprint := building_manager.get_footprint_cells(hovered_cell, building_type)
-	var placed := island.place_building(hovered_cell, building_type, footprint)
+	var placed := building_manager.try_place(hovered_cell, building_type, island)
 	if placed:
 		queue_redraw()
 
@@ -527,7 +526,7 @@ func _draw_placement_preview() -> void:
 
 	var rect := _visual_bounds(hovered_cell, placement_building_type)
 	var preview_footprint := building_manager.get_footprint_cells(hovered_cell, placement_building_type)
-	var can_place := island.can_place_building(hovered_cell, preview_footprint) and placement_can_afford
+	var can_place := building_manager.can_place(hovered_cell, placement_building_type, island) and placement_can_afford
 	var tint := Color(1.0, 1.0, 1.0, 0.55) if can_place else Color(1.0, 0.2, 0.2, 0.45)
 
 	for cell in preview_footprint:
