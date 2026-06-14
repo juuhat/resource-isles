@@ -13,7 +13,7 @@ const SAND_COLOR := Color("#f2a215")
 const GRASS_COLOR := Color("#9bad18")
 const STONE_COLOR := Color("#8e8791")
 const WATER_REDRAW_INTERVAL := 0.08
-const NORTH_SHORE_WATER_DIRECTIONS := [4, 5]
+const NORTH_SHORE_WATER_DIRECTIONS := [0, 4, 5]
 
 @export var cell_size := Vector2(128.0, 128.0)
 @export var show_grid := true
@@ -502,7 +502,7 @@ func _draw_resource(cell: Vector2i, resource_node_type: int) -> void:
 
 
 func _draw_building(cell: Vector2i, building_type: int) -> void:
-	var rect := _visual_bounds_for_building(cell, building_type)
+	var rect := _footprint_bounds(cell, building_type)
 	draw_texture_rect(_texture_for_building(building_type), rect, false)
 
 
@@ -520,7 +520,7 @@ func _draw_placement_preview() -> void:
 	if not placement_preview_enabled or hovered_cell == Vector2i(-1, -1):
 		return
 
-	var rect := _visual_bounds_for_building(hovered_cell, placement_building_type)
+	var rect := _footprint_bounds(hovered_cell, placement_building_type)
 	var can_place := island.can_place_building(hovered_cell, placement_building_type) and placement_can_afford
 	var tint := Color(1.0, 1.0, 1.0, 0.55) if can_place else Color(1.0, 0.2, 0.2, 0.45)
 
@@ -564,16 +564,6 @@ func _footprint_bounds(cell: Vector2i, building_type: int) -> Rect2:
 		bounds = bounds.merge(Rect2(cell_to_world(footprint_cell), cell_size))
 
 	return bounds
-
-
-func _visual_bounds_for_building(cell: Vector2i, building_type: int) -> Rect2:
-	if building_type == IslandData.BuildingType.HUB:
-		return Rect2(
-			cell_to_world(cell) + Vector2(0.0, cell_size.y * -0.35),
-			Vector2(cell_size.x, cell_size.y * 1.35)
-		)
-
-	return _footprint_bounds(cell, building_type)
 
 
 func _get_last_footprint_cell(cell: Vector2i, building_type: int) -> Vector2i:
