@@ -2,18 +2,10 @@ class_name IslandGenerator
 extends RefCounted
 
 const IslandDataScript := preload("res://scripts/island/island_data.gd")
+const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const STARTER_ISLAND_WIDTH := 44
 const STARTER_ISLAND_HEIGHT := 32
 const SAND_BORDER_WIDTH := 2
-const STONE_PATCH_OFFSETS: Array[Vector2i] = [
-	Vector2i.ZERO,
-	Vector2i.LEFT,
-	Vector2i.RIGHT,
-	Vector2i.UP,
-	Vector2i.DOWN,
-	Vector2i(-1, -1),
-	Vector2i(1, 1),
-]
 
 var rng := RandomNumberGenerator.new()
 
@@ -75,9 +67,9 @@ func _smooth_grass_edges(island: IslandData, passes: int) -> void:
 				var land_neighbors := _neighbor_land_count(island, cell)
 
 				if island.get_terrain(cell) == IslandData.Terrain.GRASS:
-					if land_neighbors <= 2:
+					if land_neighbors <= 1:
 						to_water.append(cell)
-				elif land_neighbors >= 5:
+				elif land_neighbors >= 4:
 					to_grass.append(cell)
 
 		for cell in to_water:
@@ -90,13 +82,9 @@ func _smooth_grass_edges(island: IslandData, passes: int) -> void:
 func _neighbor_land_count(island: IslandData, cell: Vector2i) -> int:
 	var count := 0
 
-	for y in range(-1, 2):
-		for x in range(-1, 2):
-			if x == 0 and y == 0:
-				continue
-
-			if island.get_terrain(cell + Vector2i(x, y)) == IslandData.Terrain.GRASS:
-				count += 1
+	for neighbor in HexGridScript.neighbors(cell):
+		if island.get_terrain(neighbor) == IslandData.Terrain.GRASS:
+			count += 1
 
 	return count
 
@@ -111,7 +99,7 @@ func _add_sand_border(island: IslandData, width: int) -> void:
 		if island.get_terrain(cell) != IslandData.Terrain.GRASS:
 			continue
 
-		for neighbor in _cardinal_neighbors(cell):
+		for neighbor in HexGridScript.neighbors(cell):
 			if island.get_terrain(neighbor) == IslandData.Terrain.WATER:
 				to_sand.append(cell)
 				break
@@ -132,7 +120,7 @@ func _expand_sand_into_water(island: IslandData) -> void:
 			if island.get_terrain(cell) != IslandData.Terrain.WATER:
 				continue
 
-			for neighbor in _cardinal_neighbors(cell):
+			for neighbor in HexGridScript.neighbors(cell):
 				if island.get_terrain(neighbor) == IslandData.Terrain.SAND:
 					to_sand.append(cell)
 					break
@@ -166,8 +154,8 @@ func _place_stone_patch(island: IslandData) -> void:
 	if center == Vector2i(-1, -1):
 		return
 
-	for offset in STONE_PATCH_OFFSETS:
-		island.set_terrain(center + offset, IslandData.Terrain.STONE)
+	for cell in _stone_patch_cells(center):
+		island.set_terrain(cell, IslandData.Terrain.STONE)
 
 
 func _pick_stone_patch_center(island: IslandData) -> Vector2i:
@@ -184,11 +172,18 @@ func _pick_stone_patch_center(island: IslandData) -> Vector2i:
 
 
 func _can_place_stone_patch_at(island: IslandData, center: Vector2i) -> bool:
-	for offset in STONE_PATCH_OFFSETS:
-		if island.get_terrain(center + offset) != IslandData.Terrain.GRASS:
+	for cell in _stone_patch_cells(center):
+		if island.get_terrain(cell) != IslandData.Terrain.GRASS:
 			return false
 
 	return true
+
+
+func _stone_patch_cells(center: Vector2i) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	cells.append(center)
+	cells.append_array(HexGridScript.neighbors(center))
+	return cells
 
 
 func _pick_open_resource_cell(island: IslandData, resource_node_type: int) -> Vector2i:
@@ -202,12 +197,3 @@ func _pick_open_resource_cell(island: IslandData, resource_node_type: int) -> Ve
 		return Vector2i(-1, -1)
 
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
-
-
-func _cardinal_neighbors(cell: Vector2i) -> Array[Vector2i]:
-	return [
-		cell + Vector2i.LEFT,
-		cell + Vector2i.RIGHT,
-		cell + Vector2i.UP,
-		cell + Vector2i.DOWN,
-	]

@@ -153,12 +153,9 @@ func _generate_island() -> void:
 	_center_camera(island)
 
 
-func _center_camera(island: IslandData) -> void:
-	var island_size := Vector2(
-		island.width * renderer.cell_size.x,
-		island.height * renderer.cell_size.y
-	)
-	camera.position = island_size * 0.5
+func _center_camera(_island: IslandData) -> void:
+	var bounds := renderer.get_map_bounds()
+	camera.position = bounds.position + bounds.size * 0.5
 
 
 func _select_no_building() -> void:

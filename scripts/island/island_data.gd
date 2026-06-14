@@ -1,6 +1,8 @@
 class_name IslandData
 extends RefCounted
 
+const HexGridScript := preload("res://scripts/island/hex_grid.gd")
+
 enum Terrain {
 	WATER,
 	SAND,
@@ -97,12 +99,16 @@ func get_building_footprint_size(building_type: int) -> Vector2i:
 
 
 func get_building_footprint_cells(cell: Vector2i, building_type: int) -> Array[Vector2i]:
-	var footprint_size := get_building_footprint_size(building_type)
 	var cells: Array[Vector2i] = []
 
-	for y in range(footprint_size.y):
-		for x in range(footprint_size.x):
-			cells.append(cell + Vector2i(x, y))
+	match building_type:
+		BuildingType.DOCK:
+			cells.append(cell)
+			cells.append(HexGridScript.neighbor(cell, 0))
+			cells.append(HexGridScript.neighbor(cell, 5))
+			cells.append(HexGridScript.neighbor(HexGridScript.neighbor(cell, 0), 5))
+		_:
+			cells.append(cell)
 
 	return cells
 

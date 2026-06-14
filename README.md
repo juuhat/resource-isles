@@ -62,11 +62,12 @@ The project is configured as a Godot 4 project and currently uses the mobile ren
 
 ## Current Prototype
 
-The project now includes a code-driven terrain-only starter island scaffold:
+The project now includes a code-driven hex-tile starter island scaffold:
 
-- `assets/tiles/water.png`, `assets/tiles/sand.png`, and `assets/tiles/grass.png` provide the current terrain tiles.
+- Terrain hexes are drawn in code with flat colors, leaving PNG assets free for optional decorations on top.
 - `assets/resources/tree.png` and `assets/resources/boulder.png` provide the first harvestable map resources.
 - `assets/buildings/crate.png` and `assets/buildings/dock.png` provide the first placeable buildings.
+- `scripts/island/hex_grid.gd` provides pointy-top hex coordinates, neighbors, polygon points, and picking helpers.
 - `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
 - `scripts/island/island_generator.gd` creates a small starter island from a seed and places two random trees and two random boulders.
 - `scripts/island/island_renderer.gd` draws generated terrain, Y-sorted resources/buildings, hover highlighting, and placement preview.
@@ -79,7 +80,7 @@ The project now includes a code-driven terrain-only starter island scaffold:
 - `scripts/main.gd` generates and displays the island when the game starts.
 
 Naming note: resource nodes are permanent map objects such as trees and boulders, while resources are stored inventory items such as wood and stone. For example, `IslandData.ResourceNodeType.TREE` extracts into `ResourceManager.ResourceType.WOOD` once per extraction interval.
-Building footprints can be larger than one tile. For example, crates occupy a 1x1 footprint while docks occupy a 2x2 footprint.
+Building footprints can be larger than one tile. For example, crates occupy one hex while docks occupy a four-hex footprint.
 Buildings require resources to place. Crates cost 3 Wood, and docks cost 10 Wood.
 
 Prototype controls:
@@ -90,7 +91,7 @@ Prototype controls:
 - **Buildings button**: open or close the building menu
 - **Esc**: clear the selected building
 - **Enter**: regenerate the island with the next seed
-- **Space**: toggle the tile grid overlay
+- **Space**: toggle the hex grid overlay
 - **Mouse wheel**: zoom camera
 - **Right or middle mouse drag**: pan camera
 
