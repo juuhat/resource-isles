@@ -153,10 +153,12 @@ func _place_required_hub(island: IslandData, building_manager: BuildingManager) 
 	var center := Vector2(island.width * 0.5, island.height * 0.52)
 	var best_cell := Vector2i(-1, -1)
 	var best_distance := INF
+	var hub_definition := building_manager.get_definition(GameTypes.BuildingType.HUB) if building_manager else null
+	var required_terrain: int = hub_definition.required_terrain if hub_definition != null else GameTypes.Terrain.GRASS
 
 	for cell in island.terrain.keys():
 		var footprint := building_manager.get_footprint_cells(cell, GameTypes.BuildingType.HUB) if building_manager else [cell] as Array[Vector2i]
-		if not island.can_place_building(cell, footprint):
+		if not island.can_place_building(cell, footprint, required_terrain):
 			continue
 
 		var distance := Vector2(float(cell.x), float(cell.y)).distance_squared_to(center)
@@ -166,16 +168,16 @@ func _place_required_hub(island: IslandData, building_manager: BuildingManager) 
 
 	if best_cell != Vector2i(-1, -1):
 		var footprint := building_manager.get_footprint_cells(best_cell, GameTypes.BuildingType.HUB) if building_manager else [best_cell] as Array[Vector2i]
-		island.place_building(best_cell, GameTypes.BuildingType.HUB, footprint)
+		island.place_building(best_cell, GameTypes.BuildingType.HUB, footprint, required_terrain)
 		return
 
 	var fallback_cell := Vector2i(
 		clampi(roundi(center.x), 0, island.width - 1),
 		clampi(roundi(center.y), 0, island.height - 1)
 	)
-	island.set_terrain(fallback_cell, GameTypes.Terrain.GRASS)
+	island.set_terrain(fallback_cell, required_terrain)
 	var fallback_footprint := building_manager.get_footprint_cells(fallback_cell, GameTypes.BuildingType.HUB) if building_manager else [fallback_cell] as Array[Vector2i]
-	island.place_building(fallback_cell, GameTypes.BuildingType.HUB, fallback_footprint)
+	island.place_building(fallback_cell, GameTypes.BuildingType.HUB, fallback_footprint, required_terrain)
 
 
 func _pick_stone_patch_center(island: IslandData) -> Vector2i:

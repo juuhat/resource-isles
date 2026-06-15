@@ -132,8 +132,8 @@ Each generated island starts with a required central hub. Buildings require reso
 
 Buildings declare data-driven placement and adjacency behavior on their `BuildingDefinition`:
 
-- `required_terrain`: the terrain every footprint cell must sit on (grass by default).
-- `required_adjacent`: each entry must have at least one matching neighbor, or placement is blocked. For example, a logger's camp must be built next to a forest, and a quarry must be built next to stone.
+- `required_terrain`: the terrain every footprint cell must sit on. For example, a logger's camp is built on grass, while a quarry is built on stone.
+- `required_adjacent`: each entry must have at least one matching neighbor, or placement is blocked. For example, a logger's camp must be built next to a forest, and a quarry must be built next to a stone deposit.
 - `forbidden_adjacent`: placement is blocked if any neighbor matches.
 - `adjacency_yields`: Civilization VI style bonuses, where each neighbor matching a `{ kind, type, amount }` rule contributes `amount`. A logger's camp earns +1 per adjacent forest but -1 per adjacent logger's camp, while a quarry earns +1 per adjacent stone deposit but -1 per adjacent quarry.
 

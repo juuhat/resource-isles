@@ -19,7 +19,8 @@ func _init() -> void:
 		{
 			GameTypes.ResourceType.WOOD: 8,
 			GameTypes.ResourceType.STONE: 4,
-		}
+		},
+		GameTypes.Terrain.GRASS
 	))
 
 	var logger_camp := BuildingDefinitionScript.new(
@@ -28,7 +29,8 @@ func _init() -> void:
 		LOGGER_CAMP_TEXTURE,
 		{
 			GameTypes.ResourceType.WOOD: 6,
-		}
+		},
+		GameTypes.Terrain.GRASS
 	)
 	# Must touch a forest, earns +1 per adjacent forest, but crowding other
 	# camps strips the surrounding woodland faster than it regrows: -1 each.
@@ -49,9 +51,7 @@ func _init() -> void:
 		{
 			GameTypes.ResourceType.WOOD: 6,
 		},
-		Vector2i.ONE,
-		Vector2(1.35, 1.35),
-		Vector2(0.0, -0.18)
+		GameTypes.Terrain.STONE
 	)
 	# Must touch stone, earns +1 per adjacent deposit, but neighboring
 	# quarries compete for the same workable rock face: -1 each.

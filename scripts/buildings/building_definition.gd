@@ -10,7 +10,7 @@ var visual_size_tiles: Vector2
 var visual_offset_tiles: Vector2
 
 # Footprint cells must sit on this terrain.
-var required_terrain: int = GameTypes.Terrain.GRASS
+var required_terrain: int
 # Each entry { kind, type } must have at least one matching neighbor for placement to be legal.
 var required_adjacent: Array[Dictionary] = []
 # Placement is blocked if any neighbor matches any { kind, type } entry here.
@@ -29,6 +29,7 @@ func _init(
 	new_display_name: String,
 	new_texture: Texture2D,
 	new_cost: Dictionary,
+	new_required_terrain: int,
 	new_footprint_size: Vector2i = Vector2i.ONE,
 	new_visual_size_tiles: Vector2 = Vector2.ONE,
 	new_visual_offset_tiles: Vector2 = Vector2.ZERO
@@ -37,6 +38,7 @@ func _init(
 	display_name = new_display_name
 	texture = new_texture
 	cost = new_cost
+	required_terrain = new_required_terrain
 	footprint_size = new_footprint_size
 	visual_size_tiles = new_visual_size_tiles
 	visual_offset_tiles = new_visual_offset_tiles

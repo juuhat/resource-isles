@@ -4,10 +4,10 @@ extends Node2D
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const TILE_TEXTURE := preload("res://assets/tiles/tile.png")
 
-const SHALLOW_WATER_COLOR := Color("#29a9ef")
-const DEEP_WATER_COLOR := Color("#176fa8")
-const SAND_COLOR := Color("#f2a215")
-const GRASS_COLOR := Color("#9bad18")
+const SHALLOW_WATER_COLOR := Color("#479bd2")
+const DEEP_WATER_COLOR := Color("#2a7ebf")
+const SAND_COLOR := Color("#e3bc83")
+const GRASS_COLOR := Color("#9ea131")
 const STONE_COLOR := Color("#8e8791")
 const WATER_REDRAW_INTERVAL := 0.08
 const NORTH_SHORE_WATER_DIRECTIONS := [0, 4, 5]

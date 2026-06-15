@@ -33,7 +33,7 @@ func get_terrain(cell: Vector2i) -> int:
 func can_place_building(
 	cell: Vector2i,
 	footprint_cells: Array[Vector2i],
-	required_terrain: int = GameTypes.Terrain.GRASS
+	required_terrain: int
 ) -> bool:
 	for footprint_cell in footprint_cells:
 		if (
@@ -51,7 +51,7 @@ func place_building(
 	cell: Vector2i,
 	building_type: int,
 	footprint_cells: Array[Vector2i],
-	required_terrain: int = GameTypes.Terrain.GRASS
+	required_terrain: int
 ) -> bool:
 	if not can_place_building(cell, footprint_cells, required_terrain):
 		return false
