@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ecejmwaxxgkn"
-path="res://.godot/imported/burner_generator_chroma.png-f920dbb248f4b46f5771afae6ed2dacf.ctex"
+uid="uid://b6l5mi7k8adiu"
+path="res://.godot/imported/wood_plank.png-35a266eb6e0235ea3f31129d407830a6.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/buildings/burner_generator_chroma.png"
-dest_files=["res://.godot/imported/burner_generator_chroma.png-f920dbb248f4b46f5771afae6ed2dacf.ctex"]
+source_file="res://assets/icons/wood_plank.png"
+dest_files=["res://.godot/imported/wood_plank.png-35a266eb6e0235ea3f31129d407830a6.ctex"]
 
 [params]
 

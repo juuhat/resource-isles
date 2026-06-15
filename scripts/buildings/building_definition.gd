@@ -24,6 +24,12 @@ var production_resource_type: int = -1
 var production_base_amount: int = 0
 var production_interval_seconds: float = 0.0
 
+# Input a producer pulls from the inventory each cycle to make its output. -1
+# means no input (a raw extractor like a logger's camp draws from the map, not
+# stock). A processor (e.g. a sawmill) stalls until it can afford one batch.
+var input_resource_type: int = -1
+var input_amount: int = 0
+
 # Power (MW): a constant rate, not a stockpile. Generators add power_generated
 # while running; producers draw power_consumed while powered.
 var power_generated: int = 0

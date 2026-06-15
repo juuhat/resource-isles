@@ -68,12 +68,14 @@ func _draw() -> void:
 		return
 
 	_draw_terrain()
-	_draw_sorted_objects()
 
 	if show_grid:
 		_draw_grid()
 
 	_draw_hover()
+
+	_draw_sorted_objects()
+
 	_draw_placement_preview()
 
 
@@ -427,7 +429,7 @@ func _is_land(cell: Vector2i) -> bool:
 
 
 func _draw_grid() -> void:
-	var color := Color(0.0, 0.0, 0.0, 0.03)
+	var color := Color(0.0, 0.0, 0.0, 0.05)
 	var line_width := _screen_pixels_to_world(grid_line_width)
 
 	draw_multiline(grid_line_segments, color, line_width, true)

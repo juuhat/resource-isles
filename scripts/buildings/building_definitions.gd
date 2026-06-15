@@ -10,6 +10,7 @@ const HUB_TEXTURE := preload("res://assets/buildings/hub.png")
 const LOGGER_CAMP_TEXTURE := preload("res://assets/buildings/logger_camp.png")
 const QUARRY_TEXTURE := preload("res://assets/buildings/quarry.png")
 const BURNER_GENERATOR_TEXTURE := preload("res://assets/buildings/burner_generator.png")
+const SAWMILL_TEXTURE := preload("res://assets/buildings/sawmill.png")
 
 
 static func build_all() -> Array[BuildingDefinition]:
@@ -90,6 +91,28 @@ static func build_all() -> Array[BuildingDefinition]:
 	burner_generator.fuel_amount = 1
 	burner_generator.fuel_interval_seconds = 3.0
 	definitions.append(burner_generator)
+
+	var sawmill := BuildingDefinitionScript.new(
+		GameTypes.BuildingType.SAWMILL,
+		"Sawmill",
+		GameTypes.BuildingCategory.PROCESSING,
+		SAWMILL_TEXTURE,
+		{
+			GameTypes.ResourceType.WOOD: 8,
+			GameTypes.ResourceType.STONE: 4,
+		},
+		GameTypes.Terrain.GRASS
+	)
+	# Refines raw logs into planks. Placed anywhere on grass — it pulls wood from
+	# stock, not the map, so it needs no forest. Burns 2 wood to cut 1 plank, and
+	# its power draw competes with the burner generator that eats the same wood.
+	sawmill.production_resource_type = GameTypes.ResourceType.PLANKS
+	sawmill.production_base_amount = 1
+	sawmill.production_interval_seconds = 3.0
+	sawmill.input_resource_type = GameTypes.ResourceType.WOOD
+	sawmill.input_amount = 2
+	sawmill.power_consumed = 2
+	definitions.append(sawmill)
 
 	return definitions
 

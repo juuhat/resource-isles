@@ -13,6 +13,7 @@ enum BuildingType {
 	LOGGER_CAMP,
 	QUARRY,
 	BURNER_GENERATOR,
+	SAWMILL,
 }
 
 enum BuildingCategory {
@@ -31,6 +32,7 @@ enum ResourceNodeType {
 enum ResourceType {
 	WOOD,
 	STONE,
+	PLANKS,
 }
 
 enum AdjacencyKind {

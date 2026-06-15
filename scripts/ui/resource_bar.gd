@@ -4,6 +4,7 @@ extends CanvasLayer
 const ResourceManagerScript := preload("res://scripts/resources/resource_manager.gd")
 const WOOD_ICON := preload("res://assets/icons/wood_log.png")
 const STONE_ICON := preload("res://assets/icons/stone.png")
+const PLANKS_ICON := preload("res://assets/icons/wood_plank.png")
 const POWER_ICON := preload("res://assets/icons/power.png")
 
 const ICON_SIZE := Vector2(32.0, 32.0)
@@ -62,6 +63,11 @@ func _build_ui() -> void:
 		row,
 		STONE_ICON,
 		"Stone"
+	)
+	resource_labels[GameTypes.ResourceType.PLANKS] = _add_resource_entry(
+		row,
+		PLANKS_ICON,
+		"Planks"
 	)
 	power_label = _add_power_entry(row)
 

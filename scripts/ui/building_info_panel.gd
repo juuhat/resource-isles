@@ -34,6 +34,10 @@ func show_building(building_type: int, cell: Vector2i, island: IslandData) -> vo
 	if not production_line.is_empty():
 		lines.append(production_line)
 
+	var input_line := _format_input(building_type)
+	if not input_line.is_empty():
+		lines.append(input_line)
+
 	var power_line := _format_power(building_type, anchor_cell, island)
 	if not power_line.is_empty():
 		lines.append(power_line)
@@ -102,6 +106,18 @@ func _format_production(building_type: int, anchor_cell: Vector2i, island: Islan
 	return "Produces: %d %s / %.0fs" % [
 		amount,
 		ResourceManager.get_display_name_for_type(definition.production_resource_type),
+		definition.production_interval_seconds,
+	]
+
+
+func _format_input(building_type: int) -> String:
+	var definition := building_manager.get_definition(building_type)
+	if definition == null or definition.input_resource_type == -1:
+		return ""
+
+	return "Consumes: %d %s / %.0fs" % [
+		definition.input_amount,
+		ResourceManager.get_display_name_for_type(definition.input_resource_type),
 		definition.production_interval_seconds,
 	]
 

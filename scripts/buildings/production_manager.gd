@@ -2,6 +2,7 @@ class_name ProductionManager
 extends RefCounted
 
 signal produced(anchor_cell: Vector2i, resource_type: int, amount: int)
+signal input_consumed(anchor_cell: Vector2i, resource_type: int, amount: int)
 
 var building_manager: BuildingManager
 var resource_manager: ResourceManager
@@ -42,6 +43,14 @@ func update(island: IslandData, current_time_seconds: float) -> void:
 			continue
 
 		var amount := building_manager.get_production_amount(anchor_cell, building_type, island)
+
+		# A processor pays for one batch of input up front. If stock is short it
+		# stalls without advancing its timer, paying out the instant input arrives.
+		if amount > 0 and definition.input_resource_type != -1:
+			if not resource_manager.spend({definition.input_resource_type: definition.input_amount}):
+				continue
+			input_consumed.emit(anchor_cell, definition.input_resource_type, definition.input_amount)
+
 		if amount > 0:
 			resource_manager.add_amount(definition.production_resource_type, amount)
 			produced.emit(anchor_cell, definition.production_resource_type, amount)

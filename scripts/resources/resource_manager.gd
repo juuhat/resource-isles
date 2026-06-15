@@ -46,5 +46,7 @@ static func get_display_name_for_type(resource_type: int) -> String:
 			return "Wood"
 		GameTypes.ResourceType.STONE:
 			return "Stone"
+		GameTypes.ResourceType.PLANKS:
+			return "Planks"
 		_:
 			return "Unknown"

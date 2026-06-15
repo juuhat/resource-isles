@@ -43,6 +43,7 @@ func _ready() -> void:
 	production_manager = ProductionManagerScript.new()
 	production_manager.setup(building_manager, resource_manager)
 	production_manager.produced.connect(_on_building_produced)
+	production_manager.input_consumed.connect(_on_input_consumed)
 	power_manager = PowerManagerScript.new()
 	power_manager.setup(building_manager, resource_manager)
 	power_manager.fuel_consumed.connect(_on_fuel_consumed)
@@ -168,6 +169,15 @@ func _on_fuel_consumed(anchor_cell: Vector2i, resource_type: int, amount: int) -
 	)
 
 
+func _on_input_consumed(anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
+	_spawn_floating_text(
+		renderer.get_cell_center(anchor_cell),
+		"-%d %s" % [amount, ResourceManager.get_display_name_for_type(resource_type)],
+		_resource_color(resource_type),
+		16
+	)
+
+
 func _spawn_floating_text(world_position: Vector2, text: String, color: Color, font_size := 22) -> void:
 	var floating := FloatingTextScript.new()
 	floating.text = text
@@ -183,6 +193,8 @@ func _resource_color(resource_type: int) -> Color:
 			return Color("#d79a4f")
 		GameTypes.ResourceType.STONE:
 			return Color("#cfcfd6")
+		GameTypes.ResourceType.PLANKS:
+			return Color("#e8c07a")
 		_:
 			return Color.WHITE
 
