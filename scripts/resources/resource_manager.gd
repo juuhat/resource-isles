@@ -4,8 +4,8 @@ extends RefCounted
 signal resource_changed(resource_type: int, amount: int)
 
 var amounts: Dictionary = {
-	GameTypes.ResourceType.WOOD: 100,
-	GameTypes.ResourceType.STONE: 100,
+	GameTypes.ResourceType.WOOD: 0,
+	GameTypes.ResourceType.STONE: 0,
 }
 
 

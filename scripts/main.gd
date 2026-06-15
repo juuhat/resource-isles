@@ -11,6 +11,7 @@ const BuildingManagerScript := preload("res://scripts/buildings/building_manager
 const ProductionManagerScript := preload("res://scripts/buildings/production_manager.gd")
 const PowerManagerScript := preload("res://scripts/buildings/power_manager.gd")
 const FloatingTextScript := preload("res://scripts/ui/floating_text.gd")
+const ChopMinigameScript := preload("res://scripts/ui/chop_minigame.gd")
 
 const NO_BUILDING := -1
 
@@ -32,6 +33,8 @@ var resource_node_database: ResourceNodeDatabase
 var resource_bar: ResourceBar
 var building_menu: BuildingMenu
 var building_info_panel: BuildingInfoPanel
+var chop_minigame: ChopMinigame
+var active_scavenge_cell := Vector2i(-1, -1)
 
 
 func _ready() -> void:
@@ -73,6 +76,9 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if chop_minigame != null and chop_minigame.active:
+		return
+
 	if not event is InputEventKey:
 		return
 
@@ -93,6 +99,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if chop_minigame != null and chop_minigame.active:
+		return
+
 	if event is InputEventMouseButton:
 		var is_over_ui := get_viewport().gui_get_hovered_control() != null
 
@@ -131,24 +140,34 @@ func _try_scavenge_resource() -> bool:
 		return false
 
 	var cell := renderer.hovered_cell
-	if not current_island.can_scavenge(cell):
-		return true
-
 	var definition := resource_node_database.get_definition(resource_node_type)
 	if definition == null:
 		return true
 
-	current_island.mark_scavenged(cell)
-	resource_manager.add_amount(definition.extracted_resource_type, definition.scavenge_amount)
+	active_scavenge_cell = cell
+	chop_minigame.start(definition, _resource_color(definition.extracted_resource_type))
+	return true
+
+
+func _on_chop_finished(resource_type: int, total_amount: int) -> void:
+	var cell := active_scavenge_cell
+	active_scavenge_cell = Vector2i(-1, -1)
+	if cell == Vector2i(-1, -1) or current_island == null:
+		return
+
+	if total_amount <= 0:
+		return
+
+	resource_manager.add_amount(resource_type, total_amount)
 	_spawn_floating_text(
 		renderer.get_cell_center(cell),
-		"+%d %s" % [
-			definition.scavenge_amount,
-			ResourceManager.get_display_name_for_type(definition.extracted_resource_type),
-		],
-		_resource_color(definition.extracted_resource_type)
+		"+%d %s" % [total_amount, ResourceManager.get_display_name_for_type(resource_type)],
+		_resource_color(resource_type)
 	)
-	return true
+
+
+func _on_chop_cancelled() -> void:
+	active_scavenge_cell = Vector2i(-1, -1)
 
 
 func _on_building_produced(anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
@@ -276,3 +295,8 @@ func _add_ui() -> void:
 	building_menu.building_selected.connect(_select_building)
 	building_menu.selection_cleared.connect(_select_no_building)
 	add_child(building_menu)
+
+	chop_minigame = ChopMinigameScript.new()
+	chop_minigame.finished.connect(_on_chop_finished)
+	chop_minigame.cancelled.connect(_on_chop_cancelled)
+	add_child(chop_minigame)
