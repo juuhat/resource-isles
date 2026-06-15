@@ -19,6 +19,51 @@ The robot is the emotional throughline: the lone unit hand-chopping the first fe
 the "before" that makes the first automated building feel like liberation. The unit and the
 automation theme reinforce each other.
 
+## The Player Character (a Civ 6 worker / scout unit)
+
+The robot is modelled directly on a **Civ 6 worker/scout-type unit** — a single, selectable
+figure that the player orders around the hex map, not a cursor or a disembodied "hand". It is
+the *Builder* (manual labor: harvest, construct, repair) and the *Scout* (the thing that moves
+through the world and reveals/reaches tiles) rolled into one little robot.
+
+What carries over from the Civ worker/scout, and what deliberately doesn't:
+
+| Civ 6 worker/scout | Resource Isles robot |
+| --- | --- |
+| One unit you select and command | One unit, selected by default (`selected = true`) |
+| Click a hex to issue a move order | **Right-click** a hex to order a move |
+| Travels tile-to-tile across the hex grid | Walks cell-to-cell along a BFS path over land hexes |
+| Spends movement points per turn | **Real-time** walk at a constant `move_speed` (no turns, no MP) |
+| Worker "build improvement" / "repair" actions | Harvest (chop minigame), later construct & ship repair |
+| Occupies / blocks its tile | **Does not block tiles** (Phase 1 simplification) |
+| Can be lost in combat | No combat — the robot is never threatened or destroyed |
+
+### Concrete properties (as implemented)
+
+Defined in [`scripts/player/player_unit.gd`](../scripts/player/player_unit.gd) (`PlayerUnit`, a
+`Node2D`):
+
+- **Identity** — holds a `current_cell` (its hex) and a `selected` flag; renders the
+  `player_robot.png` sprite with its feet anchored near the cell center.
+- **Selection marker** — a flattened ground ellipse under the robot: a cyan ring when
+  `selected`, a faint shadow otherwise (the Civ "this unit is selected" footprint).
+- **Movement** — `follow_path()` takes a queue of cells and walks them at `move_speed`
+  (world units/sec) in `_process`, lerping toward each cell center; emits **`arrived(cell)`**
+  once the whole path is consumed so the caller can react (show the harvest button).
+- **Spawn** — placed next to the crashed-ship/Hub on every island generation
+  (`_find_unit_spawn_cell` in `main.gd`), with a fallback to any open land tile.
+- **Draw order** — `z_index = 10`, so it renders above terrain and buildings for visibility.
+
+### Controls
+
+| Input | Action |
+| --- | --- |
+| **Right-click** (on release) | Order the robot to walk to the hovered tile |
+| Pickaxe **Harvest** button (left edge) | Appears when parked on a node; starts the chop minigame |
+| **Left-click** | Select/inspect buildings, place a selected building |
+| **Middle-drag** | Pan the camera |
+| Mouse wheel | Zoom |
+
 ## The Core Loop: "go there, do the thing"
 
 The player unit has **one interaction verb** — travel to a tile, then perform a manual
@@ -102,10 +147,13 @@ Phases 1–4 are the playable core; everything after is content.
 2. **DONE — Hex pathfinding** ([`scripts/island/hex_pathfinder.gd`](../scripts/island/hex_pathfinder.gd)):
    BFS over walkable (land) tiles using the existing `HexGrid.neighbors`. Uniform step cost,
    so BFS gives a shortest path.
-3. **DONE — Input rework in `main.gd`**: left-click commands the robot
-   (`_command_unit_to_hovered`) — it pathfinds to the clicked tile and, on arrival, opens the
-   chop minigame if a node is there. Building placement still takes priority when a building
-   type is selected. The robot spawns next to the Hub each time the island generates.
+3. **DONE — Input rework in `main.gd`**: **right-click (on release)** commands the robot
+   (`_command_unit_to_hovered`) — it pathfinds to the clicked tile. On arrival at a node, a
+   **pickaxe harvest button** ([`scripts/ui/harvest_button.gd`](../scripts/ui/harvest_button.gd))
+   appears on the left edge of the screen; pressing it starts the chop minigame. The button
+   reappears after each chop (nodes are infinite) and hides when the robot moves away.
+   **Left-click** stays for selection / building placement, and **middle-drag** pans the
+   camera. The robot spawns next to the Hub each time the island generates.
 4. **Reskin Hub → crashed ship**: the generator already force-places a Hub
    ([`island_generator.gd:152`](../scripts/island/island_generator.gd)); swap art + name and
    mark it the build target. Robot spawns adjacent.

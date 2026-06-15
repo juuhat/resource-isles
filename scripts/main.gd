@@ -12,6 +12,7 @@ const ProductionManagerScript := preload("res://scripts/buildings/production_man
 const PowerManagerScript := preload("res://scripts/buildings/power_manager.gd")
 const FloatingTextScript := preload("res://scripts/ui/floating_text.gd")
 const ChopMinigameScript := preload("res://scripts/ui/chop_minigame.gd")
+const HarvestButtonScript := preload("res://scripts/ui/harvest_button.gd")
 const PlayerUnitScript := preload("res://scripts/player/player_unit.gd")
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
@@ -37,9 +38,11 @@ var resource_bar: ResourceBar
 var building_menu: BuildingMenu
 var building_info_panel: BuildingInfoPanel
 var chop_minigame: ChopMinigame
+var harvest_button: HarvestButton
 var player_unit: PlayerUnit
 var active_scavenge_cell := Vector2i(-1, -1)
 var pending_action_cell := Vector2i(-1, -1)
+var harvestable_cell := Vector2i(-1, -1)
 
 
 func _ready() -> void:
@@ -107,6 +110,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if key_event.keycode == KEY_ESCAPE:
 		building_menu.clear_selection_and_close()
+		_deselect_unit()
 
 
 func _input(event: InputEvent) -> void:
@@ -120,17 +124,21 @@ func _input(event: InputEvent) -> void:
 			_set_zoom(camera.zoom.x * zoom_step)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
 			_set_zoom(camera.zoom.x / zoom_step)
-		elif event.button_index == MOUSE_BUTTON_MIDDLE or event.button_index == MOUSE_BUTTON_RIGHT:
+		elif event.button_index == MOUSE_BUTTON_MIDDLE:
 			is_panning = event.pressed
+		elif event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed and not is_over_ui:
+			if player_unit != null and player_unit.selected:
+				_command_unit_to_hovered()
 		elif event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not is_over_ui:
-			if _try_select_building():
-				return
-
 			if selected_building_type != NO_BUILDING:
 				_try_place_selected_building()
 				return
 
-			_command_unit_to_hovered()
+			if _try_select_unit():
+				return
+
+			_deselect_unit()
+			_try_select_building()
 
 	if event is InputEventMouseMotion and is_panning:
 		camera.position -= event.relative / camera.zoom.x
@@ -164,6 +172,8 @@ func _command_unit_to_hovered() -> bool:
 		pending_action_cell = Vector2i(-1, -1)
 		return false
 
+	harvestable_cell = Vector2i(-1, -1)
+	harvest_button.hide_button()
 	player_unit.follow_path(path)
 	return true
 
@@ -173,8 +183,33 @@ func _on_unit_arrived(cell: Vector2i) -> void:
 		return
 
 	pending_action_cell = Vector2i(-1, -1)
+	harvestable_cell = cell if current_island.get_resource_node_type(cell) != -1 else Vector2i(-1, -1)
+	_refresh_harvest_button()
 
-	var resource_node_type := current_island.get_resource_node_type(cell)
+
+func _refresh_harvest_button() -> void:
+	if (
+		harvestable_cell == Vector2i(-1, -1)
+		or player_unit == null
+		or player_unit.is_moving()
+		or player_unit.current_cell != harvestable_cell
+	):
+		harvest_button.hide_button()
+		return
+
+	var resource_node_type := current_island.get_resource_node_type(harvestable_cell)
+	if resource_node_type == -1:
+		harvest_button.hide_button()
+		return
+
+	harvest_button.show_for(resource_node_database.get_definition(resource_node_type))
+
+
+func _on_harvest_pressed() -> void:
+	if harvestable_cell == Vector2i(-1, -1):
+		return
+
+	var resource_node_type := current_island.get_resource_node_type(harvestable_cell)
 	if resource_node_type == -1:
 		return
 
@@ -182,7 +217,8 @@ func _on_unit_arrived(cell: Vector2i) -> void:
 	if definition == null:
 		return
 
-	active_scavenge_cell = cell
+	harvest_button.hide_button()
+	active_scavenge_cell = harvestable_cell
 	chop_minigame.start(definition, _resource_color(definition.extracted_resource_type))
 
 
@@ -190,21 +226,23 @@ func _on_chop_finished(resource_type: int, total_amount: int) -> void:
 	var cell := active_scavenge_cell
 	active_scavenge_cell = Vector2i(-1, -1)
 	if cell == Vector2i(-1, -1) or current_island == null:
+		_refresh_harvest_button()
 		return
 
-	if total_amount <= 0:
-		return
+	if total_amount > 0:
+		resource_manager.add_amount(resource_type, total_amount)
+		_spawn_floating_text(
+			renderer.get_cell_center(cell),
+			"+%d %s" % [total_amount, ResourceManager.get_display_name_for_type(resource_type)],
+			_resource_color(resource_type)
+		)
 
-	resource_manager.add_amount(resource_type, total_amount)
-	_spawn_floating_text(
-		renderer.get_cell_center(cell),
-		"+%d %s" % [total_amount, ResourceManager.get_display_name_for_type(resource_type)],
-		_resource_color(resource_type)
-	)
+	_refresh_harvest_button()
 
 
 func _on_chop_cancelled() -> void:
 	active_scavenge_cell = Vector2i(-1, -1)
+	_refresh_harvest_button()
 
 
 func _on_building_produced(anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
@@ -255,6 +293,22 @@ func _resource_color(resource_type: int) -> Color:
 			return Color.WHITE
 
 
+func _try_select_unit() -> bool:
+	if player_unit == null or player_unit.current_cell == Vector2i(-1, -1):
+		return false
+
+	if renderer.hovered_cell != player_unit.current_cell:
+		return false
+
+	player_unit.set_selected(true)
+	return true
+
+
+func _deselect_unit() -> void:
+	if player_unit != null:
+		player_unit.set_selected(false)
+
+
 func _try_select_building() -> bool:
 	var building_type := renderer.get_hovered_building_type()
 	if building_type == -1:
@@ -293,6 +347,9 @@ func _spawn_player_unit() -> void:
 		return
 
 	pending_action_cell = Vector2i(-1, -1)
+	harvestable_cell = Vector2i(-1, -1)
+	if harvest_button != null:
+		harvest_button.hide_button()
 	player_unit.place_at(_find_unit_spawn_cell())
 
 
@@ -374,3 +431,7 @@ func _add_ui() -> void:
 	chop_minigame.finished.connect(_on_chop_finished)
 	chop_minigame.cancelled.connect(_on_chop_cancelled)
 	add_child(chop_minigame)
+
+	harvest_button = HarvestButtonScript.new()
+	harvest_button.pressed.connect(_on_harvest_pressed)
+	add_child(harvest_button)

@@ -14,7 +14,7 @@ const ROBOT_TEXTURE := preload("res://assets/player/player_robot.png")
 
 var renderer: IslandRenderer
 var current_cell := Vector2i(-1, -1)
-var selected := true
+var selected := false
 
 var _path: Array[Vector2i] = []
 var _target_world := Vector2.ZERO
@@ -50,6 +50,13 @@ func follow_path(path: Array[Vector2i]) -> void:
 
 func is_moving() -> bool:
 	return _moving
+
+
+func set_selected(value: bool) -> void:
+	if selected == value:
+		return
+	selected = value
+	queue_redraw()
 
 
 func _process(delta: float) -> void:
