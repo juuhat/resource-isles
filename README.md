@@ -124,6 +124,8 @@ The project now includes a code-driven hex-tile starter island scaffold:
 - `scripts/ui/building_menu.gd` owns the bottom building menu UI and emits building selection events.
 - `scripts/ui/building_info_panel.gd` owns the building info UI shown when a placed building is clicked, including its live adjacency and production breakdown.
 - `scripts/world/world_data.gd` holds every discovered island and a pointer to the current one, so islands persist (with their placed buildings) when the player switches between them.
+- `scripts/ui/world_map.gd` is a CanvasLayer overlay (not a separate scene) that lays out discovered islands as clickable tokens in concentric rings around the starter island, and asks `main` to travel to the selected one.
+- `scripts/ui/screen_fade.gd` is a reusable full-screen fade used as the transition between islands until a literal sailing animation exists.
 - `scripts/main.gd` generates and displays islands, owns the `WorldData` and the current island pointer, drives the production tick for the current island each frame, and handles travel between discovered islands.
 
 Naming note: resource nodes are permanent map objects such as forests and stones, while resources are stored inventory items such as wood and stone. For example, scavenging a `GameTypes.ResourceNodeType.TREE` yields `GameTypes.ResourceType.WOOD`.
@@ -155,6 +157,7 @@ Prototype controls:
 - **Esc**: clear the selected building
 - **Enter**: generate a new island and travel to it (previously visited islands persist)
 - **[** and **]**: switch to the previous or next discovered island
+- **M**: open or close the world map (click an island token to travel there)
 - **Space**: toggle the hex grid overlay
 - **Mouse wheel**: zoom camera
 - **Right or middle mouse drag**: pan camera

@@ -16,6 +16,8 @@ const PlayerUnitScript := preload("res://scripts/player/player_unit.gd")
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
 const WorldDataScript := preload("res://scripts/world/world_data.gd")
+const WorldMapScript := preload("res://scripts/ui/world_map.gd")
+const ScreenFadeScript := preload("res://scripts/ui/screen_fade.gd")
 
 const NO_BUILDING := -1
 const HARVEST_INTERVAL := 3.0
@@ -47,6 +49,8 @@ var resource_bar: ResourceBar
 var building_menu: BuildingMenu
 var building_info_panel: BuildingInfoPanel
 var harvest_button: HarvestButton
+var world_map: WorldMap
+var screen_fade: ScreenFade
 var player_unit: PlayerUnit
 var pending_action_cell := Vector2i(-1, -1)
 var harvestable_cell := Vector2i(-1, -1)
@@ -88,8 +92,8 @@ func _ready() -> void:
 	camera.zoom = Vector2(0.375, 0.375)
 	add_child(camera)
 
-	_add_ui()
 	world = WorldDataScript.new()
+	_add_ui()
 	_create_new_island()
 
 
@@ -123,13 +127,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	if key_event.keycode == KEY_BRACKETLEFT:
 		_switch_to_adjacent_island(-1)
 
+	if key_event.keycode == KEY_M:
+		world_map.toggle()
+
 	if key_event.keycode == KEY_SPACE:
 		renderer.show_grid = not renderer.show_grid
 		renderer.queue_redraw()
 
 	if key_event.keycode == KEY_ESCAPE:
-		building_menu.clear_selection_and_close()
-		_deselect_unit()
+		if world_map.is_open:
+			world_map.close()
+		else:
+			building_menu.clear_selection_and_close()
+			_deselect_unit()
 
 
 func _input(event: InputEvent) -> void:
@@ -433,8 +443,15 @@ func _switch_to_island(index: int) -> void:
 	renderer.render(current_island)
 	_spawn_player_unit()
 	resource_bar.refresh()
+	world_map.refresh()
 	_apply_selected_building()
 	_center_camera(current_island)
+
+
+# Travel to an island chosen on the world map, with a fade transition.
+func _on_world_map_island_selected(index: int) -> void:
+	world_map.close()
+	screen_fade.transition(_switch_to_island.bind(index))
 
 
 func _spawn_player_unit() -> void:
@@ -526,3 +543,11 @@ func _add_ui() -> void:
 	harvest_button = HarvestButtonScript.new()
 	harvest_button.pressed.connect(_on_harvest_pressed)
 	add_child(harvest_button)
+
+	world_map = WorldMapScript.new()
+	world_map.setup(world)
+	world_map.island_selected.connect(_on_world_map_island_selected)
+	add_child(world_map)
+
+	screen_fade = ScreenFadeScript.new()
+	add_child(screen_fade)

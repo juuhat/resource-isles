@@ -222,8 +222,12 @@ Start tiny; do not build a sprawling tech UI up front.
 3. **Rowboat + one neighbor** — build a rowboat at the dock; reveal and travel to a single
    ring-1 island. View-swap with a short sailing transition. The robot travels; the starter
    island keeps producing.
-4. **World map overlay** — the ring layout, discovered islands as tokens, branching choice of
-   destination.
+4. **World map overlay DONE (basic)** — [`world_map.gd`](../scripts/ui/world_map.gd) is a
+   CanvasLayer overlay (not a separate scene; all state stays in `main`) laying out discovered
+   islands as clickable tokens in concentric rings around the starter, toggled with `M`.
+   Selecting a token travels there via a [`screen_fade.gd`](../scripts/ui/screen_fade.gd)
+   transition (placeholder until a sailing animation). Still to add: real ring/reach metadata,
+   locked/undiscovered tokens, and island art instead of plain buttons.
 5. **Boat tiers + rare-resource gating** — sailboat/ship reach outer rings; higher tiers cost
    earlier islands' rare resources; fuse with ship-module repair toward the win condition.
 6. **Per-island inventory storage DONE** ([`inventory.gd`](../scripts/resources/inventory.gd)
