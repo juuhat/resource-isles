@@ -12,6 +12,9 @@ const ProductionManagerScript := preload("res://scripts/buildings/production_man
 const PowerManagerScript := preload("res://scripts/buildings/power_manager.gd")
 const FloatingTextScript := preload("res://scripts/ui/floating_text.gd")
 const ChopMinigameScript := preload("res://scripts/ui/chop_minigame.gd")
+const PlayerUnitScript := preload("res://scripts/player/player_unit.gd")
+const HexGridScript := preload("res://scripts/island/hex_grid.gd")
+const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
 
 const NO_BUILDING := -1
 
@@ -34,7 +37,9 @@ var resource_bar: ResourceBar
 var building_menu: BuildingMenu
 var building_info_panel: BuildingInfoPanel
 var chop_minigame: ChopMinigame
+var player_unit: PlayerUnit
 var active_scavenge_cell := Vector2i(-1, -1)
+var pending_action_cell := Vector2i(-1, -1)
 
 
 func _ready() -> void:
@@ -55,6 +60,12 @@ func _ready() -> void:
 	renderer.name = "IslandRenderer"
 	renderer.setup(resource_node_database, building_manager)
 	add_child(renderer)
+
+	player_unit = PlayerUnitScript.new()
+	player_unit.name = "PlayerUnit"
+	player_unit.setup(renderer)
+	player_unit.arrived.connect(_on_unit_arrived)
+	add_child(player_unit)
 
 	camera = Camera2D.new()
 	camera.name = "Camera2D"
@@ -115,11 +126,11 @@ func _input(event: InputEvent) -> void:
 			if _try_select_building():
 				return
 
-			if _try_scavenge_resource():
-				return
-
 			if selected_building_type != NO_BUILDING:
 				_try_place_selected_building()
+				return
+
+			_command_unit_to_hovered()
 
 	if event is InputEventMouseMotion and is_panning:
 		camera.position -= event.relative / camera.zoom.x
@@ -134,19 +145,45 @@ func _set_zoom(new_zoom: float) -> void:
 	renderer.queue_redraw()
 
 
-func _try_scavenge_resource() -> bool:
-	var resource_node_type := renderer.get_hovered_resource_node_type()
-	if resource_node_type == -1:
+func _command_unit_to_hovered() -> bool:
+	if player_unit == null or current_island == null:
 		return false
 
 	var cell := renderer.hovered_cell
+	if cell == Vector2i(-1, -1) or not HexPathfinderScript.is_walkable(current_island, cell):
+		return false
+
+	pending_action_cell = cell
+
+	if cell == player_unit.current_cell:
+		_on_unit_arrived(cell)
+		return true
+
+	var path := HexPathfinderScript.find_path(current_island, player_unit.current_cell, cell)
+	if path.is_empty():
+		pending_action_cell = Vector2i(-1, -1)
+		return false
+
+	player_unit.follow_path(path)
+	return true
+
+
+func _on_unit_arrived(cell: Vector2i) -> void:
+	if cell != pending_action_cell:
+		return
+
+	pending_action_cell = Vector2i(-1, -1)
+
+	var resource_node_type := current_island.get_resource_node_type(cell)
+	if resource_node_type == -1:
+		return
+
 	var definition := resource_node_database.get_definition(resource_node_type)
 	if definition == null:
-		return true
+		return
 
 	active_scavenge_cell = cell
 	chop_minigame.start(definition, _resource_color(definition.extracted_resource_type))
-	return true
 
 
 func _on_chop_finished(resource_type: int, total_amount: int) -> void:
@@ -246,8 +283,45 @@ func _get_building_cost(building_type: int) -> Dictionary:
 func _generate_island() -> void:
 	current_island = generator.generate_starter_island(seed_value, building_manager)
 	renderer.render(current_island)
+	_spawn_player_unit()
 	_apply_selected_building()
 	_center_camera(current_island)
+
+
+func _spawn_player_unit() -> void:
+	if player_unit == null:
+		return
+
+	pending_action_cell = Vector2i(-1, -1)
+	player_unit.place_at(_find_unit_spawn_cell())
+
+
+func _find_unit_spawn_cell() -> Vector2i:
+	var hub_cell := _find_hub_cell()
+	if hub_cell != Vector2i(-1, -1):
+		for neighbor in HexGridScript.neighbors(hub_cell):
+			if HexPathfinderScript.is_walkable(current_island, neighbor) and not current_island.has_building(neighbor):
+				return neighbor
+
+	for y in range(current_island.height):
+		for x in range(current_island.width):
+			var cell := Vector2i(x, y)
+			if (
+				HexPathfinderScript.is_walkable(current_island, cell)
+				and not current_island.has_building(cell)
+				and not current_island.has_resource(cell)
+			):
+				return cell
+
+	return Vector2i.ZERO
+
+
+func _find_hub_cell() -> Vector2i:
+	for cell in current_island.buildings.keys():
+		if current_island.buildings[cell].type == GameTypes.BuildingType.HUB:
+			return cell
+
+	return Vector2i(-1, -1)
 
 
 func _center_camera(_island: IslandData) -> void:
