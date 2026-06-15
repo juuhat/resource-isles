@@ -392,9 +392,24 @@ func _get_building_cost(building_type: int) -> Dictionary:
 
 func _create_new_island() -> void:
 	# Only the first island (World 1) is the crash site with the starting wreck.
+	# It begins with no resources — the opening loop is scavenging the first wood by
+	# hand (see docs/progression-and-power.md). Later islands instead arrive with
+	# just enough to establish their first dock.
 	var is_starter := world.island_count() == 0
 	var island := generator.generate_starter_island(seed_value, building_manager, is_starter)
+	if not is_starter:
+		_stock_bootstrap_supplies(island)
 	_switch_to_island(world.add_island(island))
+
+
+# A newly reached island arrives with exactly enough to build its first dock, which
+# then lets it be the endpoint of a trade route — so a resource-barren island is
+# never a soft-lock. There is no manual cargo step; all other goods come via trade
+# routes once the dock exists (see docs/island-unlocks.md).
+func _stock_bootstrap_supplies(island: IslandData) -> void:
+	var dock_cost := building_manager.get_cost(GameTypes.BuildingType.DOCK)
+	for resource_type in dock_cost.keys():
+		island.inventory.add_amount(resource_type, dock_cost[resource_type])
 
 
 # Cycle through already-discovered islands (wrapping). Islands persist, so a
@@ -413,9 +428,11 @@ func _switch_to_island(index: int) -> void:
 		return
 
 	current_island = world.get_current()
+	resource_manager.set_inventory(current_island.inventory)
 	building_info_panel.hide_info()
 	renderer.render(current_island)
 	_spawn_player_unit()
+	resource_bar.refresh()
 	_apply_selected_building()
 	_center_camera(current_island)
 

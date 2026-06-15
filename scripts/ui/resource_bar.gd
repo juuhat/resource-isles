@@ -72,6 +72,12 @@ func _build_ui() -> void:
 	power_label = _add_power_entry(row)
 
 
+# Redraw every label from the current inventory. Call after the active island
+# (and thus the resource_manager's inventory) changes.
+func refresh() -> void:
+	_refresh_all()
+
+
 func _refresh_all() -> void:
 	if resource_manager == null or resource_labels.is_empty():
 		return

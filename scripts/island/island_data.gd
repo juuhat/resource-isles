@@ -4,6 +4,7 @@ extends RefCounted
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 
 var island_name: String = ""
+var inventory := Inventory.new()
 var width: int
 var height: int
 var terrain: Dictionary = {}

@@ -112,7 +112,8 @@ The project now includes a code-driven hex-tile starter island scaffold:
 - `scripts/island/island_generator.gd` creates a small starter island from a seed, places a three-forest triangle cluster, and places two random stones.
 - `scripts/island/island_renderer.gd` draws generated terrain, Y-sorted resources/buildings, hover highlighting, and placement preview.
 - `scripts/game_types.gd` centralizes the shared gameplay enums (`Terrain`, `BuildingType`, `ResourceNodeType`, `ResourceType`, `AdjacencyKind`) so data and manager classes stay decoupled.
-- `scripts/resources/resource_manager.gd` tracks current resource amounts.
+- `scripts/resources/inventory.gd` is a per-owner resource stock (amounts plus a `changed` signal); each island owns one, so inventory is per-island with no global pool.
+- `scripts/resources/resource_manager.gd` is a thin facade over the *current* island's `Inventory`, giving the UI and placement logic a stable signal/API while the active island swaps underneath (`set_inventory`). The starter island begins with no resources (the player scavenges the first wood by hand); later islands arrive with just enough to build their first dock.
 - `scripts/resources/resource_node_definition.gd` defines resource node properties such as footprint, visual bounds, extracted resource type, and one-time scavenge amount.
 - `scripts/ui/floating_text.gd` is a world-space popup that rises and fades, used for scavenge feedback such as `+3 Wood`.
 - `scripts/resources/resource_node_database.gd` registers resource node definitions such as trees.

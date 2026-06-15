@@ -130,8 +130,11 @@ belongs as a separate optional "voyage" mode, not the core loop.
 ## Inventory, Boats, and Island Bootstrap
 
 This is the model for how goods are stored and moved — decided, not just implied. The
-reference is **Anno**, which is exactly this shape: per-island storage, no global pool, ships
-that physically carry cargo, and a harbor as the first building on any new island.
+reference is **Anno**, but only the parts that fit: per-island storage, no global pool, and a
+harbor as the first building on any new island. We deliberately **drop Anno's manual cargo
+loading** — there is no loading a ship's hold by hand. Movement of goods is handled entirely by
+**automated trade routes** (below). Transit of the robot to a new island is just travel, not a
+cargo step.
 
 ### Per-island inventory (decided)
 
@@ -140,20 +143,32 @@ pool**. A global pool was considered and rejected: it makes shipping automatic a
 the entire inter-island logistics challenge — the game's stated endgame — into one shared
 bucket. Anno does not do this, and neither should we.
 
-Consequence (the real refactor): `resource_manager.gd` currently holds a single global pool.
-Per-island inventory means inventory state moves onto / is keyed by the island, and the
-resource bar shows the **current** island's stock. This is the larger change behind step 6.
+**Implemented:** [`inventory.gd`](../scripts/resources/inventory.gd) is a per-owner stock
+(amounts + `changed` signal); each [`IslandData`](../scripts/island/island_data.gd) owns one.
+[`resource_manager.gd`](../scripts/resources/resource_manager.gd) is now a thin facade over the
+*current* island's inventory (`set_inventory` on island switch), so the UI and placement logic
+keep a stable signal/API. The starter island begins with **no** resources (the opening
+scavenge loop, see [progression-and-power.md](progression-and-power.md)); later islands arrive
+with **exactly the dock's cost** (derived from the dock's `BuildingDefinition`) — enough to
+establish the first dock and never soft-lock. This dock-materials start is the **permanent**
+design, not a placeholder. Still pending (the transfer half): **trade routes** that move goods
+between island inventories, plus simulating away islands' production into their own stock.
 
-### Boats are mobile cargo holds
+### Trade routes move goods (no manual cargo)
 
-A boat is not just travel — it is **storage in transit** (the Anno ship's cargo hold). The
-robot loads goods into the boat at one island's dock; the goods physically ride along and can
-be unloaded at the destination. This is what makes per-island inventory workable: goods move
-because a boat carries them, not because a global pool teleports them.
+Goods move between islands **only** through automated **trade routes**, never by hand-loading a
+boat. A route is a standing link between two docks that ferries a chosen resource from one
+island's inventory to another's over time. The player sets up the route once; it then runs on
+its own. This keeps the logistics interesting (which routes, between which islands, for which
+goods) without the busywork of manually filling holds every trip.
 
-This gives boat tiers a **second axis**: not just *reach* (which ring) but *capacity* (how much
-cargo). `rowboat` = tiny hold, `sailboat` = more, `ship` = real trade volume. Reach and cargo
-scale together up the tier ladder.
+Routes have **throughput** — how much they move per unit time. The first route the player can
+afford (built alongside the second island's dock) is intentionally **very weak**: a trickle,
+enough to bootstrap but not to run an economy. Throughput is the progression lever.
+
+This gives boat tiers / route upgrades a **second axis** beyond *reach* (which ring): *capacity*
+(route throughput). `rowboat` = trickle, `sailboat` = more, `ship` = real trade volume. Reach
+and throughput scale together up the tier ladder.
 
 ### Bootstrap: the dock is the first building on a new island
 
@@ -162,14 +177,15 @@ island with no wood (or no stone), so you cannot build anything — and you cann
 because importing needs a dock you cannot afford to build. That is a dead end.
 
 **Rule: the dock is the first thing established on any new island, kept deliberately simple.**
-Once the dock exists, the island can **receive imports** from other islands, so a
-resource-barren island is never a trap — you ship in what it lacks. Concretely, the boat that
-brought the robot carries enough to establish that first dock (and the dock is the obvious,
-guided first action on arrival). Keep this step lightweight; do not gate the first dock behind
-local resources the island might not have.
+A newly reached island simply **starts with exactly the dock's materials** (no cargo step — see
+"Trade routes" above), so the first dock is always buildable. Once the dock exists, the island
+can be the endpoint of a **trade route**, so a resource-barren island is never a trap — you
+route in what it lacks. The very first route you can afford is a weak trickle, enough to begin.
+Keep this lightweight; do not gate the first dock behind local resources the island might not
+have.
 
 This is the deliberate answer to "what if there's no wood here": **the dock comes first and
-unlocks import, so scarcity is a logistics problem to solve, not a wall.**
+enables a trade route, so scarcity is a logistics problem to solve, not a wall.**
 
 See also the inter-island transfer discussion in
 [progression-and-power.md](progression-and-power.md).
@@ -210,8 +226,11 @@ Start tiny; do not build a sprawling tech UI up front.
    destination.
 5. **Boat tiers + rare-resource gating** — sailboat/ship reach outer rings; higher tiers cost
    earlier islands' rare resources; fuse with ship-module repair toward the win condition.
-6. *(Later)* **per-island inventory** (decided — see "Inventory, Boats, and Island Bootstrap"),
-   boat cargo holds, and inter-island supply routes (the Anno logistics layer).
+6. **Per-island inventory storage DONE** ([`inventory.gd`](../scripts/resources/inventory.gd)
+   per island, `resource_manager.gd` facade over the current island; starter starts empty,
+   later islands start with the dock's materials). *(Later)* **trade routes** that move goods
+   between island inventories at a throughput, weak at first and improving with boat tiers —
+   the logistics layer. No manual cargo.
 
 ## Open Questions
 
