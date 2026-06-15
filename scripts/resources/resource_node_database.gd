@@ -9,28 +9,29 @@ var definitions: Dictionary = {}
 
 
 func _init() -> void:
-	_add_definition(ResourceNodeDefinitionScript.new(
+	var forest := ResourceNodeDefinitionScript.new(
 		GameTypes.ResourceNodeType.TREE,
 		"Forest",
 		FOREST_TEXTURE,
 		GameTypes.ResourceType.WOOD,
-		1,
-		10.0,
 		Vector2i(1, 1),
 		Vector2(1.0, 1.25),
 		Vector2(0.0, -0.25)
-	))
-	_add_definition(ResourceNodeDefinitionScript.new(
+	)
+	forest.scavenge_amount = 3
+	_add_definition(forest)
+
+	var stone := ResourceNodeDefinitionScript.new(
 		GameTypes.ResourceNodeType.STONE,
 		"Stone",
 		STONE_TEXTURE,
 		GameTypes.ResourceType.STONE,
-		1,
-		12.0,
 		Vector2i(1, 1),
 		Vector2(1.0, 1.0),
 		Vector2.ZERO
-	))
+	)
+	stone.scavenge_amount = 3
+	_add_definition(stone)
 
 
 func get_definition(resource_node_type: int) -> ResourceNodeDefinition:

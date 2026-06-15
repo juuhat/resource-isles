@@ -1,6 +1,8 @@
 class_name ProductionManager
 extends RefCounted
 
+signal produced(anchor_cell: Vector2i, resource_type: int, amount: int)
+
 var building_manager: BuildingManager
 var resource_manager: ResourceManager
 
@@ -37,6 +39,7 @@ func update(island: IslandData, current_time_seconds: float) -> void:
 		var amount := building_manager.get_production_amount(anchor_cell, building_type, island)
 		if amount > 0:
 			resource_manager.add_amount(definition.production_resource_type, amount)
+			produced.emit(anchor_cell, definition.production_resource_type, amount)
 
 		island.set_next_production_time(
 			anchor_cell,

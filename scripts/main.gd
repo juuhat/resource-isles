@@ -9,6 +9,7 @@ const ResourceManagerScript := preload("res://scripts/resources/resource_manager
 const ResourceNodeDatabaseScript := preload("res://scripts/resources/resource_node_database.gd")
 const BuildingManagerScript := preload("res://scripts/buildings/building_manager.gd")
 const ProductionManagerScript := preload("res://scripts/buildings/production_manager.gd")
+const FloatingTextScript := preload("res://scripts/ui/floating_text.gd")
 
 const NO_BUILDING := -1
 
@@ -39,6 +40,7 @@ func _ready() -> void:
 	building_manager.setup(resource_node_database)
 	production_manager = ProductionManagerScript.new()
 	production_manager.setup(building_manager, resource_manager)
+	production_manager.produced.connect(_on_building_produced)
 
 	renderer = IslandRendererScript.new()
 	renderer.name = "IslandRenderer"
@@ -96,7 +98,7 @@ func _input(event: InputEvent) -> void:
 			if _try_select_building():
 				return
 
-			if _try_harvest_resource():
+			if _try_scavenge_resource():
 				return
 
 			if selected_building_type != NO_BUILDING:
@@ -115,25 +117,58 @@ func _set_zoom(new_zoom: float) -> void:
 	renderer.queue_redraw()
 
 
-func _try_harvest_resource() -> bool:
+func _try_scavenge_resource() -> bool:
 	var resource_node_type := renderer.get_hovered_resource_node_type()
 	if resource_node_type == -1:
 		return false
+
+	var cell := renderer.hovered_cell
+	if not current_island.can_scavenge(cell):
+		return true
 
 	var definition := resource_node_database.get_definition(resource_node_type)
 	if definition == null:
 		return true
 
-	var current_time_seconds := Time.get_ticks_msec() / 1000.0
-	if not current_island.can_extract_resource(renderer.hovered_cell, current_time_seconds):
-		return true
-
-	resource_manager.add_amount(definition.extracted_resource_type, definition.extraction_amount)
-	current_island.mark_resource_extracted(
-		renderer.hovered_cell,
-		current_time_seconds + definition.extraction_interval_seconds
+	current_island.mark_scavenged(cell)
+	resource_manager.add_amount(definition.extracted_resource_type, definition.scavenge_amount)
+	_spawn_floating_text(
+		renderer.get_cell_center(cell),
+		"+%d %s" % [
+			definition.scavenge_amount,
+			ResourceManager.get_display_name_for_type(definition.extracted_resource_type),
+		],
+		_resource_color(definition.extracted_resource_type)
 	)
 	return true
+
+
+func _on_building_produced(anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
+	_spawn_floating_text(
+		renderer.get_cell_center(anchor_cell),
+		"+%d %s" % [amount, ResourceManager.get_display_name_for_type(resource_type)],
+		_resource_color(resource_type),
+		16
+	)
+
+
+func _spawn_floating_text(world_position: Vector2, text: String, color: Color, font_size := 22) -> void:
+	var floating := FloatingTextScript.new()
+	floating.text = text
+	floating.color = color
+	floating.font_size = font_size
+	floating.position = world_position
+	add_child(floating)
+
+
+func _resource_color(resource_type: int) -> Color:
+	match resource_type:
+		GameTypes.ResourceType.WOOD:
+			return Color("#d79a4f")
+		GameTypes.ResourceType.STONE:
+			return Color("#cfcfd6")
+		_:
+			return Color.WHITE
 
 
 func _try_select_building() -> bool:

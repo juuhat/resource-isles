@@ -8,8 +8,8 @@ var footprint_size: Vector2i
 var visual_size_tiles: Vector2
 var visual_offset_tiles: Vector2
 var extracted_resource_type: int
-var extraction_amount: int
-var extraction_interval_seconds: float
+# One-time yield when the player manually scavenges this node.
+var scavenge_amount: int = 1
 
 
 func _init(
@@ -17,8 +17,6 @@ func _init(
 	new_display_name: String,
 	new_texture: Texture2D,
 	new_extracted_resource_type: int,
-	new_extraction_amount: int,
-	new_extraction_interval_seconds: float,
 	new_footprint_size: Vector2i = Vector2i.ONE,
 	new_visual_size_tiles: Vector2 = Vector2.ONE,
 	new_visual_offset_tiles: Vector2 = Vector2.ZERO
@@ -30,5 +28,3 @@ func _init(
 	visual_size_tiles = new_visual_size_tiles
 	visual_offset_tiles = new_visual_offset_tiles
 	extracted_resource_type = new_extracted_resource_type
-	extraction_amount = new_extraction_amount
-	extraction_interval_seconds = new_extraction_interval_seconds

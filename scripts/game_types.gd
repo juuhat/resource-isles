@@ -11,6 +11,7 @@ enum Terrain {
 enum BuildingType {
 	HUB,
 	LOGGER_CAMP,
+	QUARRY,
 }
 
 enum ResourceNodeType {

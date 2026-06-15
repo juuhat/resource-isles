@@ -5,6 +5,7 @@ const BuildingDefinitionScript := preload("res://scripts/buildings/building_defi
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HUB_TEXTURE := preload("res://assets/buildings/hub.png")
 const LOGGER_CAMP_TEXTURE := preload("res://assets/buildings/logger_camp.png")
+const QUARRY_TEXTURE := preload("res://assets/buildings/quarry.png")
 
 var definitions: Dictionary = {}
 var resource_node_database: ResourceNodeDatabase
@@ -40,6 +41,29 @@ func _init() -> void:
 	logger_camp.production_base_amount = 1
 	logger_camp.production_interval_seconds = 3.0
 	_add_definition(logger_camp)
+
+	var quarry := BuildingDefinitionScript.new(
+		GameTypes.BuildingType.QUARRY,
+		"Quarry",
+		QUARRY_TEXTURE,
+		{
+			GameTypes.ResourceType.WOOD: 6,
+		},
+		Vector2i.ONE,
+		Vector2(1.35, 1.35),
+		Vector2(0.0, -0.18)
+	)
+	# Must touch stone, earns +1 per adjacent deposit, but neighboring
+	# quarries compete for the same workable rock face: -1 each.
+	quarry.required_adjacent = [_resource_ref(GameTypes.ResourceNodeType.STONE)]
+	quarry.adjacency_yields = [
+		_yield_rule(GameTypes.AdjacencyKind.RESOURCE, GameTypes.ResourceNodeType.STONE, 1),
+		_yield_rule(GameTypes.AdjacencyKind.BUILDING, GameTypes.BuildingType.QUARRY, -1),
+	]
+	quarry.production_resource_type = GameTypes.ResourceType.STONE
+	quarry.production_base_amount = 1
+	quarry.production_interval_seconds = 3.0
+	_add_definition(quarry)
 
 
 func setup(new_resource_node_database: ResourceNodeDatabase) -> void:

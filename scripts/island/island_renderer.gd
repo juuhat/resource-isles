@@ -114,6 +114,10 @@ func world_to_cell(world_position: Vector2) -> Vector2i:
 	return nearest_cell if island.is_in_bounds(nearest_cell) else Vector2i(-1, -1)
 
 
+func get_cell_center(cell: Vector2i) -> Vector2:
+	return _cell_center(cell)
+
+
 func get_map_bounds() -> Rect2:
 	if island == null:
 		return Rect2(Vector2.ZERO, Vector2.ZERO)

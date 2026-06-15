@@ -51,6 +51,11 @@ func _select_logger_camp() -> void:
 	building_selected.emit(selected_building_type)
 
 
+func _select_quarry() -> void:
+	set_selected_building(GameTypes.BuildingType.QUARRY)
+	building_selected.emit(selected_building_type)
+
+
 func _select_hub() -> void:
 	set_selected_building(GameTypes.BuildingType.HUB)
 	building_selected.emit(selected_building_type)
@@ -109,6 +114,11 @@ func _build_ui() -> void:
 	logger_camp_button.text = building_manager.get_label(GameTypes.BuildingType.LOGGER_CAMP)
 	logger_camp_button.pressed.connect(_select_logger_camp)
 	menu.add_child(logger_camp_button)
+
+	var quarry_button := Button.new()
+	quarry_button.text = building_manager.get_label(GameTypes.BuildingType.QUARRY)
+	quarry_button.pressed.connect(_select_quarry)
+	menu.add_child(quarry_button)
 
 	var clear_button := Button.new()
 	clear_button.text = "Clear selection"

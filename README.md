@@ -106,14 +106,15 @@ The project now includes a code-driven hex-tile starter island scaffold:
 
 - `assets/tiles/tile.png` provides a shared white hex mask that terrain draws and tints in code, leaving decorative PNGs free to layer on top.
 - `assets/resources/tree.png`, `assets/resources/forest.png`, and `assets/resources/stone.png` provide the first harvestable map resources.
-- `assets/buildings/hub.png` and `assets/buildings/logger_camp.png` provide the first placeable buildings.
+- `assets/buildings/hub.png`, `assets/buildings/logger_camp.png`, and `assets/buildings/quarry.png` provide the first placeable buildings.
 - `scripts/island/hex_grid.gd` provides pointy-top hex coordinates, neighbors, polygon points, and picking helpers.
 - `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
 - `scripts/island/island_generator.gd` creates a small starter island from a seed, places a three-forest triangle cluster, and places two random stones.
 - `scripts/island/island_renderer.gd` draws generated terrain, Y-sorted resources/buildings, hover highlighting, and placement preview.
 - `scripts/game_types.gd` centralizes the shared gameplay enums (`Terrain`, `BuildingType`, `ResourceNodeType`, `ResourceType`, `AdjacencyKind`) so data and manager classes stay decoupled.
 - `scripts/resources/resource_manager.gd` tracks current resource amounts.
-- `scripts/resources/resource_node_definition.gd` defines resource node properties such as footprint, visual bounds, extraction output, and extraction interval.
+- `scripts/resources/resource_node_definition.gd` defines resource node properties such as footprint, visual bounds, extracted resource type, and one-time scavenge amount.
+- `scripts/ui/floating_text.gd` is a world-space popup that rises and fades, used for scavenge feedback such as `+3 Wood`.
 - `scripts/resources/resource_node_database.gd` registers resource node definitions such as trees.
 - `scripts/buildings/building_definition.gd` defines building properties such as display name, texture, cost, footprint, placement rules, adjacency yields, and production output.
 - `scripts/buildings/building_manager.gd` registers building definitions and owns placement validation (`can_place`/`try_place`), adjacency yield calculation, and per-tick production amounts.
@@ -123,30 +124,30 @@ The project now includes a code-driven hex-tile starter island scaffold:
 - `scripts/ui/building_info_panel.gd` owns the building info UI shown when a placed building is clicked, including its live adjacency and production breakdown.
 - `scripts/main.gd` generates and displays the island, owns the current island data, and drives the production tick each frame.
 
-Naming note: resource nodes are permanent map objects such as forests and stones, while resources are stored inventory items such as wood and stone. For example, `GameTypes.ResourceNodeType.TREE` extracts into `GameTypes.ResourceType.WOOD` once per extraction interval.
+Naming note: resource nodes are permanent map objects such as forests and stones, while resources are stored inventory items such as wood and stone. For example, scavenging a `GameTypes.ResourceNodeType.TREE` yields `GameTypes.ResourceType.WOOD`.
 Building footprints can be larger than one tile, though the current prototype buildings occupy one hex. `BuildingManager` computes footprint cells and stores them with each placed building.
-Each generated island starts with a required central hub. Buildings require resources to place. Logger's camps cost 6 Wood, and additional hubs cost 8 Wood plus 4 Stone.
+Each generated island starts with a required central hub. Buildings require resources to place. Logger's camps and quarries cost 6 Wood, and additional hubs cost 8 Wood plus 4 Stone.
 
 ### Placement Rules And Adjacency
 
 Buildings declare data-driven placement and adjacency behavior on their `BuildingDefinition`:
 
 - `required_terrain`: the terrain every footprint cell must sit on (grass by default).
-- `required_adjacent`: each entry must have at least one matching neighbor, or placement is blocked. For example, a logger's camp must be built next to a forest.
+- `required_adjacent`: each entry must have at least one matching neighbor, or placement is blocked. For example, a logger's camp must be built next to a forest, and a quarry must be built next to stone.
 - `forbidden_adjacent`: placement is blocked if any neighbor matches.
-- `adjacency_yields`: Civilization VI style bonuses, where each neighbor matching a `{ kind, type, amount }` rule contributes `amount`. A logger's camp earns +1 per adjacent forest but -1 per adjacent logger's camp, discouraging clustering and rewarding sustainable spacing.
+- `adjacency_yields`: Civilization VI style bonuses, where each neighbor matching a `{ kind, type, amount }` rule contributes `amount`. A logger's camp earns +1 per adjacent forest but -1 per adjacent logger's camp, while a quarry earns +1 per adjacent stone deposit but -1 per adjacent quarry.
 
 The placement preview tints red when a rule is unmet, and the building info panel shows the live adjacency breakdown for a placed building.
 
 ### Production
 
-Producing buildings declare a `production_resource_type`, `production_base_amount`, and `production_interval_seconds`. Each interval the building pays out `base + adjacency total` (clamped to zero) of its resource into the inventory. A logger's camp produces Wood every 3 seconds, scaling with the number of adjacent forests. Newly placed buildings wait one full interval before their first payout.
+Producing buildings declare a `production_resource_type`, `production_base_amount`, and `production_interval_seconds`. Each interval the building pays out `base + adjacency total` (clamped to zero) of its resource into the inventory. A logger's camp produces Wood every 3 seconds, scaling with the number of adjacent forests; a quarry produces Stone every 3 seconds, scaling with adjacent stone deposits. Newly placed buildings wait one full interval before their first payout.
 
 Prototype controls:
 
 - **Left click**: place the selected building
 - **Left click on a building**: show building info
-- **Left click on a forest or stone**: extract its resource when its extraction interval is ready
+- **Left click on a forest or stone**: scavenge it once for a one-time resource burst (shows a floating `+N` popup)
 - **Buildings button**: open or close the building menu
 - **Esc**: clear the selected building
 - **Enter**: regenerate the island with the next seed
