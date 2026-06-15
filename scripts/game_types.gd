@@ -9,7 +9,7 @@ enum Terrain {
 }
 
 enum BuildingType {
-	HUB,
+	CRASHED_SPACESHIP,
 	LOGGER_CAMP,
 	QUARRY,
 	BURNER_GENERATOR,

@@ -106,7 +106,7 @@ The project now includes a code-driven hex-tile starter island scaffold:
 
 - `assets/tiles/tile.png` provides a shared white hex mask that terrain draws and tints in code, leaving decorative PNGs free to layer on top.
 - `assets/resources/tree.png`, `assets/resources/forest.png`, and `assets/resources/stone.png` provide the first harvestable map resources.
-- `assets/buildings/hub.png`, `assets/buildings/logger_camp.png`, `assets/buildings/quarry.png`, and `assets/buildings/burner_generator.png` provide the first placeable buildings.
+- `assets/buildings/crashed_spaceship.png`, `assets/buildings/logger_camp.png`, `assets/buildings/quarry.png`, and `assets/buildings/burner_generator.png` provide the first placeable buildings.
 - `scripts/island/hex_grid.gd` provides pointy-top hex coordinates, neighbors, polygon points, and picking helpers.
 - `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
 - `scripts/island/island_generator.gd` creates a small starter island from a seed, places a three-forest triangle cluster, and places two random stones.
@@ -126,7 +126,7 @@ The project now includes a code-driven hex-tile starter island scaffold:
 
 Naming note: resource nodes are permanent map objects such as forests and stones, while resources are stored inventory items such as wood and stone. For example, scavenging a `GameTypes.ResourceNodeType.TREE` yields `GameTypes.ResourceType.WOOD`.
 Building footprints can be larger than one tile, though the current prototype buildings occupy one hex. `BuildingManager` computes footprint cells and stores them with each placed building.
-Each generated island starts with a required central hub. Buildings require resources to place. Logger's camps and quarries cost 6 Wood, burner generators cost 4 Wood plus 2 Stone, and additional hubs cost 8 Wood plus 4 Stone.
+Each generated island starts with a required central crashed spaceship. Buildings require resources to place. Logger's camps and quarries cost 6 Wood, burner generators cost 4 Wood plus 2 Stone, and additional crashed spaceships cost 8 Wood plus 4 Stone.
 
 ### Placement Rules And Adjacency
 

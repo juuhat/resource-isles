@@ -21,7 +21,7 @@ func generate_starter_island(seed_value: int = 0, building_manager: BuildingMana
 	_carve_grass_blob(island)
 	_smooth_grass_edges(island, 2)
 	_add_sand_border(island, SAND_BORDER_WIDTH)
-	_place_required_hub(island, building_manager)
+	_place_required_crashed_spaceship(island, building_manager)
 	_place_stone_patch(island)
 	_place_trees(island)
 	_place_stones(island)
@@ -149,15 +149,15 @@ func _place_stone_patch(island: IslandData) -> void:
 		island.set_terrain(cell, GameTypes.Terrain.STONE)
 
 
-func _place_required_hub(island: IslandData, building_manager: BuildingManager) -> void:
+func _place_required_crashed_spaceship(island: IslandData, building_manager: BuildingManager) -> void:
 	var center := Vector2(island.width * 0.5, island.height * 0.52)
 	var best_cell := Vector2i(-1, -1)
 	var best_distance := INF
-	var hub_definition := building_manager.get_definition(GameTypes.BuildingType.HUB) if building_manager else null
-	var required_terrain: int = hub_definition.required_terrain if hub_definition != null else GameTypes.Terrain.GRASS
+	var crashed_spaceship_definition := building_manager.get_definition(GameTypes.BuildingType.CRASHED_SPACESHIP) if building_manager else null
+	var required_terrain: int = crashed_spaceship_definition.required_terrain if crashed_spaceship_definition != null else GameTypes.Terrain.GRASS
 
 	for cell in island.terrain.keys():
-		var footprint := building_manager.get_footprint_cells(cell, GameTypes.BuildingType.HUB) if building_manager else [cell] as Array[Vector2i]
+		var footprint := building_manager.get_footprint_cells(cell, GameTypes.BuildingType.CRASHED_SPACESHIP) if building_manager else [cell] as Array[Vector2i]
 		if not island.can_place_building(cell, footprint, required_terrain):
 			continue
 
@@ -167,8 +167,8 @@ func _place_required_hub(island: IslandData, building_manager: BuildingManager) 
 			best_cell = cell
 
 	if best_cell != Vector2i(-1, -1):
-		var footprint := building_manager.get_footprint_cells(best_cell, GameTypes.BuildingType.HUB) if building_manager else [best_cell] as Array[Vector2i]
-		island.place_building(best_cell, GameTypes.BuildingType.HUB, footprint, required_terrain)
+		var footprint := building_manager.get_footprint_cells(best_cell, GameTypes.BuildingType.CRASHED_SPACESHIP) if building_manager else [best_cell] as Array[Vector2i]
+		island.place_building(best_cell, GameTypes.BuildingType.CRASHED_SPACESHIP, footprint, required_terrain)
 		return
 
 	var fallback_cell := Vector2i(
@@ -176,8 +176,8 @@ func _place_required_hub(island: IslandData, building_manager: BuildingManager) 
 		clampi(roundi(center.y), 0, island.height - 1)
 	)
 	island.set_terrain(fallback_cell, required_terrain)
-	var fallback_footprint := building_manager.get_footprint_cells(fallback_cell, GameTypes.BuildingType.HUB) if building_manager else [fallback_cell] as Array[Vector2i]
-	island.place_building(fallback_cell, GameTypes.BuildingType.HUB, fallback_footprint, required_terrain)
+	var fallback_footprint := building_manager.get_footprint_cells(fallback_cell, GameTypes.BuildingType.CRASHED_SPACESHIP) if building_manager else [fallback_cell] as Array[Vector2i]
+	island.place_building(fallback_cell, GameTypes.BuildingType.CRASHED_SPACESHIP, fallback_footprint, required_terrain)
 
 
 func _pick_stone_patch_center(island: IslandData) -> Vector2i:

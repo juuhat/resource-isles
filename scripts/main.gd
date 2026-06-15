@@ -375,9 +375,9 @@ func _spawn_player_unit() -> void:
 
 
 func _find_unit_spawn_cell() -> Vector2i:
-	var hub_cell := _find_hub_cell()
-	if hub_cell != Vector2i(-1, -1):
-		for neighbor in HexGridScript.neighbors(hub_cell):
+	var crashed_spaceship_cell := _find_crashed_spaceship_cell()
+	if crashed_spaceship_cell != Vector2i(-1, -1):
+		for neighbor in HexGridScript.neighbors(crashed_spaceship_cell):
 			if HexPathfinderScript.is_walkable(current_island, neighbor) and not current_island.has_building(neighbor):
 				return neighbor
 
@@ -394,9 +394,9 @@ func _find_unit_spawn_cell() -> Vector2i:
 	return Vector2i.ZERO
 
 
-func _find_hub_cell() -> Vector2i:
+func _find_crashed_spaceship_cell() -> Vector2i:
 	for cell in current_island.buildings.keys():
-		if current_island.buildings[cell].type == GameTypes.BuildingType.HUB:
+		if current_island.buildings[cell].type == GameTypes.BuildingType.CRASHED_SPACESHIP:
 			return cell
 
 	return Vector2i(-1, -1)

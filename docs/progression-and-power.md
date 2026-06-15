@@ -49,7 +49,7 @@ upgrading my best one?"* This falls straight out of the existing adjacency syste
 
 ### Minimal start
 
-Start with the Hub only (or Hub + one camp). The player scavenges for the wood to afford
+Start with the crashed spaceship only (or crashed spaceship + one camp). The player scavenges for the wood to afford
 their first camp — this is the opening loop and the reason the one-off scavenge mechanic
 earns its place.
 

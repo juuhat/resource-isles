@@ -6,7 +6,7 @@ extends RefCounted
 # the per-building numbers. Add new buildings here.
 
 const BuildingDefinitionScript := preload("res://scripts/buildings/building_definition.gd")
-const HUB_TEXTURE := preload("res://assets/buildings/hub.png")
+const CRASHED_SPACESHIP_TEXTURE := preload("res://assets/buildings/crashed_spaceship.png")
 const LOGGER_CAMP_TEXTURE := preload("res://assets/buildings/logger_camp.png")
 const QUARRY_TEXTURE := preload("res://assets/buildings/quarry.png")
 const BURNER_GENERATOR_TEXTURE := preload("res://assets/buildings/burner_generator.png")
@@ -17,10 +17,10 @@ static func build_all() -> Array[BuildingDefinition]:
 	var definitions: Array[BuildingDefinition] = []
 
 	definitions.append(BuildingDefinitionScript.new(
-		GameTypes.BuildingType.HUB,
-		"Hub",
+		GameTypes.BuildingType.CRASHED_SPACESHIP,
+		"Crashed Spaceship",
 		GameTypes.BuildingCategory.UTILITY,
-		HUB_TEXTURE,
+		CRASHED_SPACESHIP_TEXTURE,
 		{
 			GameTypes.ResourceType.WOOD: 8,
 			GameTypes.ResourceType.STONE: 4,

@@ -10,8 +10,8 @@ this loop feeds the broader economy.
 
 ## The Narrative Frame
 
-A little robot's ship crashes on the planet. The wreck **replaces the starting Hub** as a
-crashed spaceship, and the robot's mission is to **rebuild a working ship and fly home** —
+A little robot's ship crashes on the planet. The wreck is the starting **crashed spaceship**,
+and the robot's mission is to **rebuild a working ship and fly home** —
 the game's win condition. This gives the economy a *purpose* (gather → build → escape) and
 turns the builder into a goal-driven game rather than an open-ended sandbox.
 
@@ -50,7 +50,7 @@ Defined in [`scripts/player/player_unit.gd`](../scripts/player/player_unit.gd) (
 - **Movement** — `follow_path()` takes a queue of cells and walks them at `move_speed`
   (world units/sec) in `_process`, lerping toward each cell center; emits **`arrived(cell)`**
   once the whole path is consumed so the caller can react (show the harvest button).
-- **Spawn** — placed next to the crashed-ship/Hub on every island generation
+- **Spawn** — placed next to the crashed spaceship on every island generation
   (`_find_unit_spawn_cell` in `main.gd`), with a fallback to any open land tile.
 - **Draw order** — `z_index = 10`, so it renders above terrain and buildings for visibility.
 
@@ -153,10 +153,11 @@ Phases 1–4 are the playable core; everything after is content.
    appears on the left edge of the screen; pressing it starts the chop minigame. The button
    reappears after each chop (nodes are infinite) and hides when the robot moves away.
    **Left-click** stays for selection / building placement, and **middle-drag** pans the
-   camera. The robot spawns next to the Hub each time the island generates.
-4. **Reskin Hub → crashed ship**: the generator already force-places a Hub
-   ([`island_generator.gd:152`](../scripts/island/island_generator.gd)); swap art + name and
-   mark it the build target. Robot spawns adjacent.
+   camera. The robot spawns next to the crashed spaceship each time the island generates.
+4. **DONE — Crashed spaceship start**: the generator force-places the crashed spaceship
+   ([`island_generator.gd`](../scripts/island/island_generator.gd)); it uses the
+   `crashed_spaceship.png` art, is named "Crashed Spaceship", and is the future ship-repair
+   build target. Robot spawns adjacent.
 5. *(Later)* Construction-as-blueprint, ship-module repair win condition, buildable extra
    robots for parallelism (another automation-flavored progression axis).
 
