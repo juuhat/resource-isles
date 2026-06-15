@@ -94,7 +94,7 @@ func _ready() -> void:
 
 	world = WorldDataScript.new()
 	_add_ui()
-	_create_new_island()
+	_enter_island(WorldData.CENTER)
 
 
 func _process(delta: float) -> void:
@@ -116,10 +116,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	var key_event := event as InputEventKey
 	if not key_event.pressed or key_event.echo:
 		return
-
-	if key_event.keycode == KEY_ENTER or key_event.keycode == KEY_KP_ENTER:
-		seed_value += 1
-		_create_new_island()
 
 	if key_event.keycode == KEY_BRACKETRIGHT:
 		_switch_to_adjacent_island(1)
@@ -400,16 +396,27 @@ func _get_building_cost(building_type: int) -> Dictionary:
 	return building_manager.get_cost(building_type)
 
 
-func _create_new_island() -> void:
-	# Only the first island (World 1) is the crash site with the starting wreck.
-	# It begins with no resources — the opening loop is scavenging the first wood by
-	# hand (see docs/progression-and-power.md). Later islands instead arrive with
-	# just enough to establish their first dock.
-	var is_starter := world.island_count() == 0
+# Enter the island at a world-map slot: travel there if it exists, otherwise
+# generate it first. Used both for the starter at startup and for slots clicked on
+# the world map.
+func _enter_island(coord: Vector2i) -> void:
+	if not world.has_island(coord):
+		_generate_island_at(coord)
+
+	_switch_to_island(coord)
+
+
+func _generate_island_at(coord: Vector2i) -> void:
+	# The center slot (World 1) is the crash site with the starting wreck. It begins
+	# with no resources — the opening loop is scavenging the first wood by hand (see
+	# docs/progression-and-power.md). Other slots arrive with just enough to establish
+	# their first dock.
+	var is_starter := coord == WorldData.CENTER
 	var island := generator.generate_starter_island(seed_value, building_manager, is_starter)
+	seed_value += 1
 	if not is_starter:
 		_stock_bootstrap_supplies(island)
-	_switch_to_island(world.add_island(island))
+	world.add_island(coord, island)
 
 
 # A newly reached island arrives with exactly enough to build its first dock, which
@@ -422,19 +429,21 @@ func _stock_bootstrap_supplies(island: IslandData) -> void:
 		island.inventory.add_amount(resource_type, dock_cost[resource_type])
 
 
-# Cycle through already-discovered islands (wrapping). Islands persist, so a
-# revisited island keeps the buildings placed on it. No-op until a second island
-# exists.
+# Cycle through already-discovered islands in discovery order (wrapping). Islands
+# persist, so a revisited island keeps the buildings placed on it. No-op until a
+# second island exists.
 func _switch_to_adjacent_island(direction: int) -> void:
-	var count := world.island_count()
-	if count <= 1:
+	var coords := world.ordered_coords()
+	if coords.size() <= 1:
 		return
 
-	_switch_to_island((world.current_index + direction + count) % count)
+	var index := coords.find(world.current_coord)
+	var next_coord: Vector2i = coords[(index + direction + coords.size()) % coords.size()]
+	_switch_to_island(next_coord)
 
 
-func _switch_to_island(index: int) -> void:
-	if not world.set_current(index):
+func _switch_to_island(coord: Vector2i) -> void:
+	if not world.set_current(coord):
 		return
 
 	current_island = world.get_current()
@@ -448,10 +457,14 @@ func _switch_to_island(index: int) -> void:
 	_center_camera(current_island)
 
 
-# Travel to an island chosen on the world map, with a fade transition.
-func _on_world_map_island_selected(index: int) -> void:
+# Enter an island slot chosen on the world map, with a fade transition. Travels to
+# an existing island or discovers (generates) a new one at that slot.
+func _on_world_map_slot_activated(coord: Vector2i) -> void:
 	world_map.close()
-	screen_fade.transition(_switch_to_island.bind(index))
+	if coord == world.current_coord and world.has_island(coord):
+		return
+
+	screen_fade.transition(_enter_island.bind(coord))
 
 
 func _spawn_player_unit() -> void:
@@ -546,7 +559,7 @@ func _add_ui() -> void:
 
 	world_map = WorldMapScript.new()
 	world_map.setup(world)
-	world_map.island_selected.connect(_on_world_map_island_selected)
+	world_map.slot_activated.connect(_on_world_map_slot_activated)
 	add_child(world_map)
 
 	screen_fade = ScreenFadeScript.new()

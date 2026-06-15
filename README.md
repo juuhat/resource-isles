@@ -123,8 +123,9 @@ The project now includes a code-driven hex-tile starter island scaffold:
 - `scripts/ui/resource_bar.gd` owns the always-visible top resource bar.
 - `scripts/ui/building_menu.gd` owns the bottom building menu UI and emits building selection events.
 - `scripts/ui/building_info_panel.gd` owns the building info UI shown when a placed building is clicked, including its live adjacency and production breakdown.
-- `scripts/world/world_data.gd` holds every discovered island and a pointer to the current one, so islands persist (with their placed buildings) when the player switches between them.
-- `scripts/ui/world_map.gd` is a CanvasLayer overlay (not a separate scene) that lays out discovered islands as clickable tokens in concentric rings around the starter island, and asks `main` to travel to the selected one.
+- `scripts/world/world_data.gd` holds every discovered island keyed by its world-map hex coordinate, plus the current coordinate, so islands persist (with their placed buildings) when the player switches between them. The starter sits at the center coordinate; other slots are generated on demand.
+- `scripts/ui/world_map.gd` is a CanvasLayer overlay (not a separate scene) that hosts the hex-grid map; selecting a slot asks `main` to enter that island (travel, or generate-then-travel).
+- `scripts/ui/world_map_grid.gd` draws the world map as a flat-color, thick-outline hex grid (starter at center, concentric rings of water with three island slots per ring) and turns clicks into slot selections.
 - `scripts/ui/screen_fade.gd` is a reusable full-screen fade used as the transition between islands until a literal sailing animation exists.
 - `scripts/main.gd` generates and displays islands, owns the `WorldData` and the current island pointer, drives the production tick for the current island each frame, and handles travel between discovered islands.
 
@@ -155,9 +156,8 @@ Prototype controls:
 - **Left click on a forest or stone**: scavenge it once for a one-time resource burst (shows a floating `+N` popup)
 - **Buildings button**: open or close the building menu
 - **Esc**: clear the selected building
-- **Enter**: generate a new island and travel to it (previously visited islands persist)
-- **[** and **]**: switch to the previous or next discovered island
-- **M**: open or close the world map (click an island token to travel there)
+- **M**: open or close the world map. Click a discovered island to travel there, or an unexplored slot (`?`) to generate and travel to a new island. Previously visited islands persist.
+- **[** and **]**: quick-cycle to the previous or next discovered island
 - **Space**: toggle the hex grid overlay
 - **Mouse wheel**: zoom camera
 - **Right or middle mouse drag**: pan camera

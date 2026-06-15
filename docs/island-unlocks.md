@@ -94,6 +94,29 @@ starter island sits at the center**. Islands are arranged in concentric **rings*
 - **Calm center, wild edge** — fits the art direction's cozy-but-a-little-darker mood: home
   waters are safe, the frontier is where the rare stuff (and the road home) lies.
 
+### Fixed islands per ring (decided): 3, radius grows, count does not
+
+The hex layout makes ring *k* hold 6*k* cells, so it is tempting to fill more islands the
+further out you go. **Don't.** Decouple two things that look like one:
+
+- **Ring radius grows** each ring — reinforces farther = harder = better loot, and maps to the
+  boat tier needed to reach it.
+- **Island count per ring stays fixed at 3**, evenly spaced (every 120°), with water between.
+
+Why fixed 3, not doubling or 3*k*:
+
+- **Bounded content.** 3 per ring = 3*R* total. Doubling (3, 6, 12, 24) hits **45 islands by
+  ring 4** — a balance and authoring nightmare and a sprawling map. 3*k* alternating still hits
+  30. Fixed 3 stays at 12.
+- **Clean choice.** Unlocking a ring presents exactly **3 destinations** — the ideal
+  FTL-style branching count. Six-plus is overwhelming.
+- **Ring 1 is the intended picture** — three islands at 120° with water between
+  (water-island-water-island-water-island).
+
+If outer rings ever feel thin, bump to a gentle *linear* count (3, 4, 5) — never double.
+Implemented as `ISLANDS_PER_RING` in [`world_map.gd`](../scripts/ui/world_map.gd): index 0 is
+the center, then rings of 3 with the radius growing per ring.
+
 ## The FTL Question: a branching choice map
 
 FTL's sector map gives the player a **branching route with meaningful choices** — you see the
@@ -222,12 +245,15 @@ Start tiny; do not build a sprawling tech UI up front.
 3. **Rowboat + one neighbor** — build a rowboat at the dock; reveal and travel to a single
    ring-1 island. View-swap with a short sailing transition. The robot travels; the starter
    island keeps producing.
-4. **World map overlay DONE (basic)** — [`world_map.gd`](../scripts/ui/world_map.gd) is a
-   CanvasLayer overlay (not a separate scene; all state stays in `main`) laying out discovered
-   islands as clickable tokens in concentric rings around the starter, toggled with `M`.
-   Selecting a token travels there via a [`screen_fade.gd`](../scripts/ui/screen_fade.gd)
-   transition (placeholder until a sailing animation). Still to add: real ring/reach metadata,
-   locked/undiscovered tokens, and island art instead of plain buttons.
+4. **World map DONE (hex grid + generate-on-click)** — [`world_map.gd`](../scripts/ui/world_map.gd)
+   hosts a flat-color, thick-outline hex grid ([`world_map_grid.gd`](../scripts/ui/world_map_grid.gd)):
+   starter at the center, concentric rings of water with three island slots per ring. Toggled
+   with `M`. Clicking a generated island travels there; clicking an unexplored slot (`?`)
+   **generates** the island at that hex coord and travels to it (the old `Enter`-to-spawn key is
+   gone). Islands are keyed by hex coordinate in [`WorldData`](../scripts/world/world_data.gd).
+   Travel uses a [`screen_fade.gd`](../scripts/ui/screen_fade.gd) transition. Still to add:
+   boat-tier-driven ring reveal (currently a fixed `revealed_rings`), and per-island art on the
+   hex tokens (now stylized placeholders).
 5. **Boat tiers + rare-resource gating** — sailboat/ship reach outer rings; higher tiers cost
    earlier islands' rare resources; fuse with ship-module repair toward the win condition.
 6. **Per-island inventory storage DONE** ([`inventory.gd`](../scripts/resources/inventory.gd)
