@@ -3,6 +3,9 @@
 Design notes for how building progression is gated in Resource Isles. This captures
 decisions and open questions; it is direction, not yet implemented.
 
+See also: [Power Sources](power-sources.md) for the generator catalog and recommended power
+progression path.
+
 ## The Core Question
 
 Should building counts (e.g. logger's camps) be unlimited? If not, what restricts them,

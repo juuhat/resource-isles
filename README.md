@@ -106,7 +106,7 @@ The project now includes a code-driven hex-tile starter island scaffold:
 
 - `assets/tiles/tile.png` provides a shared white hex mask that terrain draws and tints in code, leaving decorative PNGs free to layer on top.
 - `assets/resources/tree.png`, `assets/resources/forest.png`, and `assets/resources/stone.png` provide the first harvestable map resources.
-- `assets/buildings/hub.png`, `assets/buildings/logger_camp.png`, and `assets/buildings/quarry.png` provide the first placeable buildings.
+- `assets/buildings/hub.png`, `assets/buildings/logger_camp.png`, `assets/buildings/quarry.png`, and `assets/buildings/burner_generator.png` provide the first placeable buildings.
 - `scripts/island/hex_grid.gd` provides pointy-top hex coordinates, neighbors, polygon points, and picking helpers.
 - `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
 - `scripts/island/island_generator.gd` creates a small starter island from a seed, places a three-forest triangle cluster, and places two random stones.
@@ -116,7 +116,7 @@ The project now includes a code-driven hex-tile starter island scaffold:
 - `scripts/resources/resource_node_definition.gd` defines resource node properties such as footprint, visual bounds, extracted resource type, and one-time scavenge amount.
 - `scripts/ui/floating_text.gd` is a world-space popup that rises and fades, used for scavenge feedback such as `+3 Wood`.
 - `scripts/resources/resource_node_database.gd` registers resource node definitions such as trees.
-- `scripts/buildings/building_definition.gd` defines building properties such as display name, texture, cost, footprint, placement rules, adjacency yields, and production output.
+- `scripts/buildings/building_definition.gd` defines building properties such as display name, category, texture, cost, footprint, placement rules, adjacency yields, and production output.
 - `scripts/buildings/building_manager.gd` registers building definitions and owns placement validation (`can_place`/`try_place`), adjacency yield calculation, and per-tick production amounts.
 - `scripts/buildings/production_manager.gd` runs the production tick, paying out each producing building's resource on its interval.
 - `scripts/ui/resource_bar.gd` owns the always-visible top resource bar.
@@ -126,12 +126,13 @@ The project now includes a code-driven hex-tile starter island scaffold:
 
 Naming note: resource nodes are permanent map objects such as forests and stones, while resources are stored inventory items such as wood and stone. For example, scavenging a `GameTypes.ResourceNodeType.TREE` yields `GameTypes.ResourceType.WOOD`.
 Building footprints can be larger than one tile, though the current prototype buildings occupy one hex. `BuildingManager` computes footprint cells and stores them with each placed building.
-Each generated island starts with a required central hub. Buildings require resources to place. Logger's camps and quarries cost 6 Wood, and additional hubs cost 8 Wood plus 4 Stone.
+Each generated island starts with a required central hub. Buildings require resources to place. Logger's camps and quarries cost 6 Wood, burner generators cost 4 Wood plus 2 Stone, and additional hubs cost 8 Wood plus 4 Stone.
 
 ### Placement Rules And Adjacency
 
 Buildings declare data-driven placement and adjacency behavior on their `BuildingDefinition`:
 
+- `category`: the menu grouping for the building (`Resources`, `Power`, `Processing`, `Logistics`, or `Utility`).
 - `required_terrain`: the terrain every footprint cell must sit on. For example, a logger's camp is built on grass, while a quarry is built on stone.
 - `required_adjacent`: each entry must have at least one matching neighbor, or placement is blocked. For example, a logger's camp must be built next to a forest, and a quarry must be built next to a stone deposit.
 - `forbidden_adjacent`: placement is blocked if any neighbor matches.

@@ -1,69 +1,16 @@
 class_name BuildingManager
 extends RefCounted
 
-const BuildingDefinitionScript := preload("res://scripts/buildings/building_definition.gd")
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
-const HUB_TEXTURE := preload("res://assets/buildings/hub.png")
-const LOGGER_CAMP_TEXTURE := preload("res://assets/buildings/logger_camp.png")
-const QUARRY_TEXTURE := preload("res://assets/buildings/quarry.png")
+const BuildingDefinitionsScript := preload("res://scripts/buildings/building_definitions.gd")
 
 var definitions: Dictionary = {}
 var resource_node_database: ResourceNodeDatabase
 
 
 func _init() -> void:
-	_add_definition(BuildingDefinitionScript.new(
-		GameTypes.BuildingType.HUB,
-		"Hub",
-		HUB_TEXTURE,
-		{
-			GameTypes.ResourceType.WOOD: 8,
-			GameTypes.ResourceType.STONE: 4,
-		},
-		GameTypes.Terrain.GRASS
-	))
-
-	var logger_camp := BuildingDefinitionScript.new(
-		GameTypes.BuildingType.LOGGER_CAMP,
-		"Logger's Camp",
-		LOGGER_CAMP_TEXTURE,
-		{
-			GameTypes.ResourceType.WOOD: 6,
-		},
-		GameTypes.Terrain.GRASS
-	)
-	# Must touch a forest, earns +1 per adjacent forest, but crowding other
-	# camps strips the surrounding woodland faster than it regrows: -1 each.
-	logger_camp.required_adjacent = [_resource_ref(GameTypes.ResourceNodeType.TREE)]
-	logger_camp.adjacency_yields = [
-		_yield_rule(GameTypes.AdjacencyKind.RESOURCE, GameTypes.ResourceNodeType.TREE, 1),
-		_yield_rule(GameTypes.AdjacencyKind.BUILDING, GameTypes.BuildingType.LOGGER_CAMP, -1),
-	]
-	logger_camp.production_resource_type = GameTypes.ResourceType.WOOD
-	logger_camp.production_base_amount = 1
-	logger_camp.production_interval_seconds = 3.0
-	_add_definition(logger_camp)
-
-	var quarry := BuildingDefinitionScript.new(
-		GameTypes.BuildingType.QUARRY,
-		"Quarry",
-		QUARRY_TEXTURE,
-		{
-			GameTypes.ResourceType.WOOD: 6,
-		},
-		GameTypes.Terrain.STONE
-	)
-	# Must touch stone, earns +1 per adjacent deposit, but neighboring
-	# quarries compete for the same workable rock face: -1 each.
-	quarry.required_adjacent = [_resource_ref(GameTypes.ResourceNodeType.STONE)]
-	quarry.adjacency_yields = [
-		_yield_rule(GameTypes.AdjacencyKind.RESOURCE, GameTypes.ResourceNodeType.STONE, 1),
-		_yield_rule(GameTypes.AdjacencyKind.BUILDING, GameTypes.BuildingType.QUARRY, -1),
-	]
-	quarry.production_resource_type = GameTypes.ResourceType.STONE
-	quarry.production_base_amount = 1
-	quarry.production_interval_seconds = 3.0
-	_add_definition(quarry)
+	for definition in BuildingDefinitionsScript.build_all():
+		_add_definition(definition)
 
 
 func setup(new_resource_node_database: ResourceNodeDatabase) -> void:
@@ -146,6 +93,18 @@ func get_production_amount(anchor_cell: Vector2i, building_type: int, island: Is
 
 func get_definition(building_type: int) -> BuildingDefinition:
 	return definitions.get(building_type)
+
+
+func get_definitions_for_category(category: int) -> Array[BuildingDefinition]:
+	var matching: Array[BuildingDefinition] = []
+	for definition in definitions.values():
+		if definition.category == category:
+			matching.append(definition)
+
+	matching.sort_custom(func(a: BuildingDefinition, b: BuildingDefinition) -> bool:
+		return a.id < b.id
+	)
+	return matching
 
 
 func get_display_name(building_type: int) -> String:
@@ -232,14 +191,6 @@ func _ref_label(reference: Dictionary) -> String:
 			return get_display_name(int(reference.type))
 		_:
 			return "Unknown"
-
-
-func _resource_ref(resource_node_type: int) -> Dictionary:
-	return {kind = GameTypes.AdjacencyKind.RESOURCE, type = resource_node_type}
-
-
-func _yield_rule(kind: int, type: int, amount: int) -> Dictionary:
-	return {kind = kind, type = type, amount = amount}
 
 
 func _add_definition(definition: BuildingDefinition) -> void:

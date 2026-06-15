@@ -12,6 +12,15 @@ enum BuildingType {
 	HUB,
 	LOGGER_CAMP,
 	QUARRY,
+	BURNER_GENERATOR,
+}
+
+enum BuildingCategory {
+	RESOURCES,
+	POWER,
+	PROCESSING,
+	LOGISTICS,
+	UTILITY,
 }
 
 enum ResourceNodeType {
@@ -41,5 +50,21 @@ static func terrain_display_name(terrain_type: int) -> String:
 			return "Grass"
 		Terrain.STONE:
 			return "Stone"
+		_:
+			return "Unknown"
+
+
+static func building_category_display_name(category: int) -> String:
+	match category:
+		BuildingCategory.RESOURCES:
+			return "Resources"
+		BuildingCategory.POWER:
+			return "Power"
+		BuildingCategory.PROCESSING:
+			return "Processing"
+		BuildingCategory.LOGISTICS:
+			return "Logistics"
+		BuildingCategory.UTILITY:
+			return "Utility"
 		_:
 			return "Unknown"

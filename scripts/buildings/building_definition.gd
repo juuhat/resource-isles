@@ -3,6 +3,7 @@ extends RefCounted
 
 var id: int
 var display_name: String
+var category: int
 var texture: Texture2D
 var cost: Dictionary
 var footprint_size: Vector2i
@@ -27,6 +28,7 @@ var production_interval_seconds: float = 0.0
 func _init(
 	new_id: int,
 	new_display_name: String,
+	new_category: int,
 	new_texture: Texture2D,
 	new_cost: Dictionary,
 	new_required_terrain: int,
@@ -36,6 +38,7 @@ func _init(
 ) -> void:
 	id = new_id
 	display_name = new_display_name
+	category = new_category
 	texture = new_texture
 	cost = new_cost
 	required_terrain = new_required_terrain

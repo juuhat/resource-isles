@@ -6,9 +6,20 @@ signal selection_cleared
 
 const NO_BUILDING := -1
 
+const BUILDING_CATEGORIES := [
+	GameTypes.BuildingCategory.RESOURCES,
+	GameTypes.BuildingCategory.POWER,
+	GameTypes.BuildingCategory.PROCESSING,
+	GameTypes.BuildingCategory.LOGISTICS,
+	GameTypes.BuildingCategory.UTILITY,
+]
+
 var building_manager: BuildingManager
 var selected_building_type := NO_BUILDING
+var selected_category := GameTypes.BuildingCategory.RESOURCES
 var menu_panel: PanelContainer
+var category_row: HBoxContainer
+var building_row: HBoxContainer
 var selected_building_label: Label
 
 
@@ -46,18 +57,14 @@ func toggle_menu() -> void:
 		menu_panel.visible = not menu_panel.visible
 
 
-func _select_logger_camp() -> void:
-	set_selected_building(GameTypes.BuildingType.LOGGER_CAMP)
-	building_selected.emit(selected_building_type)
+func _select_category(category: int) -> void:
+	selected_category = category
+	_rebuild_category_buttons()
+	_rebuild_building_buttons()
 
 
-func _select_quarry() -> void:
-	set_selected_building(GameTypes.BuildingType.QUARRY)
-	building_selected.emit(selected_building_type)
-
-
-func _select_hub() -> void:
-	set_selected_building(GameTypes.BuildingType.HUB)
+func _select_building_type(building_type: int) -> void:
+	set_selected_building(building_type)
 	building_selected.emit(selected_building_type)
 
 
@@ -84,7 +91,7 @@ func _build_ui() -> void:
 	menu_panel.anchor_right = 1.0
 	menu_panel.anchor_bottom = 1.0
 	menu_panel.offset_left = 124.0
-	menu_panel.offset_top = -82.0
+	menu_panel.offset_top = -142.0
 	menu_panel.offset_right = -16.0
 	menu_panel.offset_bottom = -16.0
 	add_child(menu_panel)
@@ -96,29 +103,21 @@ func _build_ui() -> void:
 	margin.add_theme_constant_override("margin_bottom", 10)
 	menu_panel.add_child(margin)
 
-	var menu := HBoxContainer.new()
+	var menu := VBoxContainer.new()
 	menu.add_theme_constant_override("separation", 8)
 	margin.add_child(menu)
 
 	var title := Label.new()
 	title.text = "Buildings"
-	title.custom_minimum_size = Vector2(80, 0)
 	menu.add_child(title)
 
-	var hub_button := Button.new()
-	hub_button.text = building_manager.get_label(GameTypes.BuildingType.HUB)
-	hub_button.pressed.connect(_select_hub)
-	menu.add_child(hub_button)
+	category_row = HBoxContainer.new()
+	category_row.add_theme_constant_override("separation", 6)
+	menu.add_child(category_row)
 
-	var logger_camp_button := Button.new()
-	logger_camp_button.text = building_manager.get_label(GameTypes.BuildingType.LOGGER_CAMP)
-	logger_camp_button.pressed.connect(_select_logger_camp)
-	menu.add_child(logger_camp_button)
-
-	var quarry_button := Button.new()
-	quarry_button.text = building_manager.get_label(GameTypes.BuildingType.QUARRY)
-	quarry_button.pressed.connect(_select_quarry)
-	menu.add_child(quarry_button)
+	building_row = HBoxContainer.new()
+	building_row.add_theme_constant_override("separation", 8)
+	menu.add_child(building_row)
 
 	var clear_button := Button.new()
 	clear_button.text = "Clear selection"
@@ -127,6 +126,8 @@ func _build_ui() -> void:
 
 	selected_building_label = Label.new()
 	menu.add_child(selected_building_label)
+	_rebuild_category_buttons()
+	_rebuild_building_buttons()
 
 
 func _apply_selection_label() -> void:
@@ -138,3 +139,43 @@ func _apply_selection_label() -> void:
 		return
 
 	selected_building_label.text = "Selected: %s" % building_manager.get_label(selected_building_type)
+
+
+func _rebuild_category_buttons() -> void:
+	if category_row == null:
+		return
+
+	_clear_container(category_row)
+
+	for category in BUILDING_CATEGORIES:
+		var button := Button.new()
+		button.text = GameTypes.building_category_display_name(category)
+		button.disabled = category == selected_category
+		button.pressed.connect(_select_category.bind(category))
+		category_row.add_child(button)
+
+
+func _rebuild_building_buttons() -> void:
+	if building_row == null:
+		return
+
+	_clear_container(building_row)
+
+	var definitions := building_manager.get_definitions_for_category(selected_category)
+	if definitions.is_empty():
+		var empty_label := Label.new()
+		empty_label.text = "No buildings yet"
+		building_row.add_child(empty_label)
+		return
+
+	for definition in definitions:
+		var button := Button.new()
+		button.text = building_manager.get_label(definition.id)
+		button.pressed.connect(_select_building_type.bind(definition.id))
+		building_row.add_child(button)
+
+
+func _clear_container(container: Container) -> void:
+	for child in container.get_children():
+		container.remove_child(child)
+		child.queue_free()
