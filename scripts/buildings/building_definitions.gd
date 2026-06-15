@@ -47,6 +47,7 @@ static func build_all() -> Array[BuildingDefinition]:
 	logger_camp.production_resource_type = GameTypes.ResourceType.WOOD
 	logger_camp.production_base_amount = 1
 	logger_camp.production_interval_seconds = 3.0
+	logger_camp.power_consumed = 2
 	definitions.append(logger_camp)
 
 	var quarry := BuildingDefinitionScript.new(
@@ -69,9 +70,10 @@ static func build_all() -> Array[BuildingDefinition]:
 	quarry.production_resource_type = GameTypes.ResourceType.STONE
 	quarry.production_base_amount = 1
 	quarry.production_interval_seconds = 3.0
+	quarry.power_consumed = 2
 	definitions.append(quarry)
 
-	definitions.append(BuildingDefinitionScript.new(
+	var burner_generator := BuildingDefinitionScript.new(
 		GameTypes.BuildingType.BURNER_GENERATOR,
 		"Burner Generator",
 		GameTypes.BuildingCategory.POWER,
@@ -81,7 +83,13 @@ static func build_all() -> Array[BuildingDefinition]:
 			GameTypes.ResourceType.STONE: 2,
 		},
 		GameTypes.Terrain.GRASS
-	))
+	)
+	# Burns wood to hold a steady output. Stalls (0 MW) the moment wood runs out.
+	burner_generator.power_generated = 5
+	burner_generator.fuel_resource_type = GameTypes.ResourceType.WOOD
+	burner_generator.fuel_amount = 1
+	burner_generator.fuel_interval_seconds = 3.0
+	definitions.append(burner_generator)
 
 	return definitions
 

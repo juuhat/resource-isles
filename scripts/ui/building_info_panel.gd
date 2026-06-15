@@ -34,6 +34,10 @@ func show_building(building_type: int, cell: Vector2i, island: IslandData) -> vo
 	if not production_line.is_empty():
 		lines.append(production_line)
 
+	var power_line := _format_power(building_type, anchor_cell, island)
+	if not power_line.is_empty():
+		lines.append(power_line)
+
 	lines.append(_format_adjacency(building_type, anchor_cell, island))
 
 	detail_label.text = "\n".join(lines)
@@ -100,6 +104,32 @@ func _format_production(building_type: int, anchor_cell: Vector2i, island: Islan
 		ResourceManager.get_display_name_for_type(definition.production_resource_type),
 		definition.production_interval_seconds,
 	]
+
+
+func _format_power(building_type: int, anchor_cell: Vector2i, island: IslandData) -> String:
+	var definition := building_manager.get_definition(building_type)
+	if definition == null:
+		return ""
+
+	if definition.power_generated > 0:
+		var line := "Power: +%d MW" % definition.power_generated
+		if definition.fuel_resource_type != -1:
+			if island != null and not island.is_generator_running(anchor_cell):
+				line += " (stalled — no fuel)"
+			line += "\nFuel: %d %s / %.0fs" % [
+				definition.fuel_amount,
+				ResourceManager.get_display_name_for_type(definition.fuel_resource_type),
+				definition.fuel_interval_seconds,
+			]
+		return line
+
+	if definition.power_consumed > 0:
+		var line := "Power: -%d MW" % definition.power_consumed
+		if island != null and not island.is_consumer_powered(anchor_cell):
+			line += " (unpowered)"
+		return line
+
+	return ""
 
 
 func _format_adjacency(building_type: int, anchor_cell: Vector2i, island: IslandData) -> String:

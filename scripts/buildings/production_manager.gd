@@ -25,6 +25,11 @@ func update(island: IslandData, current_time_seconds: float) -> void:
 		if definition.production_interval_seconds <= 0.0:
 			continue
 
+		# An unpowered consumer is paused: skip without advancing its timer so it
+		# resumes where it left off once power returns.
+		if definition.power_consumed > 0 and not island.is_consumer_powered(anchor_cell):
+			continue
+
 		# Newly placed buildings wait one full interval before their first payout.
 		if not island.has_production_time(anchor_cell):
 			island.set_next_production_time(

@@ -10,6 +10,9 @@ var resources: Dictionary = {}
 var scavenged_cells: Dictionary = {}
 var buildings: Dictionary = {}
 var building_next_production_times: Dictionary = {}
+var building_next_fuel_times: Dictionary = {}
+var generator_running_states: Dictionary = {}
+var consumer_powered_states: Dictionary = {}
 
 
 func _init(new_width: int = 0, new_height: int = 0) -> void:
@@ -97,6 +100,34 @@ func get_next_production_time(anchor_cell: Vector2i) -> float:
 
 func set_next_production_time(anchor_cell: Vector2i, next_time_seconds: float) -> void:
 	building_next_production_times[anchor_cell] = next_time_seconds
+
+
+func has_fuel_time(anchor_cell: Vector2i) -> bool:
+	return building_next_fuel_times.has(anchor_cell)
+
+
+func get_next_fuel_time(anchor_cell: Vector2i) -> float:
+	return building_next_fuel_times.get(anchor_cell, 0.0)
+
+
+func set_next_fuel_time(anchor_cell: Vector2i, next_time_seconds: float) -> void:
+	building_next_fuel_times[anchor_cell] = next_time_seconds
+
+
+func is_generator_running(anchor_cell: Vector2i) -> bool:
+	return generator_running_states.get(anchor_cell, false)
+
+
+func set_generator_running(anchor_cell: Vector2i, running: bool) -> void:
+	generator_running_states[anchor_cell] = running
+
+
+func is_consumer_powered(anchor_cell: Vector2i) -> bool:
+	return consumer_powered_states.get(anchor_cell, false)
+
+
+func set_consumer_powered(anchor_cell: Vector2i, powered: bool) -> void:
+	consumer_powered_states[anchor_cell] = powered
 
 
 func can_place_resource(cell: Vector2i, resource_node_type: int = GameTypes.ResourceNodeType.TREE) -> bool:

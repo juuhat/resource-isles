@@ -24,6 +24,17 @@ var production_resource_type: int = -1
 var production_base_amount: int = 0
 var production_interval_seconds: float = 0.0
 
+# Power (MW): a constant rate, not a stockpile. Generators add power_generated
+# while running; producers draw power_consumed while powered.
+var power_generated: int = 0
+var power_consumed: int = 0
+
+# Fuel a generator burns to keep running. -1 resource type means no fuel needed
+# (the generator always runs, e.g. a windmill).
+var fuel_resource_type: int = -1
+var fuel_amount: int = 0
+var fuel_interval_seconds: float = 0.0
+
 
 func _init(
 	new_id: int,

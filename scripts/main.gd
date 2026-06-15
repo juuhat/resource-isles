@@ -9,6 +9,7 @@ const ResourceManagerScript := preload("res://scripts/resources/resource_manager
 const ResourceNodeDatabaseScript := preload("res://scripts/resources/resource_node_database.gd")
 const BuildingManagerScript := preload("res://scripts/buildings/building_manager.gd")
 const ProductionManagerScript := preload("res://scripts/buildings/production_manager.gd")
+const PowerManagerScript := preload("res://scripts/buildings/power_manager.gd")
 const FloatingTextScript := preload("res://scripts/ui/floating_text.gd")
 
 const NO_BUILDING := -1
@@ -25,6 +26,7 @@ var selected_building_type := NO_BUILDING
 var current_island: IslandData
 var building_manager: BuildingManager
 var production_manager: ProductionManager
+var power_manager: PowerManager
 var resource_manager: ResourceManager
 var resource_node_database: ResourceNodeDatabase
 var resource_bar: ResourceBar
@@ -41,6 +43,9 @@ func _ready() -> void:
 	production_manager = ProductionManagerScript.new()
 	production_manager.setup(building_manager, resource_manager)
 	production_manager.produced.connect(_on_building_produced)
+	power_manager = PowerManagerScript.new()
+	power_manager.setup(building_manager, resource_manager)
+	power_manager.fuel_consumed.connect(_on_fuel_consumed)
 
 	renderer = IslandRendererScript.new()
 	renderer.name = "IslandRenderer"
@@ -61,7 +66,9 @@ func _process(_delta: float) -> void:
 	if current_island == null:
 		return
 
-	production_manager.update(current_island, Time.get_ticks_msec() / 1000.0)
+	var current_time_seconds := Time.get_ticks_msec() / 1000.0
+	power_manager.update(current_island, current_time_seconds)
+	production_manager.update(current_island, current_time_seconds)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -152,6 +159,15 @@ func _on_building_produced(anchor_cell: Vector2i, resource_type: int, amount: in
 	)
 
 
+func _on_fuel_consumed(anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
+	_spawn_floating_text(
+		renderer.get_cell_center(anchor_cell),
+		"-%d %s" % [amount, ResourceManager.get_display_name_for_type(resource_type)],
+		_resource_color(resource_type),
+		16
+	)
+
+
 func _spawn_floating_text(world_position: Vector2, text: String, color: Color, font_size := 22) -> void:
 	var floating := FloatingTextScript.new()
 	floating.text = text
@@ -237,7 +253,7 @@ func _on_resource_changed(_resource_type: int, _amount: int) -> void:
 func _add_ui() -> void:
 	resource_bar = ResourceBarScript.new()
 	add_child(resource_bar)
-	resource_bar.setup(resource_manager)
+	resource_bar.setup(resource_manager, power_manager)
 
 	building_info_panel = BuildingInfoPanelScript.new()
 	building_info_panel.setup(building_manager)
