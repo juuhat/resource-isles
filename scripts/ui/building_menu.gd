@@ -6,6 +6,8 @@ signal selection_cleared
 
 const NO_BUILDING := -1
 
+const BUILDINGS_ICON := preload("res://assets/icons/building.png")
+
 const BUILDING_CATEGORIES := [
 	GameTypes.BuildingCategory.RESOURCES,
 	GameTypes.BuildingCategory.POWER,
@@ -72,14 +74,18 @@ func _build_ui() -> void:
 	name = "BuildingMenu"
 
 	var buildings_button := Button.new()
-	buildings_button.text = "Buildings"
+	buildings_button.icon = BUILDINGS_ICON
+	buildings_button.expand_icon = true
+	buildings_button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	buildings_button.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
+	buildings_button.add_theme_constant_override("icon_max_width", 64)
 	buildings_button.anchor_left = 0.0
 	buildings_button.anchor_top = 1.0
 	buildings_button.anchor_right = 0.0
 	buildings_button.anchor_bottom = 1.0
 	buildings_button.offset_left = 16.0
-	buildings_button.offset_top = -82.0
-	buildings_button.offset_right = 116.0
+	buildings_button.offset_top = -104.0
+	buildings_button.offset_right = 104.0
 	buildings_button.offset_bottom = -16.0
 	buildings_button.pressed.connect(toggle_menu)
 	add_child(buildings_button)

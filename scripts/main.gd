@@ -11,13 +11,14 @@ const BuildingManagerScript := preload("res://scripts/buildings/building_manager
 const ProductionManagerScript := preload("res://scripts/buildings/production_manager.gd")
 const PowerManagerScript := preload("res://scripts/buildings/power_manager.gd")
 const FloatingTextScript := preload("res://scripts/ui/floating_text.gd")
-const ChopMinigameScript := preload("res://scripts/ui/chop_minigame.gd")
 const HarvestButtonScript := preload("res://scripts/ui/harvest_button.gd")
 const PlayerUnitScript := preload("res://scripts/player/player_unit.gd")
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
 
 const NO_BUILDING := -1
+const HARVEST_INTERVAL := 3.0
+const HARVEST_YIELD := 1
 
 var generator := IslandGeneratorScript.new()
 var renderer: IslandRenderer
@@ -37,12 +38,15 @@ var resource_node_database: ResourceNodeDatabase
 var resource_bar: ResourceBar
 var building_menu: BuildingMenu
 var building_info_panel: BuildingInfoPanel
-var chop_minigame: ChopMinigame
 var harvest_button: HarvestButton
 var player_unit: PlayerUnit
-var active_scavenge_cell := Vector2i(-1, -1)
 var pending_action_cell := Vector2i(-1, -1)
 var harvestable_cell := Vector2i(-1, -1)
+
+var is_harvesting := false
+var harvest_cell := Vector2i(-1, -1)
+var harvest_resource_type := -1
+var _harvest_accum := 0.0
 
 
 func _ready() -> void:
@@ -80,7 +84,7 @@ func _ready() -> void:
 	_generate_island()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if current_island == null:
 		return
 
@@ -88,11 +92,11 @@ func _process(_delta: float) -> void:
 	power_manager.update(current_island, current_time_seconds)
 	production_manager.update(current_island, current_time_seconds)
 
+	if is_harvesting:
+		_update_harvest(delta)
+
 
 func _unhandled_input(event: InputEvent) -> void:
-	if chop_minigame != null and chop_minigame.active:
-		return
-
 	if not event is InputEventKey:
 		return
 
@@ -114,9 +118,6 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if chop_minigame != null and chop_minigame.active:
-		return
-
 	if event is InputEventMouseButton:
 		var is_over_ui := get_viewport().gui_get_hovered_control() != null
 
@@ -172,6 +173,7 @@ func _command_unit_to_hovered() -> bool:
 		pending_action_cell = Vector2i(-1, -1)
 		return false
 
+	_stop_harvesting()
 	harvestable_cell = Vector2i(-1, -1)
 	harvest_button.hide_button()
 	player_unit.follow_path(path)
@@ -202,10 +204,15 @@ func _refresh_harvest_button() -> void:
 		harvest_button.hide_button()
 		return
 
-	harvest_button.show_for(resource_node_database.get_definition(resource_node_type))
+	harvest_button.show_for(resource_node_database.get_definition(resource_node_type), is_harvesting)
 
 
 func _on_harvest_pressed() -> void:
+	if is_harvesting:
+		_stop_harvesting()
+		_refresh_harvest_button()
+		return
+
 	if harvestable_cell == Vector2i(-1, -1):
 		return
 
@@ -217,32 +224,45 @@ func _on_harvest_pressed() -> void:
 	if definition == null:
 		return
 
-	harvest_button.hide_button()
-	active_scavenge_cell = harvestable_cell
-	chop_minigame.start(definition, _resource_color(definition.extracted_resource_type))
+	is_harvesting = true
+	harvest_cell = harvestable_cell
+	harvest_resource_type = definition.extracted_resource_type
+	_harvest_accum = 0.0
+	_refresh_harvest_button()
 
 
-func _on_chop_finished(resource_type: int, total_amount: int) -> void:
-	var cell := active_scavenge_cell
-	active_scavenge_cell = Vector2i(-1, -1)
-	if cell == Vector2i(-1, -1) or current_island == null:
+func _stop_harvesting() -> void:
+	if not is_harvesting:
+		return
+
+	is_harvesting = false
+	harvest_cell = Vector2i(-1, -1)
+	harvest_resource_type = -1
+	_harvest_accum = 0.0
+
+
+func _update_harvest(delta: float) -> void:
+	# Stop if the robot is no longer parked on the node it was harvesting.
+	if (
+		player_unit == null
+		or player_unit.is_moving()
+		or player_unit.current_cell != harvest_cell
+		or current_island == null
+		or current_island.get_resource_node_type(harvest_cell) == -1
+	):
+		_stop_harvesting()
 		_refresh_harvest_button()
 		return
 
-	if total_amount > 0:
-		resource_manager.add_amount(resource_type, total_amount)
+	_harvest_accum += delta
+	while _harvest_accum >= HARVEST_INTERVAL:
+		_harvest_accum -= HARVEST_INTERVAL
+		resource_manager.add_amount(harvest_resource_type, HARVEST_YIELD)
 		_spawn_floating_text(
-			renderer.get_cell_center(cell),
-			"+%d %s" % [total_amount, ResourceManager.get_display_name_for_type(resource_type)],
-			_resource_color(resource_type)
+			renderer.get_cell_center(harvest_cell),
+			"+%d %s" % [HARVEST_YIELD, ResourceManager.get_display_name_for_type(harvest_resource_type)],
+			_resource_color(harvest_resource_type)
 		)
-
-	_refresh_harvest_button()
-
-
-func _on_chop_cancelled() -> void:
-	active_scavenge_cell = Vector2i(-1, -1)
-	_refresh_harvest_button()
 
 
 func _on_building_produced(anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
@@ -346,6 +366,7 @@ func _spawn_player_unit() -> void:
 	if player_unit == null:
 		return
 
+	_stop_harvesting()
 	pending_action_cell = Vector2i(-1, -1)
 	harvestable_cell = Vector2i(-1, -1)
 	if harvest_button != null:
@@ -426,11 +447,6 @@ func _add_ui() -> void:
 	building_menu.building_selected.connect(_select_building)
 	building_menu.selection_cleared.connect(_select_no_building)
 	add_child(building_menu)
-
-	chop_minigame = ChopMinigameScript.new()
-	chop_minigame.finished.connect(_on_chop_finished)
-	chop_minigame.cancelled.connect(_on_chop_cancelled)
-	add_child(chop_minigame)
 
 	harvest_button = HarvestButtonScript.new()
 	harvest_button.pressed.connect(_on_harvest_pressed)

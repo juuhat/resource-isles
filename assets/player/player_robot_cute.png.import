@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c4a258qg4anel"
-path="res://.godot/imported/building_chroma.png-4039d40088f92ad88d4bdf36515da309.ctex"
+uid="uid://bfr3wjni8tq6e"
+path="res://.godot/imported/player_robot_cute.png-8c6164379995eb37126897dc990c31a4.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/icons/building_chroma.png"
-dest_files=["res://.godot/imported/building_chroma.png-4039d40088f92ad88d4bdf36515da309.ctex"]
+source_file="res://assets/player/player_robot_cute.png"
+dest_files=["res://.godot/imported/player_robot_cute.png-8c6164379995eb37126897dc990c31a4.ctex"]
 
 [params]
 

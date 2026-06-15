@@ -2,7 +2,7 @@ class_name HarvestButton
 extends CanvasLayer
 
 # A pickaxe action button shown on the left edge of the screen when the robot is
-# parked on a harvestable node. Pressing it starts the chop minigame.
+# parked on a harvestable node. Pressing it toggles continuous harvesting.
 
 signal pressed
 
@@ -18,14 +18,17 @@ func _ready() -> void:
 	hide_button()
 
 
-func show_for(definition: ResourceNodeDefinition) -> void:
+func show_for(definition: ResourceNodeDefinition, is_harvesting := false) -> void:
 	if panel == null:
 		return
 
-	if definition != null:
-		label.text = "Harvest %s" % definition.display_name
-	else:
+	var node_name := definition.display_name if definition != null else ""
+	if is_harvesting:
+		label.text = "Stop harvesting" if node_name.is_empty() else "Stop (%s)" % node_name
+	elif node_name.is_empty():
 		label.text = "Harvest"
+	else:
+		label.text = "Harvest %s" % node_name
 
 	panel.visible = true
 

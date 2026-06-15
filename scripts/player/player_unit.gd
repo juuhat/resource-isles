@@ -3,11 +3,11 @@ extends Node2D
 
 # The player-controlled robot. Holds a current hex cell and walks along a queued
 # path of cells at a constant world-space speed. Emits `arrived` once the whole
-# path is consumed so the caller can trigger an on-arrival action (e.g. chopping).
+# path is consumed so the caller can trigger an on-arrival action (e.g. harvesting).
 
 signal arrived(cell: Vector2i)
 
-const ROBOT_TEXTURE := preload("res://assets/player/player_robot.png")
+const ROBOT_TEXTURE := preload("res://assets/player/player_robot_cute.png")
 
 @export var move_speed := 320.0
 @export var visual_size_tiles := Vector2(0.65, 0.65)
