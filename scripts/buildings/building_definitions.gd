@@ -11,6 +11,7 @@ const LOGGER_CAMP_TEXTURE := preload("res://assets/buildings/logger_camp.png")
 const QUARRY_TEXTURE := preload("res://assets/buildings/quarry.png")
 const BURNER_GENERATOR_TEXTURE := preload("res://assets/buildings/burner_generator.png")
 const SAWMILL_TEXTURE := preload("res://assets/buildings/sawmill.png")
+const DOCK_TEXTURE := preload("res://assets/buildings/dock.png")
 
 
 static func build_all() -> Array[BuildingDefinition]:
@@ -114,11 +115,32 @@ static func build_all() -> Array[BuildingDefinition]:
 	sawmill.power_consumed = 2
 	definitions.append(sawmill)
 
+	var dock := BuildingDefinitionScript.new(
+		GameTypes.BuildingType.DOCK,
+		"Dock",
+		GameTypes.BuildingCategory.LOGISTICS,
+		DOCK_TEXTURE,
+		{
+			GameTypes.ResourceType.WOOD: 10,
+			GameTypes.ResourceType.STONE: 5,
+		},
+		GameTypes.Terrain.SAND
+	)
+	# Built on the sandy shoreline and must touch open water — the future
+	# launch point for boats and inter-island travel. Placeable only for now;
+	# no transport behavior yet (see docs/island-unlocks.md, step 1).
+	dock.required_adjacent = [_terrain_ref(GameTypes.Terrain.WATER)]
+	definitions.append(dock)
+
 	return definitions
 
 
 static func _resource_ref(resource_node_type: int) -> Dictionary:
 	return {kind = GameTypes.AdjacencyKind.RESOURCE, type = resource_node_type}
+
+
+static func _terrain_ref(terrain_type: int) -> Dictionary:
+	return {kind = GameTypes.AdjacencyKind.TERRAIN, type = terrain_type}
 
 
 static func _yield_rule(kind: int, type: int, amount: int) -> Dictionary:

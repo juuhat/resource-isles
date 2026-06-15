@@ -3,6 +3,11 @@ extends Node2D
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const TILE_TEXTURE := preload("res://assets/tiles/tile.png")
+const ROWBOAT_TEXTURE := preload("res://assets/vehicles/rowboat.png")
+
+# A dock's boat is an attachment drawn on the adjacent water tile, sized a little
+# smaller than a full tile so it reads as a little boat rather than a structure.
+const BOAT_SIZE_TILES := Vector2(0.8, 0.8)
 
 const SHALLOW_WATER_COLOR := Color("#479bd2")
 const DEEP_WATER_COLOR := Color("#2a7ebf")
@@ -468,6 +473,16 @@ func _draw_sorted_objects() -> void:
 			"type": building_type,
 		})
 
+		if building_type == GameTypes.BuildingType.DOCK:
+			var boat_cell := _dock_boat_cell(cell)
+			if boat_cell != Vector2i(-1, -1):
+				draw_items.append({
+					"kind": "boat",
+					"cell": boat_cell,
+					"sort_cell": boat_cell,
+					"type": 0,
+				})
+
 	draw_items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		var a_cell: Vector2i = a.get("sort_cell", a["cell"])
 		var b_cell: Vector2i = b.get("sort_cell", b["cell"])
@@ -485,6 +500,8 @@ func _draw_sorted_objects() -> void:
 
 		if kind == "resource":
 			_draw_resource(cell, object_type)
+		elif kind == "boat":
+			_draw_boat(cell)
 		else:
 			_draw_building(cell, object_type)
 
@@ -514,6 +531,25 @@ func _draw_building(cell: Vector2i, building_type: int) -> void:
 
 	var rect := _visual_bounds(cell, building_type)
 	draw_texture_rect(definition.texture, rect, false)
+
+
+func _draw_boat(water_cell: Vector2i) -> void:
+	var size := Vector2(
+		BOAT_SIZE_TILES.x * cell_size.x,
+		BOAT_SIZE_TILES.y * cell_size.y
+	)
+	var rect := Rect2(_cell_center(water_cell) - size * 0.5, size)
+	draw_texture_rect(ROWBOAT_TEXTURE, rect, false)
+
+
+# The water tile a dock's boat sits on. A dock always has a water neighbor (its
+# placement rule requires one); the first one found is used for now.
+func _dock_boat_cell(dock_cell: Vector2i) -> Vector2i:
+	for neighbor in HexGridScript.neighbors(dock_cell):
+		if _is_water(neighbor):
+			return neighbor
+
+	return Vector2i(-1, -1)
 
 
 func _draw_hover() -> void:

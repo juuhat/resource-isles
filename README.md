@@ -106,7 +106,7 @@ The project now includes a code-driven hex-tile starter island scaffold:
 
 - `assets/tiles/tile.png` provides a shared white hex mask that terrain draws and tints in code, leaving decorative PNGs free to layer on top.
 - `assets/resources/tree.png`, `assets/resources/forest.png`, and `assets/resources/stone.png` provide the first harvestable map resources.
-- `assets/buildings/crashed_spaceship.png`, `assets/buildings/logger_camp.png`, `assets/buildings/quarry.png`, and `assets/buildings/burner_generator.png` provide the first placeable buildings.
+- `assets/buildings/crashed_spaceship.png`, `assets/buildings/logger_camp.png`, `assets/buildings/quarry.png`, `assets/buildings/burner_generator.png`, `assets/buildings/sawmill.png`, and `assets/buildings/dock.png` provide the first placeable buildings.
 - `scripts/island/hex_grid.gd` provides pointy-top hex coordinates, neighbors, polygon points, and picking helpers.
 - `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
 - `scripts/island/island_generator.gd` creates a small starter island from a seed, places a three-forest triangle cluster, and places two random stones.
@@ -122,11 +122,12 @@ The project now includes a code-driven hex-tile starter island scaffold:
 - `scripts/ui/resource_bar.gd` owns the always-visible top resource bar.
 - `scripts/ui/building_menu.gd` owns the bottom building menu UI and emits building selection events.
 - `scripts/ui/building_info_panel.gd` owns the building info UI shown when a placed building is clicked, including its live adjacency and production breakdown.
-- `scripts/main.gd` generates and displays the island, owns the current island data, and drives the production tick each frame.
+- `scripts/world/world_data.gd` holds every discovered island and a pointer to the current one, so islands persist (with their placed buildings) when the player switches between them.
+- `scripts/main.gd` generates and displays islands, owns the `WorldData` and the current island pointer, drives the production tick for the current island each frame, and handles travel between discovered islands.
 
 Naming note: resource nodes are permanent map objects such as forests and stones, while resources are stored inventory items such as wood and stone. For example, scavenging a `GameTypes.ResourceNodeType.TREE` yields `GameTypes.ResourceType.WOOD`.
 Building footprints can be larger than one tile, though the current prototype buildings occupy one hex. `BuildingManager` computes footprint cells and stores them with each placed building.
-Each generated island starts with a required central crashed spaceship. Buildings require resources to place. Logger's camps and quarries cost 6 Wood, burner generators cost 4 Wood plus 2 Stone, and additional crashed spaceships cost 8 Wood plus 4 Stone.
+The starter island (World 1) starts with a required central crashed spaceship — the win-condition wreck the robot begins beside; later discovered islands do not. Buildings require resources to place. Logger's camps and quarries cost 6 Wood, burner generators cost 4 Wood plus 2 Stone, sawmills cost 8 Wood plus 4 Stone, docks cost 10 Wood plus 5 Stone, and additional crashed spaceships cost 8 Wood plus 4 Stone. The dock is the first `Logistics` building: it is built on shoreline sand and must sit next to water, the future launch point for inter-island travel (see `docs/island-unlocks.md`).
 
 ### Placement Rules And Adjacency
 
@@ -151,7 +152,8 @@ Prototype controls:
 - **Left click on a forest or stone**: scavenge it once for a one-time resource burst (shows a floating `+N` popup)
 - **Buildings button**: open or close the building menu
 - **Esc**: clear the selected building
-- **Enter**: regenerate the island with the next seed
+- **Enter**: generate a new island and travel to it (previously visited islands persist)
+- **[** and **]**: switch to the previous or next discovered island
 - **Space**: toggle the hex grid overlay
 - **Mouse wheel**: zoom camera
 - **Right or middle mouse drag**: pan camera

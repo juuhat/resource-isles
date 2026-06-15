@@ -15,10 +15,14 @@ const HarvestButtonScript := preload("res://scripts/ui/harvest_button.gd")
 const PlayerUnitScript := preload("res://scripts/player/player_unit.gd")
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
+const WorldDataScript := preload("res://scripts/world/world_data.gd")
 
 const NO_BUILDING := -1
 const HARVEST_INTERVAL := 3.0
 const HARVEST_YIELD := 1
+# Pixels the cursor may travel between left press and release before it counts
+# as a drag (pan) rather than a click.
+const DRAG_THRESHOLD := 6.0
 
 var generator := IslandGeneratorScript.new()
 var renderer: IslandRenderer
@@ -28,7 +32,11 @@ var zoom_step := 1.1
 var min_zoom := 0.25
 var max_zoom := 1.5
 var is_panning := false
+var is_left_panning := false
+var left_button_down := false
+var left_press_position := Vector2.ZERO
 var selected_building_type := NO_BUILDING
+var world: WorldData
 var current_island: IslandData
 var building_manager: BuildingManager
 var production_manager: ProductionManager
@@ -81,7 +89,8 @@ func _ready() -> void:
 	add_child(camera)
 
 	_add_ui()
-	_generate_island()
+	world = WorldDataScript.new()
+	_create_new_island()
 
 
 func _process(delta: float) -> void:
@@ -106,7 +115,13 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if key_event.keycode == KEY_ENTER or key_event.keycode == KEY_KP_ENTER:
 		seed_value += 1
-		_generate_island()
+		_create_new_island()
+
+	if key_event.keycode == KEY_BRACKETRIGHT:
+		_switch_to_adjacent_island(1)
+
+	if key_event.keycode == KEY_BRACKETLEFT:
+		_switch_to_adjacent_island(-1)
 
 	if key_event.keycode == KEY_SPACE:
 		renderer.show_grid = not renderer.show_grid
@@ -128,24 +143,42 @@ func _input(event: InputEvent) -> void:
 		elif event.button_index == MOUSE_BUTTON_MIDDLE:
 			is_panning = event.pressed
 		elif event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed and not is_over_ui:
-			if player_unit != null and player_unit.selected:
-				_command_unit_to_hovered()
-		elif event.button_index == MOUSE_BUTTON_LEFT and event.pressed and not is_over_ui:
 			if selected_building_type != NO_BUILDING:
-				_try_place_selected_building()
-				return
-
-			if _try_select_unit():
-				return
-
-			_deselect_unit()
-			_try_select_building()
-
-	if event is InputEventMouseMotion and is_panning:
-		camera.position -= event.relative / camera.zoom.x
+				building_menu.clear_selection()
+			elif player_unit != null and player_unit.selected:
+				_command_unit_to_hovered()
+		elif event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed and not is_over_ui:
+				left_button_down = true
+				is_left_panning = false
+				left_press_position = event.position
+			elif not event.pressed:
+				if left_button_down and not is_left_panning:
+					_handle_left_click()
+				left_button_down = false
+				is_left_panning = false
 
 	if event is InputEventMouseMotion:
+		if left_button_down and not is_left_panning \
+				and event.position.distance_to(left_press_position) > DRAG_THRESHOLD:
+			is_left_panning = true
+
+		if is_panning or is_left_panning:
+			camera.position -= event.relative / camera.zoom.x
+
 		renderer.set_hovered_world_position(get_global_mouse_position())
+
+
+func _handle_left_click() -> void:
+	if selected_building_type != NO_BUILDING:
+		_try_place_selected_building()
+		return
+
+	if _try_select_unit():
+		return
+
+	_deselect_unit()
+	_try_select_building()
 
 
 func _set_zoom(new_zoom: float) -> void:
@@ -193,6 +226,7 @@ func _refresh_harvest_button() -> void:
 	if (
 		harvestable_cell == Vector2i(-1, -1)
 		or player_unit == null
+		or not player_unit.selected
 		or player_unit.is_moving()
 		or player_unit.current_cell != harvestable_cell
 	):
@@ -321,12 +355,14 @@ func _try_select_unit() -> bool:
 		return false
 
 	player_unit.set_selected(true)
+	_refresh_harvest_button()
 	return true
 
 
 func _deselect_unit() -> void:
 	if player_unit != null:
 		player_unit.set_selected(false)
+	_refresh_harvest_button()
 
 
 func _try_select_building() -> bool:
@@ -354,8 +390,30 @@ func _get_building_cost(building_type: int) -> Dictionary:
 	return building_manager.get_cost(building_type)
 
 
-func _generate_island() -> void:
-	current_island = generator.generate_starter_island(seed_value, building_manager)
+func _create_new_island() -> void:
+	# Only the first island (World 1) is the crash site with the starting wreck.
+	var is_starter := world.island_count() == 0
+	var island := generator.generate_starter_island(seed_value, building_manager, is_starter)
+	_switch_to_island(world.add_island(island))
+
+
+# Cycle through already-discovered islands (wrapping). Islands persist, so a
+# revisited island keeps the buildings placed on it. No-op until a second island
+# exists.
+func _switch_to_adjacent_island(direction: int) -> void:
+	var count := world.island_count()
+	if count <= 1:
+		return
+
+	_switch_to_island((world.current_index + direction + count) % count)
+
+
+func _switch_to_island(index: int) -> void:
+	if not world.set_current(index):
+		return
+
+	current_island = world.get_current()
+	building_info_panel.hide_info()
 	renderer.render(current_island)
 	_spawn_player_unit()
 	_apply_selected_building()

@@ -10,7 +10,14 @@ const SAND_BORDER_WIDTH := 1
 var rng := RandomNumberGenerator.new()
 
 
-func generate_starter_island(seed_value: int = 0, building_manager: BuildingManager = null) -> IslandData:
+# place_crashed_spaceship forces the central wreck — the win-condition ship the
+# robot starts beside. Only the starter island (World 1) gets it; later islands
+# are discovered, not crash sites.
+func generate_starter_island(
+	seed_value: int = 0,
+	building_manager: BuildingManager = null,
+	place_crashed_spaceship: bool = true
+) -> IslandData:
 	if seed_value == 0:
 		rng.randomize()
 	else:
@@ -21,7 +28,8 @@ func generate_starter_island(seed_value: int = 0, building_manager: BuildingMana
 	_carve_grass_blob(island)
 	_smooth_grass_edges(island, 2)
 	_add_sand_border(island, SAND_BORDER_WIDTH)
-	_place_required_crashed_spaceship(island, building_manager)
+	if place_crashed_spaceship:
+		_place_required_crashed_spaceship(island, building_manager)
 	_place_stone_patch(island)
 	_place_trees(island)
 	_place_stones(island)

@@ -14,6 +14,7 @@ enum BuildingType {
 	QUARRY,
 	BURNER_GENERATOR,
 	SAWMILL,
+	DOCK,
 }
 
 enum BuildingCategory {

@@ -1,0 +1,226 @@
+# Island Unlocks, the Dock, and the World Map
+
+Design notes for how the player discovers, reaches, and unlocks new islands in Resource
+Isles. This is direction, not implementation.
+
+See also: [Player Unit and Manual Gathering](player-unit-and-manual-gathering.md) for the
+robot and the "go there, do the thing" verb, and
+[Progression, Build Restrictions, and Power](progression-and-power.md) for how per-island
+economy is gated (space, adjacency, power).
+
+## The Core Question
+
+The game starts on one small island ([README](../README.md)). New islands are the main
+expansion axis and the home of new resources and larger deposits. So: **what gates reaching
+a new island, and how does the player choose where to go?**
+
+Three obvious gate models, and why the first two are weak on their own:
+
+- **Pure resource cost** — a *soft* gate. The progression notes already establish that
+  resource cost "throttles the opening, but once camps produce wood passively it stops
+  mattering." Pay-N-wood-to-unlock is weightless by the time you can afford a dock. Cost
+  still has a role (per-boat build cost, below), but it cannot be the primary gate.
+- **Achievement / milestone** — the least *diegetic* option, and the progression notes
+  deliberately avoid gates that "feel arbitrary unless tied to something diegetic." Useful
+  only as flavor (e.g. an island appears on the map once you can reach it), not as the gate.
+- **Tech tree** — already the stated plan: the README says *"Technology unlocks access to new
+  buildings, recipes, logistics tools, and additional islands."* This is the intended
+  mechanism.
+
+## Decision: fuse island unlocks with the win condition
+
+The narrative already gives us a progression spine — the robot's crashed ship, rebuilt module
+by module, is the win condition. Rather than run "island unlocks" as a *separate* tech branch,
+**make island reach and ship repair the same loop:**
+
+> repair a ship module -> unlocks the next **boat tier** -> the boat reaches a **farther,
+> rougher island** -> that island yields a **rare resource** found nowhere earlier -> that
+> resource repairs the next module -> ... -> final module -> fly home.
+
+This is fully diegetic, it restores weight to resource cost (the gating resource only exists
+on an island you cannot reach yet), and it answers "why go there?" with **need (pull)** rather
+than a checkbox (push). Each new island earns its place by holding something the player now
+requires.
+
+## The Dock and the Boat Tiers
+
+- **Dock** — the first `Logistics`-category building. Water-adjacent
+  (`required_adjacent` = water). Building it is the capability gate that opens sea travel.
+  Uses `assets/buildings/dock.png`.
+- **Boat tiers** — built at the dock, each tier a craftable that reaches farther / rougher
+  water:
+
+  ```text
+  rowboat -> sailboat -> ship -> (later tiers)
+  ```
+
+  Distance equals difficulty (a Civ/Anno idea): the rowboat only reaches the nearest islands;
+  rougher, richer islands need a better hull. Each tier doubles as the in-fiction step toward
+  the rebuilt ship.
+
+## The Gate Has Three Layers
+
+The unlock for the next island is a **capability + a need**, not a price tag:
+
+| Layer | Role | Why it works |
+| --- | --- | --- |
+| **Boat tier** (tech) | rowboat -> sailboat -> ship; each reaches farther / rougher water | The real gate. Diegetic, tied to the dock you already build. Distance = difficulty. |
+| **Resource cost** (per boat) | each boat tier costs resources, and higher tiers cost the *rare resources from earlier new islands* | Restores weight to cost: the tier-2 boat needs island-1's rare material, so the player cannot skip ahead. |
+| **Discovery** (pull) | a locked island appears on the world map only once a reachable boat tier exists | "Map fills in as you progress" feel — milestone flavor without an arbitrary achievement gate. |
+
+So "what resources unlock a new island?" resolves to: **the rare resource from the island
+before it**, spent on the boat that reaches the next one. The cost is always something the
+player had to expand to obtain — exactly the expansion spiral the game wants.
+
+## The World Map: rings expanding outward
+
+The world map is the navigational backbone (a strategic zoom-out / overlay), and **the
+starter island sits at the center**. Islands are arranged in concentric **rings** outward:
+
+```text
+        ( ring 2 )
+     o     o     o
+  o    ( ring 1 )    o
+     o    [S]    o          [S] = starter island (center)
+  o     o     o     o       ring 1 = rowboat range
+     o     o     o          ring 2 = sailboat range, rougher water, richer
+        ( ring 2 )
+```
+
+- **Distance from center = difficulty and reward.** Outer rings are rougher water (need a
+  higher boat tier) and hold rarer resources / larger deposits.
+- **Ring = boat tier.** Each boat tier unlocks reaching the next ring out. This makes the
+  abstract "tech tier" legible as a literal radius on the map.
+- **Calm center, wild edge** — fits the art direction's cozy-but-a-little-darker mood: home
+  waters are safe, the frontier is where the rare stuff (and the road home) lies.
+
+## The FTL Question: a branching choice map
+
+FTL's sector map gives the player a **branching route with meaningful choices** — you see the
+nodes ahead, pick a path, and cannot reach everything on one run. The question is whether to
+borrow that here. The answer is **borrow the topology, drop the roguelike pressure**, because
+Resource Isles is a *persistent cozy builder*, not a tense single-run roguelike.
+
+**Keep (fits the game):**
+
+- **Branching choice of where to go next.** From your current ring you can reach two or three
+  islands in the next ring; you choose which to invest in first. This is a real strategic
+  decision (which rare resource / which deposit / which adjacency profile do I want now?)
+  without any harsh mechanics.
+- **Risk/reward island variety.** Outer islands trade rougher access (higher boat tier, more
+  cost) for richer payoff — FTL's "is this detour worth it?" tension, mapped onto rings.
+- **A partially revealed frontier.** You see hints of what is one ring out before you can
+  reach it, creating pull.
+
+**Drop (fights the cozy, persistent premise):**
+
+- **Permadeath / one-way travel.** Islands persist and their buildings keep producing while
+  you are away ([player-unit notes](player-unit-and-manual-gathering.md): automation runs
+  without the robot). You always keep what you built and can return — the opposite of a
+  roguelike run.
+- **A pursuing threat forcing forward momentum** (FTL's rebel fleet). No time pressure; this
+  is a "relaxing little evening game."
+- **Can't-visit-everything.** Eventually the player *can* unlock the whole archipelago. The
+  FTL-style choice is about **order and investment priority**, not permanent exclusion.
+
+**Net:** the FTL *choice structure* is a great fit and adds depth cheaply; the FTL *roguelike
+stakes* are too much and clash with the mood. If a tense run-based mode is ever wanted, it
+belongs as a separate optional "voyage" mode, not the core loop.
+
+## Inventory, Boats, and Island Bootstrap
+
+This is the model for how goods are stored and moved — decided, not just implied. The
+reference is **Anno**, which is exactly this shape: per-island storage, no global pool, ships
+that physically carry cargo, and a harbor as the first building on any new island.
+
+### Per-island inventory (decided)
+
+Each island has its **own** inventory. There is **no global player inventory** and **no global
+pool**. A global pool was considered and rejected: it makes shipping automatic and collapses
+the entire inter-island logistics challenge — the game's stated endgame — into one shared
+bucket. Anno does not do this, and neither should we.
+
+Consequence (the real refactor): `resource_manager.gd` currently holds a single global pool.
+Per-island inventory means inventory state moves onto / is keyed by the island, and the
+resource bar shows the **current** island's stock. This is the larger change behind step 6.
+
+### Boats are mobile cargo holds
+
+A boat is not just travel — it is **storage in transit** (the Anno ship's cargo hold). The
+robot loads goods into the boat at one island's dock; the goods physically ride along and can
+be unloaded at the destination. This is what makes per-island inventory workable: goods move
+because a boat carries them, not because a global pool teleports them.
+
+This gives boat tiers a **second axis**: not just *reach* (which ring) but *capacity* (how much
+cargo). `rowboat` = tiny hold, `sailboat` = more, `ship` = real trade volume. Reach and cargo
+scale together up the tier ladder.
+
+### Bootstrap: the dock is the first building on a new island
+
+Landing on a new island must **never soft-lock** the player. The danger case: you arrive on an
+island with no wood (or no stone), so you cannot build anything — and you cannot import,
+because importing needs a dock you cannot afford to build. That is a dead end.
+
+**Rule: the dock is the first thing established on any new island, kept deliberately simple.**
+Once the dock exists, the island can **receive imports** from other islands, so a
+resource-barren island is never a trap — you ship in what it lacks. Concretely, the boat that
+brought the robot carries enough to establish that first dock (and the dock is the obvious,
+guided first action on arrival). Keep this step lightweight; do not gate the first dock behind
+local resources the island might not have.
+
+This is the deliberate answer to "what if there's no wood here": **the dock comes first and
+unlocks import, so scarcity is a logistics problem to solve, not a wall.**
+
+See also the inter-island transfer discussion in
+[progression-and-power.md](progression-and-power.md).
+
+### The boat is a dock attachment, not a building (implemented)
+
+For rendering, the boat is drawn on the **water tile next to the dock** as an attachment — the
+dock stays a one-tile building on sand; the boat is a separate sprite on the adjacent water
+([`island_renderer.gd`](../scripts/island/island_renderer.gd), `_draw_boat` /
+`_dock_boat_cell`). It is **not** routed through the building placement system (no footprint,
+no terrain rule, and it will move during travel — vehicle behavior, not building behavior).
+Art lives in `assets/vehicles/`, alongside the robot's `assets/player/`, not in
+`assets/buildings/`.
+
+A general "buildings annex a neighbor cell via upgrades" system is **not** built yet. The boat
+is the first such attachment; the docs hint at a second (a windmill beside a camp,
+[progression-and-power.md](progression-and-power.md)). Generalize when that second concrete
+case lands — not from this single example.
+
+## Phased Build Plan
+
+Start tiny; do not build a sprawling tech UI up front.
+
+1. **DONE — Dock building** — a data-driven `Logistics` building, water-adjacent (sand
+   shoreline + required water neighbor), using `dock.png`
+   ([`building_definitions.gd`](../scripts/buildings/building_definitions.gd)). Placeable
+   only; no travel yet.
+2. **DONE — Multi-island state** — [`WorldData`](../scripts/world/world_data.gd) holds every
+   discovered `IslandData` plus a current-island pointer; `main.gd` renders/simulates the
+   current island and switches between persistent islands (Enter generates a new island and
+   travels to it; `[` / `]` cycle discovered islands, which keep their placed buildings).
+   Only the current island is simulated for now; background simulation of away islands is a
+   later step (matters once travel and per-island inventory exist).
+3. **Rowboat + one neighbor** — build a rowboat at the dock; reveal and travel to a single
+   ring-1 island. View-swap with a short sailing transition. The robot travels; the starter
+   island keeps producing.
+4. **World map overlay** — the ring layout, discovered islands as tokens, branching choice of
+   destination.
+5. **Boat tiers + rare-resource gating** — sailboat/ship reach outer rings; higher tiers cost
+   earlier islands' rare resources; fuse with ship-module repair toward the win condition.
+6. *(Later)* **per-island inventory** (decided — see "Inventory, Boats, and Island Bootstrap"),
+   boat cargo holds, and inter-island supply routes (the Anno logistics layer).
+
+## Open Questions
+
+1. **One traveling robot, or one robot per island?** Leaning one traveling robot early
+   (cohesive with the narrative), data kept plural-friendly.
+2. ~~Per-island inventory now or later?~~ **Resolved:** per-island inventory, no global pool;
+   implemented later in order (step 6) but designed-for now. See "Inventory, Boats, and Island
+   Bootstrap".
+3. **How many islands per ring, and how many reachable choices at once?** Tunable; start with
+   2-3 reachable in ring 1 to introduce the branching choice without overwhelm.
+4. **Are some islands optional vs. required for the win path?** Leaning: a critical path of
+   rare resources for ship modules, plus optional islands for extra economy / flavor.
