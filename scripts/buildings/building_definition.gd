@@ -35,11 +35,6 @@ var input_amount: int = 0
 var power_generated: int = 0
 var power_consumed: int = 0
 
-# A manual generator only produces power while the player robot is parked on it
-# and operating it (the pre-fuel "pedal it yourself" bootstrap). It needs no fuel;
-# the running state is driven by the robot, not an interval. See power_manager.gd.
-var requires_operator: bool = false
-
 # Fuel a generator burns to keep running. -1 resource type means no fuel needed
 # (the generator always runs, e.g. a windmill).
 var fuel_resource_type: int = -1

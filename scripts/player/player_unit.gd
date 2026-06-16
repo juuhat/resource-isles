@@ -8,6 +8,11 @@ extends Node2D
 signal arrived(cell: Vector2i)
 
 const ROBOT_TEXTURE := preload("res://assets/player/player_robot.png")
+const SELECT_SOUNDS: Array[AudioStream] = [
+	preload("res://assets/audio/sfx/player1.wav"),
+	preload("res://assets/audio/sfx/player2.wav"),
+	preload("res://assets/audio/sfx/player3.wav"),
+]
 
 @export var move_speed := 320.0
 @export var visual_size_tiles := Vector2(0.65, 0.65)
@@ -20,11 +25,16 @@ var _path: Array[Vector2i] = []
 var _target_world := Vector2.ZERO
 var _pending_cell := Vector2i(-1, -1)
 var _moving := false
+var _select_player: AudioStreamPlayer
+var _last_sound_index := -1
 
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	z_index = 10
+
+	_select_player = AudioStreamPlayer.new()
+	add_child(_select_player)
 
 
 func setup(new_renderer: IslandRenderer) -> void:
@@ -56,7 +66,23 @@ func set_selected(value: bool) -> void:
 	if selected == value:
 		return
 	selected = value
+	if selected:
+		_play_select_sound()
 	queue_redraw()
+
+
+func _play_select_sound() -> void:
+	if _select_player == null or SELECT_SOUNDS.is_empty():
+		return
+
+	var index := randi() % SELECT_SOUNDS.size()
+	# Avoid playing the same clip twice in a row when there's more than one.
+	if index == _last_sound_index and SELECT_SOUNDS.size() > 1:
+		index = (index + 1) % SELECT_SOUNDS.size()
+	_last_sound_index = index
+
+	_select_player.stream = SELECT_SOUNDS[index]
+	_select_player.play()
 
 
 func _process(delta: float) -> void:

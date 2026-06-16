@@ -20,7 +20,11 @@ func setup(new_building_manager: BuildingManager, new_resource_manager: Resource
 	resource_manager = new_resource_manager
 
 
-func update(island: IslandData, current_time_seconds: float) -> void:
+func update(
+	island: IslandData,
+	current_time_seconds: float,
+	operated_cell: Vector2i = Vector2i(-1, -1)
+) -> void:
 	if island == null:
 		return
 
@@ -32,7 +36,7 @@ func update(island: IslandData, current_time_seconds: float) -> void:
 		if _update_generator(anchor_cell, definition, island, current_time_seconds):
 			generated += definition.power_generated
 
-	var consumed := _allocate_power(island, generated)
+	var consumed := _allocate_power(island, generated, operated_cell)
 
 	if generated != total_generated or consumed != total_consumed:
 		total_generated = generated
@@ -44,13 +48,21 @@ func update(island: IslandData, current_time_seconds: float) -> void:
 # when supply is short), filling leftover MW with any smaller consumer that still
 # fits. Marks each consumer powered/unpowered and returns total demand so the
 # readout can show a deficit.
-func _allocate_power(island: IslandData, generated: int) -> int:
+#
+# The building the robot is operating (operated_cell) is hand-powered for free: it is
+# always marked powered and its draw is left out of both the pool and the reported
+# demand, since the robot supplies it directly (the tier-0 "pedal it yourself" power).
+func _allocate_power(island: IslandData, generated: int, operated_cell: Vector2i) -> int:
 	var remaining := generated
 	var demand := 0
 
 	for anchor_cell in island.buildings.keys():
 		var definition := building_manager.get_definition(island.buildings[anchor_cell].type)
 		if definition == null or definition.power_consumed <= 0:
+			continue
+
+		if anchor_cell == operated_cell:
+			island.set_consumer_powered(anchor_cell, true)
 			continue
 
 		demand += definition.power_consumed
@@ -62,18 +74,14 @@ func _allocate_power(island: IslandData, generated: int) -> int:
 	return demand
 
 
-# True while the generator is producing power. Manual generators run only while the
-# robot is operating them (main.gd drives that running state). Fuel-less generators
-# always run; fuelled ones run for as long as their last burn succeeded.
+# True while the generator is producing power. Fuel-less generators always run;
+# fuelled ones run for as long as their last burn succeeded.
 func _update_generator(
 	anchor_cell: Vector2i,
 	definition: BuildingDefinition,
 	island: IslandData,
 	current_time_seconds: float
 ) -> bool:
-	if definition.requires_operator:
-		return island.is_generator_running(anchor_cell)
-
 	if definition.fuel_resource_type == -1 or definition.fuel_interval_seconds <= 0.0:
 		return true
 

@@ -111,7 +111,7 @@ Early prototype setup:
 
 ## Requirements
 
-- Godot 4.6 or newer
+- Godot 4.6 or newer (developed and tested with **Godot 4.6.3-stable**)
 
 The project is configured as a Godot 4 project and currently uses the mobile rendering method.
 

@@ -70,12 +70,14 @@ The player unit has **one interaction verb** — travel to a tile, then perform 
 action on arrival. That single verb covers everything:
 
 - **Harvest** — the chop/mine minigame (below), requiring the robot on/adjacent to the node.
-- **Operate (implemented)** — park on a **Manual Generator** and run it by hand: while the
-  robot is operating it, the generator produces power; it stalls the moment the robot leaves
-  (see [power-sources.md](power-sources.md)). This extends the bootstrap arc to *power* — the
-  "before" that makes the self-running burner generator feel like liberation, just as
-  hand-chopping does for the logger camp. With one robot you cannot chop and power at once,
-  which is the intended early friction.
+- **Operate (implemented)** — park on any **power-consuming building** and run it by hand: the
+  robot *is* the tier-0 power source, so while it operates a building that building is powered
+  for free; it stalls the moment the robot leaves (see [power-sources.md](power-sources.md)).
+  There is no separate Manual Generator building — that was folded into this verb (see
+  [first-island-progression.md](first-island-progression.md)). This extends the bootstrap arc to
+  *power* — being the power source yourself is the "before" that makes the self-running burner
+  generator feel like liberation, just as hand-chopping does for the logger camp. With one robot
+  you cannot chop and power at once, which is the intended early friction.
 - **Construct** — placing a building drops a *blueprint/ghost*; the robot must walk there and
   build it (construction minigame or timer). Makes placement feel earned and reuses the loop.
 - **Repair / ship assembly** — the endgame: haul resources to the crashed ship and repair its

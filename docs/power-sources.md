@@ -32,21 +32,22 @@ same-island wiring puzzle.
 
 Small, crude, and local.
 
-- **Manual Generator (implemented)**
-  - A hand-cranked wheel the robot must stand on and operate; no fuel.
-  - Produces power *only while the robot is operating it* (`requires_operator` on the
-    `BuildingDefinition`; `power_manager.gd` reads the robot-driven running state). Stalls the
-    instant the robot walks away or is sent elsewhere.
-  - Wood-only cost (4 Wood, no stone) so it is buildable straight from the opening hand-chop
-    loop, before any quarry exists — it has no chicken-and-egg with stone.
-  - This is the **power half of the bootstrap arc**: it is the "before" (you *are* the power
-    source) that makes the self-running Burner Generator feel like liberation, exactly as
+- **The robot itself (implemented)** — the tier-0 power source
+  - There is **no Manual Generator building.** Instead the robot *is* the bootstrap power
+    source: park it on any power-consuming building and press **Operate** in the command bar
+    (`scripts/ui/action_bar.gd`) to hand-power that building for free. It stalls the instant the
+    robot walks away or is sent elsewhere.
+  - Implemented as: `main._building_consumes_power` gates the Operate action on
+    `power_consumed > 0`; while operating, `power_manager._allocate_power` marks the operated
+    building powered and excludes its draw from the island pool (the robot supplies it).
+  - This is the **power half of the bootstrap arc**: being the power source yourself is the
+    "before" that makes the self-running Burner Generator feel like liberation, exactly as
     hand-chopping makes the logger camp feel like liberation
     (see [player-unit-and-manual-gathering.md](player-unit-and-manual-gathering.md)). The
-    friction — you cannot chop and power at the same time with one robot — is the point.
-  - Operated via the same "go there, do the thing" verb as harvesting: park the robot on the
-    wheel and press **Operate** in the robot's command bar (`scripts/ui/action_bar.gd`) to
-    toggle it.
+    friction — one robot cannot chop and power at the same time — is the point. Folding the old
+    Manual Generator building into the robot also removes the "born-dead building" beat (build a
+    camp, find it needs a second building to run); see
+    [first-island-progression.md](first-island-progression.md).
 
 - **Burner Generator (implemented)**
   - Consumes Wood or Charcoal.
@@ -56,7 +57,7 @@ Small, crude, and local.
 - **Campfire Generator / Heat Hut**
   - Even simpler visual version of the burner generator.
   - Tiny output, cheap cost.
-  - Largely superseded by the Manual Generator as the ultra-soft opening step.
+  - Largely redundant now that the robot itself is the ultra-soft opening power step.
 
 ### Tier 1: Cozy Mechanical Renewables
 
@@ -214,7 +215,7 @@ Expensive, compact, and supply-chain-heavy.
 The strongest fit is:
 
 ```text
-Manual Generator -> Burner Generator -> Windmill -> Waterwheel -> Solar + Battery -> Biomass/Fuel -> Geothermal/Tidal -> Nuclear/Fusion
+Robot (hand-power) -> Burner Generator -> Windmill -> Waterwheel -> Solar + Battery -> Biomass/Fuel -> Geothermal/Tidal -> Nuclear/Fusion
 ```
 
 This path keeps the early game cozy and readable, makes midgame logistics matter, and gives

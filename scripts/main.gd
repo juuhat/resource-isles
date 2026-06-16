@@ -70,8 +70,9 @@ var harvest_cell := Vector2i(-1, -1)
 var harvest_resource_type := -1
 var _harvest_accum := 0.0
 
-# The robot parked on a manual generator powers it by hand: while is_operating, the
-# generator at operate_cell is marked running so power_manager counts its output.
+# The robot is the tier-0 power source: while is_operating, it hand-powers the
+# power-consuming building anchored at operate_cell (power_manager treats that cell as
+# powered for free). operable_cell is the parked tile where the Operate action is offered.
 var is_operating := false
 var operate_cell := Vector2i(-1, -1)
 var operable_cell := Vector2i(-1, -1)
@@ -118,7 +119,8 @@ func _process(delta: float) -> void:
 		return
 
 	var current_time_seconds := Time.get_ticks_msec() / 1000.0
-	power_manager.update(current_island, current_time_seconds)
+	var operated_cell := operate_cell if is_operating else Vector2i(-1, -1)
+	power_manager.update(current_island, current_time_seconds, operated_cell)
 	production_manager.update(current_island, current_time_seconds)
 
 	if is_harvesting:
@@ -248,7 +250,7 @@ func _on_unit_arrived(cell: Vector2i) -> void:
 
 	pending_action_cell = Vector2i(-1, -1)
 	harvestable_cell = cell if current_island.get_resource_node_type(cell) != -1 else Vector2i(-1, -1)
-	operable_cell = cell if current_island.get_building_type(cell) == GameTypes.BuildingType.MANUAL_GENERATOR else Vector2i(-1, -1)
+	operable_cell = cell if _building_consumes_power(cell) else Vector2i(-1, -1)
 	_refresh_action_bar()
 
 
@@ -311,10 +313,10 @@ func _operate_action() -> Dictionary:
 	if operable_cell == Vector2i(-1, -1) or player_unit.current_cell != operable_cell:
 		return {}
 
-	if current_island.get_building_type(operable_cell) != GameTypes.BuildingType.MANUAL_GENERATOR:
+	if not _building_consumes_power(operable_cell):
 		return {}
 
-	var definition := building_manager.get_definition(GameTypes.BuildingType.MANUAL_GENERATOR)
+	var definition := building_manager.get_definition(current_island.get_building_type(operable_cell))
 	var building_name := definition.display_name if definition != null else ""
 	var label := ""
 	if is_operating:
@@ -323,6 +325,17 @@ func _operate_action() -> Dictionary:
 		label = "Operate" if building_name.is_empty() else "Operate %s" % building_name
 
 	return {id = UnitAction.OPERATE, icon = POWER_ICON, label = label, active = is_operating}
+
+
+# True when the cell holds a building that draws power, so the robot can hand-power it
+# with the Operate verb (the tier-0 power source — see is_operating / power_manager.gd).
+func _building_consumes_power(cell: Vector2i) -> bool:
+	var building_type := current_island.get_building_type(cell)
+	if building_type == -1:
+		return false
+
+	var definition := building_manager.get_definition(building_type)
+	return definition != null and definition.power_consumed > 0
 
 
 func _on_action_pressed(action_id: int) -> void:
@@ -376,24 +389,22 @@ func _on_operate_pressed() -> void:
 	if operable_cell == Vector2i(-1, -1):
 		return
 
-	if current_island.get_building_type(operable_cell) != GameTypes.BuildingType.MANUAL_GENERATOR:
+	if not _building_consumes_power(operable_cell):
 		return
 
 	is_operating = true
-	operate_cell = operable_cell
-	current_island.set_generator_running(operate_cell, true)
+	operate_cell = current_island.get_building_anchor_cell(operable_cell)
 	_refresh_action_bar()
 
 
-# Hand the wheel back: the generator stops contributing power the moment the robot
-# stops operating it (or is sent elsewhere / the island is left).
+# Hand the building back: it loses the robot's power the moment the robot stops
+# operating it (or is sent elsewhere / the island is left). power_manager re-allocates
+# from the island's generators on the next tick.
 func _stop_operating() -> void:
 	if not is_operating:
 		return
 
 	is_operating = false
-	if current_island != null and operate_cell != Vector2i(-1, -1):
-		current_island.set_generator_running(operate_cell, false)
 	operate_cell = Vector2i(-1, -1)
 
 
