@@ -27,6 +27,8 @@ const HARVEST_YIELD := 1
 const PICKAXE_ICON := preload("res://assets/icons/pickaxe.png")
 const POWER_ICON := preload("res://assets/icons/power.png")
 
+const PLACEMENT_SOUND := preload("res://assets/audio/sfx/building_placement.wav")
+
 # Actions the selected robot can take on its current tile, dispatched from the ActionBar.
 enum UnitAction {
 	HARVEST,
@@ -62,6 +64,7 @@ var action_bar: ActionBar
 var world_map: WorldMap
 var screen_fade: ScreenFade
 var player_unit: PlayerUnit
+var _placement_player: AudioStreamPlayer
 var pending_action_cell := Vector2i(-1, -1)
 var harvestable_cell := Vector2i(-1, -1)
 
@@ -96,6 +99,10 @@ func _ready() -> void:
 	renderer.name = "IslandRenderer"
 	renderer.setup(resource_node_database, building_manager)
 	add_child(renderer)
+
+	_placement_player = AudioStreamPlayer.new()
+	_placement_player.stream = PLACEMENT_SOUND
+	add_child(_placement_player)
 
 	player_unit = PlayerUnitScript.new()
 	player_unit.name = "PlayerUnit"
@@ -159,6 +166,21 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			building_menu.clear_selection_and_close()
 			_deselect_unit()
+
+	# DEBUG CHEAT (P): grant 1000 of every resource to the current island for
+	# testing. Resources are per-island, so this fills the active island's
+	# inventory only. Remove this block before shipping.
+	if key_event.keycode == KEY_P:
+		_debug_grant_resources()
+
+
+# DEBUG/TESTING ONLY — bound to the P key (see _unhandled_input). Adds 1000 of
+# every GameTypes.ResourceType to the current island's inventory so building costs
+# can be exercised without grinding. Iterates the enum so new resource types are
+# covered automatically. Not part of normal gameplay; delete before release.
+func _debug_grant_resources() -> void:
+	for resource_type in GameTypes.ResourceType.values():
+		resource_manager.add_amount(resource_type, 1000)
 
 
 func _input(event: InputEvent) -> void:
@@ -516,6 +538,8 @@ func _try_place_selected_building() -> bool:
 		return false
 
 	resource_manager.spend(cost)
+	if _placement_player != null:
+		_placement_player.play()
 	return true
 
 
