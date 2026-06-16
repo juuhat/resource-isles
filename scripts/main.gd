@@ -18,6 +18,10 @@ const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
 const WorldDataScript := preload("res://scripts/world/world_data.gd")
 const WorldMapScript := preload("res://scripts/ui/world_map.gd")
 const ScreenFadeScript := preload("res://scripts/ui/screen_fade.gd")
+const StatTrackerScript := preload("res://scripts/quests/stat_tracker.gd")
+const QuestManagerScript := preload("res://scripts/quests/quest_manager.gd")
+const QuestLogViewScript := preload("res://scripts/ui/quest_log_view.gd")
+const ToastScript := preload("res://scripts/ui/toast.gd")
 
 const NO_BUILDING := -1
 const HARVEST_INTERVAL := 3.0
@@ -64,6 +68,10 @@ var action_bar: ActionBar
 var world_map: WorldMap
 var screen_fade: ScreenFade
 var player_unit: PlayerUnit
+var stat_tracker: StatTracker
+var quest_manager: QuestManager
+var quest_log_view: QuestLogView
+var toast: Toast
 var _placement_player: AudioStreamPlayer
 var pending_action_cell := Vector2i(-1, -1)
 var harvestable_cell := Vector2i(-1, -1)
@@ -94,6 +102,11 @@ func _ready() -> void:
 	power_manager = PowerManagerScript.new()
 	power_manager.setup(building_manager, resource_manager)
 	power_manager.fuel_consumed.connect(_on_fuel_consumed)
+	# Quests are the robot's own knowledge: one global log driven by cumulative lifetime
+	# stats, not reset on island switch (unlike per-island buildings/resources).
+	stat_tracker = StatTrackerScript.new()
+	quest_manager = QuestManagerScript.new()
+	quest_manager.setup(stat_tracker)
 
 	renderer = IslandRendererScript.new()
 	renderer.name = "IslandRenderer"
@@ -151,6 +164,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if key_event.keycode == KEY_M:
 		world_map.toggle()
 
+	if key_event.keycode == KEY_T:
+		quest_log_view.toggle()
+
 	# Temporary stand-in for a boat-tier unlock: reveal one more ring on the map.
 	if key_event.keycode == KEY_EQUAL:
 		world.reveal_additional_rings(1)
@@ -161,7 +177,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		renderer.queue_redraw()
 
 	if key_event.keycode == KEY_ESCAPE:
-		if world_map.is_open:
+		if quest_log_view.is_open():
+			quest_log_view.close()
+		elif world_map.is_open:
 			world_map.close()
 		else:
 			building_menu.clear_selection_and_close()
@@ -176,11 +194,36 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # DEBUG/TESTING ONLY — bound to the P key (see _unhandled_input). Adds 1000 of
 # every GameTypes.ResourceType to the current island's inventory so building costs
-# can be exercised without grinding. Iterates the enum so new resource types are
-# covered automatically. Not part of normal gameplay; delete before release.
+# can be exercised without grinding, and records the same amount as gathered so the
+# milestone quests trip and the quest log can be tested instantly. Iterates the
+# enum so new resource types are covered automatically. Not part of normal gameplay;
+# delete before release.
 func _debug_grant_resources() -> void:
 	for resource_type in GameTypes.ResourceType.values():
 		resource_manager.add_amount(resource_type, 1000)
+		stat_tracker.record_resource_gained(resource_type, 1000)
+
+
+func _on_quest_completed(quest_id: int) -> void:
+	var quest := quest_manager.get_quest(quest_id)
+	if quest == null:
+		return
+	toast.show_message("Quest complete: %s" % quest.title)
+	_apply_reward(quest.reward)
+
+
+# Building-unlock rewards need no action here — placement reads quest_manager state
+# directly. Robot upgrades change the robot, so they're applied imperatively.
+func _apply_reward(reward: QuestReward) -> void:
+	if reward.kind != GameTypes.RewardKind.ROBOT_UPGRADE:
+		return
+
+	match reward.robot_upgrade:
+		GameTypes.RobotUpgrade.FAST_STEPS:
+			if player_unit != null:
+				player_unit.move_speed *= 1.5
+		GameTypes.RobotUpgrade.AUTO_GATHER:
+			pass # TODO: auto-repeat harvest on the current node (hook in _update_harvest).
 
 
 func _input(event: InputEvent) -> void:
@@ -447,6 +490,7 @@ func _update_harvest(delta: float) -> void:
 	while _harvest_accum >= HARVEST_INTERVAL:
 		_harvest_accum -= HARVEST_INTERVAL
 		resource_manager.add_amount(harvest_resource_type, HARVEST_YIELD)
+		stat_tracker.record_resource_gained(harvest_resource_type, HARVEST_YIELD)
 		_spawn_floating_text(
 			renderer.get_cell_center(harvest_cell),
 			"+%d %s" % [HARVEST_YIELD, ResourceManager.get_display_name_for_type(harvest_resource_type)],
@@ -455,6 +499,7 @@ func _update_harvest(delta: float) -> void:
 
 
 func _on_building_produced(anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
+	stat_tracker.record_resource_gained(resource_type, amount)
 	_spawn_floating_text(
 		renderer.get_cell_center(anchor_cell),
 		"+%d %s" % [amount, ResourceManager.get_display_name_for_type(resource_type)],
@@ -538,6 +583,7 @@ func _try_place_selected_building() -> bool:
 		return false
 
 	resource_manager.spend(cost)
+	stat_tracker.add(GameTypes.Stat.BUILDINGS_BUILT, 1)
 	if _placement_player != null:
 		_placement_player.play()
 	return true
@@ -718,6 +764,15 @@ func _add_ui() -> void:
 	world_map.setup(world)
 	world_map.slot_activated.connect(_on_world_map_slot_activated)
 	add_child(world_map)
+
+	quest_log_view = QuestLogViewScript.new()
+	quest_log_view.setup(quest_manager)
+	add_child(quest_log_view)
+
+	toast = ToastScript.new()
+	add_child(toast)
+	# Reward the moment of completion without making the player open the quest log.
+	quest_manager.quest_completed.connect(_on_quest_completed)
 
 	screen_fade = ScreenFadeScript.new()
 	add_child(screen_fade)
