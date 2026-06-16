@@ -9,6 +9,7 @@ var width: int
 var height: int
 var terrain: Dictionary = {}
 var resources: Dictionary = {}
+var items: Dictionary = {}
 var scavenged_cells: Dictionary = {}
 var buildings: Dictionary = {}
 var building_next_production_times: Dictionary = {}
@@ -163,6 +164,34 @@ func mark_scavenged(cell: Vector2i) -> void:
 
 func get_resource_node_type(cell: Vector2i) -> int:
 	return resources.get(cell, -1)
+
+
+# Loose ground pickups (GameTypes.ItemType). The robot collects one by walking onto its
+# cell; see main.gd's entered-cell handler.
+func place_item(cell: Vector2i, item_type: int) -> bool:
+	if not is_in_bounds(cell) or items.has(cell):
+		return false
+
+	items[cell] = item_type
+	return true
+
+
+func has_item(cell: Vector2i) -> bool:
+	return items.has(cell)
+
+
+func get_item_type(cell: Vector2i) -> int:
+	return items.get(cell, -1)
+
+
+# Removes the item on a cell and returns its type, or -1 if there was none.
+func take_item(cell: Vector2i) -> int:
+	if not items.has(cell):
+		return -1
+
+	var item_type: int = items[cell]
+	items.erase(cell)
+	return item_type
 
 
 func _terrain_for_resource(resource_node_type: int) -> int:

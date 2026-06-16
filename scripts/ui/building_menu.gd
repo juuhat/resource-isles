@@ -17,6 +17,7 @@ const BUILDING_CATEGORIES := [
 ]
 
 var building_manager: BuildingManager
+var quest_manager: QuestManager
 var selected_building_type := NO_BUILDING
 var selected_category := GameTypes.BuildingCategory.RESOURCES
 var menu_panel: PanelContainer
@@ -25,8 +26,15 @@ var building_row: HBoxContainer
 var selected_building_label: Label
 
 
-func setup(new_building_manager: BuildingManager) -> void:
+func setup(new_building_manager: BuildingManager, new_quest_manager: QuestManager) -> void:
 	building_manager = new_building_manager
+	quest_manager = new_quest_manager
+	# Completing a quest can unlock a building; refresh so it appears without reopening.
+	quest_manager.quest_completed.connect(_on_quest_completed)
+
+
+func _on_quest_completed(_quest_id: int) -> void:
+	_rebuild_building_buttons()
 
 
 func _ready() -> void:
@@ -168,13 +176,19 @@ func _rebuild_building_buttons() -> void:
 	_clear_container(building_row)
 
 	var definitions := building_manager.get_definitions_for_category(selected_category)
-	if definitions.is_empty():
+	var available: Array[BuildingDefinition] = []
+	for definition in definitions:
+		# Hide worldgen-only buildings and any still locked behind a quest.
+		if definition.player_buildable and quest_manager.is_building_unlocked(definition.id):
+			available.append(definition)
+
+	if available.is_empty():
 		var empty_label := Label.new()
-		empty_label.text = "No buildings yet"
+		empty_label.text = "Nothing unlocked yet"
 		building_row.add_child(empty_label)
 		return
 
-	for definition in definitions:
+	for definition in available:
 		var button := Button.new()
 		button.text = building_manager.get_label(definition.id)
 		button.pressed.connect(_select_building_type.bind(definition.id))

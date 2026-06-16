@@ -21,6 +21,7 @@ const ScreenFadeScript := preload("res://scripts/ui/screen_fade.gd")
 const StatTrackerScript := preload("res://scripts/quests/stat_tracker.gd")
 const QuestManagerScript := preload("res://scripts/quests/quest_manager.gd")
 const QuestLogViewScript := preload("res://scripts/ui/quest_log_view.gd")
+const QuestTrackerViewScript := preload("res://scripts/ui/quest_tracker_view.gd")
 const ToastScript := preload("res://scripts/ui/toast.gd")
 
 const NO_BUILDING := -1
@@ -71,6 +72,7 @@ var player_unit: PlayerUnit
 var stat_tracker: StatTracker
 var quest_manager: QuestManager
 var quest_log_view: QuestLogView
+var quest_tracker_view: QuestTrackerView
 var toast: Toast
 var _placement_player: AudioStreamPlayer
 var pending_action_cell := Vector2i(-1, -1)
@@ -121,6 +123,7 @@ func _ready() -> void:
 	player_unit.name = "PlayerUnit"
 	player_unit.setup(renderer)
 	player_unit.arrived.connect(_on_unit_arrived)
+	player_unit.entered_cell.connect(_on_unit_entered_cell)
 	add_child(player_unit)
 
 	camera = Camera2D.new()
@@ -209,7 +212,10 @@ func _on_quest_completed(quest_id: int) -> void:
 	if quest == null:
 		return
 	toast.show_message("Quest complete: %s" % quest.title)
-	_apply_reward(quest.reward)
+	for reward in quest.rewards:
+		_apply_reward(reward)
+	# A reward may have changed what the robot can do here (e.g. harvesting unlocked).
+	_refresh_action_bar()
 
 
 # Building-unlock rewards need no action here — placement reads quest_manager state
@@ -219,6 +225,8 @@ func _apply_reward(reward: QuestReward) -> void:
 		return
 
 	match reward.robot_upgrade:
+		GameTypes.RobotUpgrade.HARVESTING:
+			pass # Capability gate read via quest_manager.is_upgrade_active(); no imperative change.
 		GameTypes.RobotUpgrade.FAST_STEPS:
 			if player_unit != null:
 				player_unit.move_speed *= 1.5
@@ -309,6 +317,22 @@ func _command_unit_to_hovered() -> bool:
 	return true
 
 
+# Collect any ground item the robot walks onto. Fires for every cell stepped through,
+# so tools are picked up by passing over them — the intro to movement.
+func _on_unit_entered_cell(cell: Vector2i) -> void:
+	if current_island == null or not current_island.has_item(cell):
+		return
+
+	var item_type := current_island.take_item(cell)
+	stat_tracker.add(GameTypes.Stat.TOOLS_COLLECTED, 1)
+	_spawn_floating_text(
+		renderer.get_cell_center(cell),
+		"+%s" % GameTypes.item_display_name(item_type),
+		Color(1.0, 0.95, 0.7)
+	)
+	renderer.queue_redraw()
+
+
 func _on_unit_arrived(cell: Vector2i) -> void:
 	if cell != pending_action_cell:
 		return
@@ -356,6 +380,10 @@ func _on_portrait_select_requested() -> void:
 
 
 func _harvest_action() -> Dictionary:
+	# Harvesting is locked until the robot recovers its tools (the "Hello World" quest).
+	if not quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.HARVESTING):
+		return {}
+
 	if harvestable_cell == Vector2i(-1, -1) or player_unit.current_cell != harvestable_cell:
 		return {}
 
@@ -575,6 +603,14 @@ func _try_select_building() -> bool:
 
 
 func _try_place_selected_building() -> bool:
+	# Defensive gate: the menu already hides locked / worldgen-only buildings, but never
+	# let a stale selection place one anyway.
+	var definition := building_manager.get_definition(selected_building_type)
+	if definition == null or not definition.player_buildable:
+		return false
+	if not quest_manager.is_building_unlocked(selected_building_type):
+		return false
+
 	var cost := _get_building_cost(selected_building_type)
 	if not resource_manager.can_afford(cost):
 		return false
@@ -613,6 +649,9 @@ func _generate_island_at(coord: Vector2i) -> void:
 	seed_value += 1
 	if not is_starter:
 		_stock_bootstrap_supplies(island)
+		# Discovering any island beyond the starter is the "Rescue the Dog" beat — sailing
+		# out to a new island is what reunites the robot with its pet (see QuestCatalog).
+		stat_tracker.add(GameTypes.Stat.ISLANDS_REACHED, 1)
 	world.add_island(coord, island)
 
 
@@ -685,7 +724,11 @@ func _find_unit_spawn_cell() -> Vector2i:
 	var crashed_spaceship_cell := _find_crashed_spaceship_cell()
 	if crashed_spaceship_cell != Vector2i(-1, -1):
 		for neighbor in HexGridScript.neighbors(crashed_spaceship_cell):
-			if HexPathfinderScript.is_walkable(current_island, neighbor) and not current_island.has_building(neighbor):
+			if (
+				HexPathfinderScript.is_walkable(current_island, neighbor)
+				and not current_island.has_building(neighbor)
+				and not current_island.has_item(neighbor)
+			):
 				return neighbor
 
 	for y in range(current_island.height):
@@ -695,6 +738,7 @@ func _find_unit_spawn_cell() -> Vector2i:
 				HexPathfinderScript.is_walkable(current_island, cell)
 				and not current_island.has_building(cell)
 				and not current_island.has_resource(cell)
+				and not current_island.has_item(cell)
 			):
 				return cell
 
@@ -750,7 +794,7 @@ func _add_ui() -> void:
 	add_child(building_info_panel)
 
 	building_menu = BuildingMenuScript.new()
-	building_menu.setup(building_manager)
+	building_menu.setup(building_manager, quest_manager)
 	building_menu.building_selected.connect(_select_building)
 	building_menu.selection_cleared.connect(_select_no_building)
 	add_child(building_menu)
@@ -768,6 +812,10 @@ func _add_ui() -> void:
 	quest_log_view = QuestLogViewScript.new()
 	quest_log_view.setup(quest_manager)
 	add_child(quest_log_view)
+
+	quest_tracker_view = QuestTrackerViewScript.new()
+	add_child(quest_tracker_view)
+	quest_tracker_view.setup(quest_manager)
 
 	toast = ToastScript.new()
 	add_child(toast)

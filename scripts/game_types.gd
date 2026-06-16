@@ -25,15 +25,28 @@ enum BuildingCategory {
 	UTILITY,
 }
 
-# Every quest. See Quest / QuestCatalog for each one's objectives and reward.
+# Two kinds of quest. MAIN is the persistent story objective (always shown, never locked);
+# MILESTONE quests form the linear chain played one at a time. See QuestManager.
+enum QuestKind {
+	MAIN,
+	MILESTONE,
+}
+
+# Every quest. See Quest / QuestCatalog for each one's objectives and rewards. The MILESTONE
+# entries are listed in play order — the chain advances down this list one at a time.
 enum QuestId {
-	FIRST_LOGS,
-	QUICK_FEET,
-	POWER_UP,
-	STONE_AGE,
-	THE_SAWMILL,
-	TIRELESS_WORKER,
-	SET_SAIL,
+	RESCUE_THE_DOG, # MAIN: the north-star goal, sail out and bring the dog home
+	HELLO_WORLD,    # recover the scattered tools
+	BREAK_GROUND,   # first wood + stone -> logging and mining
+	SCALE_UP,       # bigger wood + stone haul -> refining and power
+	SET_SAIL,       # planks + a settled base -> the dock (the boat to the dog)
+}
+
+# Loose pickups scattered on the ground that the robot collects by walking onto them.
+enum ItemType {
+	AXE,
+	PICKAXE,
+	HAMMER,
 }
 
 # What completing a quest grants.
@@ -44,6 +57,7 @@ enum RewardKind {
 
 # Robot self-improvements granted as quest rewards; effects applied in main.gd.
 enum RobotUpgrade {
+	HARVESTING,  # the robot can harvest resource nodes at all (gated until tools recovered)
 	FAST_STEPS,  # faster movement between tiles
 	AUTO_GATHER, # keep harvesting a node without re-issuing the command
 }
@@ -72,6 +86,8 @@ enum Stat {
 	STONE_GATHERED,
 	PLANKS_GATHERED,
 	BUILDINGS_BUILT,
+	TOOLS_COLLECTED,
+	ISLANDS_REACHED, # new islands discovered/sailed to (the starter doesn't count)
 }
 
 
@@ -115,5 +131,21 @@ static func stat_display_name(stat: int) -> String:
 			return "Planks gathered"
 		Stat.BUILDINGS_BUILT:
 			return "Buildings built"
+		Stat.TOOLS_COLLECTED:
+			return "Tools recovered"
+		Stat.ISLANDS_REACHED:
+			return "Islands reached"
+		_:
+			return "Unknown"
+
+
+static func item_display_name(item_type: int) -> String:
+	match item_type:
+		ItemType.AXE:
+			return "Axe"
+		ItemType.PICKAXE:
+			return "Pickaxe"
+		ItemType.HAMMER:
+			return "Hammer"
 		_:
 			return "Unknown"

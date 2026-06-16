@@ -17,7 +17,9 @@ const DOCK_TEXTURE := preload("res://assets/buildings/dock.png")
 static func build_all() -> Array[BuildingDefinition]:
 	var definitions: Array[BuildingDefinition] = []
 
-	definitions.append(BuildingDefinitionScript.new(
+	# The wreck is placed by worldgen as the starting landmark / win-condition ship, never
+	# by the player — so it stays out of the build menu.
+	var crashed_spaceship := BuildingDefinitionScript.new(
 		GameTypes.BuildingType.CRASHED_SPACESHIP,
 		"Crashed Spaceship",
 		GameTypes.BuildingCategory.UTILITY,
@@ -27,7 +29,9 @@ static func build_all() -> Array[BuildingDefinition]:
 			GameTypes.ResourceType.STONE: 4,
 		},
 		GameTypes.Terrain.GRASS
-	))
+	)
+	crashed_spaceship.player_buildable = false
+	definitions.append(crashed_spaceship)
 
 	var logger_camp := BuildingDefinitionScript.new(
 		GameTypes.BuildingType.LOGGER_CAMP,

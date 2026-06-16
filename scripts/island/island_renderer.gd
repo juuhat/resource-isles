@@ -5,6 +5,13 @@ const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const TILE_TEXTURE := preload("res://assets/tiles/tile.png")
 const ROWBOAT_TEXTURE := preload("res://assets/vehicles/rowboat.png")
 
+# Ground-pickup icons, keyed by GameTypes.ItemType.
+const ITEM_TEXTURES := {
+	GameTypes.ItemType.AXE: preload("res://assets/icons/axe.png"),
+	GameTypes.ItemType.PICKAXE: preload("res://assets/icons/pickaxe.png"),
+	GameTypes.ItemType.HAMMER: preload("res://assets/icons/hammer.png"),
+}
+
 # A dock's boat is an attachment drawn on the adjacent water tile, sized a little
 # smaller than a full tile so it reads as a little boat rather than a structure.
 const BOAT_SIZE_TILES := Vector2(0.8, 0.8)
@@ -464,6 +471,13 @@ func _draw_sorted_objects() -> void:
 			"type": island.resources[cell],
 		})
 
+	for cell in island.items.keys():
+		draw_items.append({
+			"kind": "item",
+			"cell": cell,
+			"type": island.items[cell],
+		})
+
 	for cell in island.buildings.keys():
 		var building_type: int = island.buildings[cell].type
 		draw_items.append({
@@ -500,10 +514,27 @@ func _draw_sorted_objects() -> void:
 
 		if kind == "resource":
 			_draw_resource(cell, object_type)
+		elif kind == "item":
+			_draw_item(cell, object_type)
 		elif kind == "boat":
 			_draw_boat(cell)
 		else:
 			_draw_building(cell, object_type)
+
+
+func _draw_item(cell: Vector2i, item_type: int) -> void:
+	var texture: Texture2D = ITEM_TEXTURES.get(item_type)
+	if texture == null:
+		return
+
+	# Half-tile icon, centered on the cell and floated up slightly so it reads as a
+	# pickup sitting on the ground rather than terrain.
+	var size := Vector2(cell_size.x * 0.5, cell_size.y * 0.5)
+	var position := cell_to_world(cell) + Vector2(
+		(cell_size.x - size.x) * 0.5,
+		(cell_size.y - size.y) * 0.5 - cell_size.y * 0.15
+	)
+	draw_texture_rect(texture, Rect2(position, size), false)
 
 
 func _draw_resource(cell: Vector2i, resource_node_type: int) -> void:

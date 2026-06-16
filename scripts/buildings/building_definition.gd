@@ -10,6 +10,10 @@ var footprint_size: Vector2i
 var visual_size_tiles: Vector2
 var visual_offset_tiles: Vector2
 
+# Whether the player can place this from the build menu. False for buildings that only
+# exist via worldgen or story (e.g. the crashed spaceship) — you don't build those.
+var player_buildable: bool = true
+
 # Footprint cells must sit on this terrain.
 var required_terrain: int
 # Each entry { kind, type } must have at least one matching neighbor for placement to be legal.

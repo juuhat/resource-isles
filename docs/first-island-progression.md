@@ -65,6 +65,15 @@ Hand-mine stone ─┘         ▲
 
 ### Logger's Camp and Quarry are cut from island 1
 
+> **Superseded (current implementation).** The live quest chain now unlocks the **Logger's Camp
+> and Quarry on island 1**, granted together by the *Break Ground* milestone (gather 20 wood +
+> 20 stone) — see [`quest_catalog.gd`](../scripts/quests/quest_catalog.gd). The reasoning below
+> still holds *economically* (on a fixed-demand island, hand-gathering dominates passive camps),
+> so they remain **optional** time-savers, not forced beats — the Sawmill + Dock are the only
+> mandatory buildings. They were brought back as early unlocks to give the opening chain more to
+> offer and to introduce the camp/quarry buildings before island 2 leans on them. The text below
+> records the original "cut entirely" stance for context.
+
 Both are economically dominated by hand-gathering here (see the Guiding Principle). They move
 to **island 2+**, where ongoing demand and a spread-thin robot make passive production win, and
 where adjacency / crowding / tall-vs-wide actually have room to operate.
@@ -130,8 +139,8 @@ ongoing and the freed robot finally has somewhere else to be.
 | Sawmill | **Yes — mandatory** | Wood → planks; planks gate the boat |
 | Burner Generator | Yes — optional | Island-pool power; frees the robot (time-saver here) |
 | Dock | **Yes — mandatory** | Capability gate for sea travel |
-| Logger's Camp | **No — moved to island 2+** | Dominated by hand-chopping on a fixed-demand island |
-| Quarry | **No — moved to island 2+** | Same as above |
+| Logger's Camp | **Yes — optional** (unlocked by *Break Ground*) | Optional time-saver; dominated by hand-chopping but introduced early |
+| Quarry | **Yes — optional** (unlocked by *Break Ground*) | Same as above |
 | Manual Generator | **Removed as a building** | Folded into the robot's `Operate` verb |
 
 ## The Island 1 → Island 2 Curve

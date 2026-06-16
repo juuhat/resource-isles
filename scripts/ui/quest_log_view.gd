@@ -138,7 +138,8 @@ func _make_quest_entry(quest: Quest, state: int) -> Control:
 		for objective in quest.objectives:
 			_add_objective(entry, objective)
 
-	entry.add_child(_small_label("Reward: %s" % quest.reward.summary))
+	for reward in quest.rewards:
+		entry.add_child(_small_label("Reward: %s" % reward.summary))
 	return entry
 
 

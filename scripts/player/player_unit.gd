@@ -6,6 +6,10 @@ extends Node2D
 # path is consumed so the caller can trigger an on-arrival action (e.g. harvesting).
 
 signal arrived(cell: Vector2i)
+# Fires each time the robot steps onto a new cell while walking (including pass-through
+# cells, not just the destination) so callers can react to what's underfoot — e.g.
+# picking up a ground item. See main.gd.
+signal entered_cell(cell: Vector2i)
 
 const ROBOT_TEXTURE := preload("res://assets/player/player_robot.png")
 const SELECT_SOUNDS: Array[AudioStream] = [
@@ -96,6 +100,7 @@ func _process(delta: float) -> void:
 	if distance <= step or distance == 0.0:
 		position = _target_world
 		current_cell = _pending_cell
+		entered_cell.emit(current_cell)
 		_advance_to_next()
 	else:
 		position += to_target / distance * step

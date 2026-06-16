@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bfr3wjni8tq6e"
-path="res://.godot/imported/player_robot_cute.png-8c6164379995eb37126897dc990c31a4.ctex"
+uid="uid://cjssol7ln8suv"
+path="res://.godot/imported/pine_forest.png-9a0ae63271e45a16214b8a9ecdb976a1.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/player/player_robot_cute.png"
-dest_files=["res://.godot/imported/player_robot_cute.png-8c6164379995eb37126897dc990c31a4.ctex"]
+source_file="res://assets/resources/pine_forest.png"
+dest_files=["res://.godot/imported/pine_forest.png-9a0ae63271e45a16214b8a9ecdb976a1.ctex"]
 
 [params]
 
