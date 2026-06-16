@@ -9,6 +9,7 @@ const BuildingDefinitionScript := preload("res://scripts/buildings/building_defi
 const CRASHED_SPACESHIP_TEXTURE := preload("res://assets/buildings/crashed_spaceship.png")
 const LOGGER_CAMP_TEXTURE := preload("res://assets/buildings/logger_camp.png")
 const QUARRY_TEXTURE := preload("res://assets/buildings/quarry.png")
+const MANUAL_GENERATOR_TEXTURE := preload("res://assets/buildings/manual_generator.png")
 const BURNER_GENERATOR_TEXTURE := preload("res://assets/buildings/burner_generator.png")
 const SAWMILL_TEXTURE := preload("res://assets/buildings/sawmill.png")
 const DOCK_TEXTURE := preload("res://assets/buildings/dock.png")
@@ -74,6 +75,25 @@ static func build_all() -> Array[BuildingDefinition]:
 	quarry.production_interval_seconds = 3.0
 	quarry.power_consumed = 2
 	definitions.append(quarry)
+
+	# The pre-fuel power bootstrap: a hand-cranked wheel the robot must stand on and
+	# operate. Wood-only cost (no stone) so it is buildable from the opening hand-chop
+	# loop, before any quarry exists. Outputs the same 5 MW as the burner, but you pay
+	# in the robot's time instead of fuel — it stalls the instant the robot walks away,
+	# which is exactly the friction the self-running burner generator later relieves.
+	var manual_generator := BuildingDefinitionScript.new(
+		GameTypes.BuildingType.MANUAL_GENERATOR,
+		"Manual Generator",
+		GameTypes.BuildingCategory.POWER,
+		MANUAL_GENERATOR_TEXTURE,
+		{
+			GameTypes.ResourceType.WOOD: 4,
+		},
+		GameTypes.Terrain.GRASS
+	)
+	manual_generator.power_generated = 5
+	manual_generator.requires_operator = true
+	definitions.append(manual_generator)
 
 	var burner_generator := BuildingDefinitionScript.new(
 		GameTypes.BuildingType.BURNER_GENERATOR,

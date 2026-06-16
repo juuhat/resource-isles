@@ -7,9 +7,14 @@ extends RefCounted
 # order (used for naming and quick cycling). See docs/island-unlocks.md.
 
 const CENTER := Vector2i(0, 0)
+# How many rings out the world map reveals at the start. 0 = only the starter
+# island, 1 = the starter plus the first ring of three islands, etc. Boat tiers
+# will grow this later via reveal_additional_rings().
+const STARTING_REVEALED_RINGS := 0
 
 var islands: Dictionary = {}
 var current_coord := CENTER
+var revealed_rings := STARTING_REVEALED_RINGS
 
 
 func has_island(coord: Vector2i) -> bool:
@@ -44,3 +49,8 @@ func set_current(coord: Vector2i) -> bool:
 
 	current_coord = coord
 	return true
+
+
+# Reveal more rings on the world map — the hook a boat-tier unlock will call.
+func reveal_additional_rings(count: int = 1) -> void:
+	revealed_rings = maxi(0, revealed_rings + count)

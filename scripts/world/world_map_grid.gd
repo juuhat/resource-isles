@@ -33,8 +33,6 @@ const CUBE_DIRS := [
 const SLOT_DIRECTIONS := [0, 2, 4]
 
 var world: WorldData
-# How many rings out are revealed. A constant for now; boat tiers will drive it.
-var revealed_rings := 2
 
 
 func setup(new_world: WorldData) -> void:
@@ -63,7 +61,7 @@ func _draw() -> void:
 	var center := size * 0.5
 
 	# Water first (every revealed cell that is not an island slot)...
-	for ring in range(0, revealed_rings + 1):
+	for ring in range(0, world.revealed_rings + 1):
 		for cube in _ring_cells_cube(ring):
 			var coord := _cube_to_axial(cube)
 			if not _is_island_slot(coord):
@@ -75,7 +73,7 @@ func _draw() -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
-	if not (event is InputEventMouseButton):
+	if world == null or not (event is InputEventMouseButton):
 		return
 
 	var mouse_button := event as InputEventMouseButton
@@ -145,7 +143,7 @@ func _draw_label(center: Vector2, text: String) -> void:
 
 func _island_slots() -> Array:
 	var slots := [WorldData.CENTER]
-	for ring in range(1, revealed_rings + 1):
+	for ring in range(1, world.revealed_rings + 1):
 		for direction in SLOT_DIRECTIONS:
 			slots.append(_cube_to_axial(CUBE_DIRS[direction] * ring))
 
@@ -157,7 +155,7 @@ func _is_island_slot(coord: Vector2i) -> bool:
 		return true
 
 	var ring := _axial_ring(coord)
-	if ring < 1 or ring > revealed_rings:
+	if ring < 1 or ring > world.revealed_rings:
 		return false
 
 	for direction in SLOT_DIRECTIONS:

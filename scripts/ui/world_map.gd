@@ -5,7 +5,7 @@ extends CanvasLayer
 # stays in main; selecting a slot asks main to enter that island (travel, or
 # generate-then-travel). See docs/island-unlocks.md.
 
-const WorldMapGridScript := preload("res://scripts/ui/world_map_grid.gd")
+const WorldMapGridScript := preload("res://scripts/world/world_map_grid.gd")
 
 signal slot_activated(coord: Vector2i)
 

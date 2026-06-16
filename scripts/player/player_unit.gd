@@ -7,7 +7,7 @@ extends Node2D
 
 signal arrived(cell: Vector2i)
 
-const ROBOT_TEXTURE := preload("res://assets/player/player_robot_cute.png")
+const ROBOT_TEXTURE := preload("res://assets/player/player_robot.png")
 
 @export var move_speed := 320.0
 @export var visual_size_tiles := Vector2(0.65, 0.65)

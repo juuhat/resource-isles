@@ -62,14 +62,18 @@ func _allocate_power(island: IslandData, generated: int) -> int:
 	return demand
 
 
-# True while the generator is producing power. Fuel-less generators always run;
-# fuelled ones run for as long as their last burn succeeded.
+# True while the generator is producing power. Manual generators run only while the
+# robot is operating them (main.gd drives that running state). Fuel-less generators
+# always run; fuelled ones run for as long as their last burn succeeded.
 func _update_generator(
 	anchor_cell: Vector2i,
 	definition: BuildingDefinition,
 	island: IslandData,
 	current_time_seconds: float
 ) -> bool:
+	if definition.requires_operator:
+		return island.is_generator_running(anchor_cell)
+
 	if definition.fuel_resource_type == -1 or definition.fuel_interval_seconds <= 0.0:
 		return true
 

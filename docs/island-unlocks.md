@@ -246,14 +246,16 @@ Start tiny; do not build a sprawling tech UI up front.
    ring-1 island. View-swap with a short sailing transition. The robot travels; the starter
    island keeps producing.
 4. **World map DONE (hex grid + generate-on-click)** — [`world_map.gd`](../scripts/ui/world_map.gd)
-   hosts a flat-color, thick-outline hex grid ([`world_map_grid.gd`](../scripts/ui/world_map_grid.gd)):
+   hosts a flat-color, thick-outline hex grid ([`world_map_grid.gd`](../scripts/world/world_map_grid.gd)):
    starter at the center, concentric rings of water with three island slots per ring. Toggled
    with `M`. Clicking a generated island travels there; clicking an unexplored slot (`?`)
    **generates** the island at that hex coord and travels to it (the old `Enter`-to-spawn key is
    gone). Islands are keyed by hex coordinate in [`WorldData`](../scripts/world/world_data.gd).
-   Travel uses a [`screen_fade.gd`](../scripts/ui/screen_fade.gd) transition. Still to add:
-   boat-tier-driven ring reveal (currently a fixed `revealed_rings`), and per-island art on the
-   hex tokens (now stylized placeholders).
+   Travel uses a [`screen_fade.gd`](../scripts/ui/screen_fade.gd) transition. How many rings are
+   revealed lives on [`WorldData`](../scripts/world/world_data.gd) (`revealed_rings`, starting at
+   `STARTING_REVEALED_RINGS`) and grows via `reveal_additional_rings()` — currently driven by a
+   temporary `=` debug key. Still to add: a real boat-tier system to drive that reveal, and
+   per-island art on the hex tokens (now stylized placeholders).
 5. **Boat tiers + rare-resource gating** — sailboat/ship reach outer rings; higher tiers cost
    earlier islands' rare resources; fuse with ship-module repair toward the win condition.
 6. **Per-island inventory storage DONE** ([`inventory.gd`](../scripts/resources/inventory.gd)

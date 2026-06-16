@@ -129,7 +129,11 @@ func _format_power(building_type: int, anchor_cell: Vector2i, island: IslandData
 
 	if definition.power_generated > 0:
 		var line := "Power: +%d MW" % definition.power_generated
-		if definition.fuel_resource_type != -1:
+		if definition.requires_operator:
+			if island != null and not island.is_generator_running(anchor_cell):
+				line += " (idle — needs operator)"
+			line += "\nHand-operated: the robot must stand here and run it."
+		elif definition.fuel_resource_type != -1:
 			if island != null and not island.is_generator_running(anchor_cell):
 				line += " (stalled — no fuel)"
 			line += "\nFuel: %d %s / %.0fs" % [

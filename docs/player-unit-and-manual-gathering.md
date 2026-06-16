@@ -70,6 +70,12 @@ The player unit has **one interaction verb** — travel to a tile, then perform 
 action on arrival. That single verb covers everything:
 
 - **Harvest** — the chop/mine minigame (below), requiring the robot on/adjacent to the node.
+- **Operate (implemented)** — park on a **Manual Generator** and run it by hand: while the
+  robot is operating it, the generator produces power; it stalls the moment the robot leaves
+  (see [power-sources.md](power-sources.md)). This extends the bootstrap arc to *power* — the
+  "before" that makes the self-running burner generator feel like liberation, just as
+  hand-chopping does for the logger camp. With one robot you cannot chop and power at once,
+  which is the intended early friction.
 - **Construct** — placing a building drops a *blueprint/ghost*; the robot must walk there and
   build it (construction minigame or timer). Makes placement feel earned and reuses the loop.
 - **Repair / ship assembly** — the endgame: haul resources to the crashed ship and repair its
@@ -148,12 +154,18 @@ Phases 1–4 are the playable core; everything after is content.
    BFS over walkable (land) tiles using the existing `HexGrid.neighbors`. Uniform step cost,
    so BFS gives a shortest path.
 3. **DONE — Input rework in `main.gd`**: **right-click (on release)** commands the robot
-   (`_command_unit_to_hovered`) — it pathfinds to the clicked tile. On arrival at a node, a
-   **pickaxe harvest button** ([`scripts/ui/harvest_button.gd`](../scripts/ui/harvest_button.gd))
-   appears on the left edge of the screen; pressing it starts the chop minigame. The button
-   reappears after each chop (nodes are infinite) and hides when the robot moves away.
-   **Left-click** stays for selection / building placement, and **middle-drag** pans the
-   camera. The robot spawns next to the crashed spaceship each time the island generates.
+   (`_command_unit_to_hovered`) — it pathfinds to the clicked tile. The robot's **command bar**
+   ([`scripts/ui/action_bar.gd`](../scripts/ui/action_bar.gd), Civ 6 unit-command style) is a
+   persistent robot **portrait button in the bottom-right corner** (mirroring the building-menu
+   button in the bottom-left); clicking it selects the robot. Whatever actions apply to the
+   robot's current tile appear as icon buttons **to the left of the portrait** — currently
+   *Harvest* on a resource node and *Operate* on a manual generator. The action row shows only
+   while a parked, selected robot has an applicable action and hides when the robot moves away;
+   the portrait is always visible. The bar is a pure view fed by `main._refresh_action_bar()`;
+   add a new robot action by appending a descriptor there and handling its id in
+   `_on_action_pressed`. **Left-click** also selects the robot / places buildings on the map,
+   and **middle-drag** pans the camera. The robot spawns next to the crashed spaceship each
+   time the island generates.
 4. **DONE — Crashed spaceship start**: the generator force-places the crashed spaceship
    ([`island_generator.gd`](../scripts/island/island_generator.gd)); it uses the
    `crashed_spaceship.png` art, is named "Crashed Spaceship", and is the future ship-repair

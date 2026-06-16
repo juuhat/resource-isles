@@ -11,7 +11,7 @@ const BuildingManagerScript := preload("res://scripts/buildings/building_manager
 const ProductionManagerScript := preload("res://scripts/buildings/production_manager.gd")
 const PowerManagerScript := preload("res://scripts/buildings/power_manager.gd")
 const FloatingTextScript := preload("res://scripts/ui/floating_text.gd")
-const HarvestButtonScript := preload("res://scripts/ui/harvest_button.gd")
+const ActionBarScript := preload("res://scripts/ui/action_bar.gd")
 const PlayerUnitScript := preload("res://scripts/player/player_unit.gd")
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
@@ -22,6 +22,16 @@ const ScreenFadeScript := preload("res://scripts/ui/screen_fade.gd")
 const NO_BUILDING := -1
 const HARVEST_INTERVAL := 3.0
 const HARVEST_YIELD := 1
+
+# Icons for the robot's command-bar actions.
+const PICKAXE_ICON := preload("res://assets/icons/pickaxe.png")
+const POWER_ICON := preload("res://assets/icons/power.png")
+
+# Actions the selected robot can take on its current tile, dispatched from the ActionBar.
+enum UnitAction {
+	HARVEST,
+	OPERATE,
+}
 # Pixels the cursor may travel between left press and release before it counts
 # as a drag (pan) rather than a click.
 const DRAG_THRESHOLD := 6.0
@@ -48,7 +58,7 @@ var resource_node_database: ResourceNodeDatabase
 var resource_bar: ResourceBar
 var building_menu: BuildingMenu
 var building_info_panel: BuildingInfoPanel
-var harvest_button: HarvestButton
+var action_bar: ActionBar
 var world_map: WorldMap
 var screen_fade: ScreenFade
 var player_unit: PlayerUnit
@@ -59,6 +69,12 @@ var is_harvesting := false
 var harvest_cell := Vector2i(-1, -1)
 var harvest_resource_type := -1
 var _harvest_accum := 0.0
+
+# The robot parked on a manual generator powers it by hand: while is_operating, the
+# generator at operate_cell is marked running so power_manager counts its output.
+var is_operating := false
+var operate_cell := Vector2i(-1, -1)
+var operable_cell := Vector2i(-1, -1)
 
 
 func _ready() -> void:
@@ -125,6 +141,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if key_event.keycode == KEY_M:
 		world_map.toggle()
+
+	# Temporary stand-in for a boat-tier unlock: reveal one more ring on the map.
+	if key_event.keycode == KEY_EQUAL:
+		world.reveal_additional_rings(1)
+		world_map.refresh()
 
 	if key_event.keycode == KEY_SPACE:
 		renderer.show_grid = not renderer.show_grid
@@ -213,9 +234,11 @@ func _command_unit_to_hovered() -> bool:
 		return false
 
 	_stop_harvesting()
+	_stop_operating()
 	harvestable_cell = Vector2i(-1, -1)
-	harvest_button.hide_button()
+	operable_cell = Vector2i(-1, -1)
 	player_unit.follow_path(path)
+	_refresh_action_bar()
 	return true
 
 
@@ -225,32 +248,95 @@ func _on_unit_arrived(cell: Vector2i) -> void:
 
 	pending_action_cell = Vector2i(-1, -1)
 	harvestable_cell = cell if current_island.get_resource_node_type(cell) != -1 else Vector2i(-1, -1)
-	_refresh_harvest_button()
+	operable_cell = cell if current_island.get_building_type(cell) == GameTypes.BuildingType.MANUAL_GENERATOR else Vector2i(-1, -1)
+	_refresh_action_bar()
 
 
-func _refresh_harvest_button() -> void:
-	if (
-		harvestable_cell == Vector2i(-1, -1)
-		or player_unit == null
-		or not player_unit.selected
-		or player_unit.is_moving()
-		or player_unit.current_cell != harvestable_cell
-	):
-		harvest_button.hide_button()
+# Rebuild the robot's command bar from its current context: the bar shows only while a
+# parked, selected robot has at least one applicable action. main.gd owns what each
+# action means; the bar (action_bar.gd) is just the view. To add a robot action, append
+# another descriptor here and handle its id in _on_action_pressed.
+func _refresh_action_bar() -> void:
+	if action_bar == null:
 		return
+
+	var actions: Array = []
+	if (
+		player_unit != null
+		and player_unit.selected
+		and not player_unit.is_moving()
+		and current_island != null
+	):
+		var harvest := _harvest_action()
+		if not harvest.is_empty():
+			actions.append(harvest)
+		var operate := _operate_action()
+		if not operate.is_empty():
+			actions.append(operate)
+
+	action_bar.set_actions(actions)
+	action_bar.set_selected(player_unit != null and player_unit.selected)
+
+
+# The portrait in the command bar is a second way to select the robot (besides clicking it
+# on the map). Selecting refreshes the bar so its actions for the current tile appear.
+func _on_portrait_select_requested() -> void:
+	if player_unit == null or player_unit.current_cell == Vector2i(-1, -1):
+		return
+
+	player_unit.set_selected(true)
+	_refresh_action_bar()
+
+
+func _harvest_action() -> Dictionary:
+	if harvestable_cell == Vector2i(-1, -1) or player_unit.current_cell != harvestable_cell:
+		return {}
 
 	var resource_node_type := current_island.get_resource_node_type(harvestable_cell)
 	if resource_node_type == -1:
-		harvest_button.hide_button()
-		return
+		return {}
 
-	harvest_button.show_for(resource_node_database.get_definition(resource_node_type), is_harvesting)
+	var definition := resource_node_database.get_definition(resource_node_type)
+	var node_name := definition.display_name if definition != null else ""
+	var label := ""
+	if is_harvesting:
+		label = "Cancel harvesting" if node_name.is_empty() else "Cancel (%s)" % node_name
+	else:
+		label = "Harvest" if node_name.is_empty() else "Harvest %s" % node_name
+
+	return {id = UnitAction.HARVEST, icon = PICKAXE_ICON, label = label, active = is_harvesting}
+
+
+func _operate_action() -> Dictionary:
+	if operable_cell == Vector2i(-1, -1) or player_unit.current_cell != operable_cell:
+		return {}
+
+	if current_island.get_building_type(operable_cell) != GameTypes.BuildingType.MANUAL_GENERATOR:
+		return {}
+
+	var definition := building_manager.get_definition(GameTypes.BuildingType.MANUAL_GENERATOR)
+	var building_name := definition.display_name if definition != null else ""
+	var label := ""
+	if is_operating:
+		label = "Cancel operating" if building_name.is_empty() else "Cancel (%s)" % building_name
+	else:
+		label = "Operate" if building_name.is_empty() else "Operate %s" % building_name
+
+	return {id = UnitAction.OPERATE, icon = POWER_ICON, label = label, active = is_operating}
+
+
+func _on_action_pressed(action_id: int) -> void:
+	match action_id:
+		UnitAction.HARVEST:
+			_on_harvest_pressed()
+		UnitAction.OPERATE:
+			_on_operate_pressed()
 
 
 func _on_harvest_pressed() -> void:
 	if is_harvesting:
 		_stop_harvesting()
-		_refresh_harvest_button()
+		_refresh_action_bar()
 		return
 
 	if harvestable_cell == Vector2i(-1, -1):
@@ -268,7 +354,7 @@ func _on_harvest_pressed() -> void:
 	harvest_cell = harvestable_cell
 	harvest_resource_type = definition.extracted_resource_type
 	_harvest_accum = 0.0
-	_refresh_harvest_button()
+	_refresh_action_bar()
 
 
 func _stop_harvesting() -> void:
@@ -281,6 +367,36 @@ func _stop_harvesting() -> void:
 	_harvest_accum = 0.0
 
 
+func _on_operate_pressed() -> void:
+	if is_operating:
+		_stop_operating()
+		_refresh_action_bar()
+		return
+
+	if operable_cell == Vector2i(-1, -1):
+		return
+
+	if current_island.get_building_type(operable_cell) != GameTypes.BuildingType.MANUAL_GENERATOR:
+		return
+
+	is_operating = true
+	operate_cell = operable_cell
+	current_island.set_generator_running(operate_cell, true)
+	_refresh_action_bar()
+
+
+# Hand the wheel back: the generator stops contributing power the moment the robot
+# stops operating it (or is sent elsewhere / the island is left).
+func _stop_operating() -> void:
+	if not is_operating:
+		return
+
+	is_operating = false
+	if current_island != null and operate_cell != Vector2i(-1, -1):
+		current_island.set_generator_running(operate_cell, false)
+	operate_cell = Vector2i(-1, -1)
+
+
 func _update_harvest(delta: float) -> void:
 	# Stop if the robot is no longer parked on the node it was harvesting.
 	if (
@@ -291,7 +407,7 @@ func _update_harvest(delta: float) -> void:
 		or current_island.get_resource_node_type(harvest_cell) == -1
 	):
 		_stop_harvesting()
-		_refresh_harvest_button()
+		_refresh_action_bar()
 		return
 
 	_harvest_accum += delta
@@ -361,14 +477,14 @@ func _try_select_unit() -> bool:
 		return false
 
 	player_unit.set_selected(true)
-	_refresh_harvest_button()
+	_refresh_action_bar()
 	return true
 
 
 func _deselect_unit() -> void:
 	if player_unit != null:
 		player_unit.set_selected(false)
-	_refresh_harvest_button()
+	_refresh_action_bar()
 
 
 func _try_select_building() -> bool:
@@ -443,6 +559,10 @@ func _switch_to_adjacent_island(direction: int) -> void:
 
 
 func _switch_to_island(coord: Vector2i) -> void:
+	# Release the wheel on the island we are leaving, while it is still current,
+	# so its manual generator is not left flagged as running.
+	_stop_operating()
+
 	if not world.set_current(coord):
 		return
 
@@ -472,11 +592,12 @@ func _spawn_player_unit() -> void:
 		return
 
 	_stop_harvesting()
+	_stop_operating()
 	pending_action_cell = Vector2i(-1, -1)
 	harvestable_cell = Vector2i(-1, -1)
-	if harvest_button != null:
-		harvest_button.hide_button()
+	operable_cell = Vector2i(-1, -1)
 	player_unit.place_at(_find_unit_spawn_cell())
+	_refresh_action_bar()
 
 
 func _find_unit_spawn_cell() -> Vector2i:
@@ -553,9 +674,10 @@ func _add_ui() -> void:
 	building_menu.selection_cleared.connect(_select_no_building)
 	add_child(building_menu)
 
-	harvest_button = HarvestButtonScript.new()
-	harvest_button.pressed.connect(_on_harvest_pressed)
-	add_child(harvest_button)
+	action_bar = ActionBarScript.new()
+	action_bar.action_pressed.connect(_on_action_pressed)
+	action_bar.select_requested.connect(_on_portrait_select_requested)
+	add_child(action_bar)
 
 	world_map = WorldMapScript.new()
 	world_map.setup(world)

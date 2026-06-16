@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://p6ogwm12kecw"
-path="res://.godot/imported/logger_camp.png-89097bf0f558b8e1e9be8723d7e25e9c.ctex"
+uid="uid://3k3yon0jlhrr"
+path="res://.godot/imported/manual_generator.png-62d1c01dca8bfb917f5a5651d1f5ec81.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/buildings/logger_camp.png"
-dest_files=["res://.godot/imported/logger_camp.png-89097bf0f558b8e1e9be8723d7e25e9c.ctex"]
+source_file="res://assets/buildings/manual_generator.png"
+dest_files=["res://.godot/imported/manual_generator.png-62d1c01dca8bfb917f5a5651d1f5ec81.ctex"]
 
 [params]
 
