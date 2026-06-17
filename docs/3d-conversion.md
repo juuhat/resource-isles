@@ -87,10 +87,15 @@ spawns mesh instances:
 - Buildings, resource nodes, ground items, and dock boats are **`Sprite3D` billboards**
   (`BILLBOARD_FIXED_Y`, alpha-scissor) reusing the existing textures, sized by
   `visual_size_tiles`. The manual depth-sort is gone — the depth buffer handles ordering.
-- **Water:** a single shader-driven plane ([`water.gdshader`](../assets/shaders/water.gdshader))
-  at water height, not per-cell prisms. A baked **shore-distance texture** (ported from the 2D
-  `_create_water_gradient_texture`) gives the shallow→deep ring and the shoreline foam band; the
-  shader animates shimmer and foam over `TIME`.
+- **Water (Civ-style, data-driven):** water is classified into two real terrain types at
+  island-gen time — `COAST` (shallow, within `COAST_RINGS` of land) and `WATER` (deep ocean) —
+  by a multi-source flood from land in `island_generator._classify_coastal_water`. Both render
+  as flat hex tiles like land (short prisms at water height), colored light/dark from the
+  classification, and they're full tiles: hoverable, selectable, and available to gameplay
+  (docks require `COAST` adjacency; pathfinding treats both as non-walkable via
+  `GameTypes.is_water`). Two animated water shaders ([`water.gdshader`](../assets/shaders/water.gdshader),
+  [`water_depth.gdshader`](../assets/shaders/water_depth.gdshader)) and the shader-plane path in
+  `_rebuild_water` are **parked** — kept for an optional animated surface layer over the tiles.
 
 ### Phase 3 — Player unit ✅
 

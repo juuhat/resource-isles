@@ -11,7 +11,7 @@ const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 
 static func is_walkable(island: IslandData, cell: Vector2i) -> bool:
 	return island != null and island.is_in_bounds(cell) \
-		and island.get_terrain(cell) != GameTypes.Terrain.WATER
+		and not GameTypes.is_water(island.get_terrain(cell))
 
 
 static func find_path(island: IslandData, start: Vector2i, goal: Vector2i) -> Array[Vector2i]:

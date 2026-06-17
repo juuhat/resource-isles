@@ -6,6 +6,8 @@ const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const STARTER_ISLAND_WIDTH := 30
 const STARTER_ISLAND_HEIGHT := 24
 const SAND_BORDER_WIDTH := 1
+# Water within this many tiles of land becomes shallow Coast; everything beyond is Ocean.
+const COAST_RINGS := 2
 
 var rng := RandomNumberGenerator.new()
 
@@ -37,7 +39,38 @@ func generate_starter_island(
 	# "Hello World" quest (recover them to unlock harvesting). Other islands skip this.
 	if place_crashed_spaceship:
 		_place_starter_tools(island)
+	# Final pass: classify shallow Coast vs deep Ocean now that all land is settled.
+	_classify_coastal_water(island, COAST_RINGS)
 	return island
+
+
+# Multi-source flood from every land cell outward: water cells within `rings` steps of land
+# become shallow Coast; the rest stay deep Ocean. Run last, so the generation steps above
+# (which treat all water as WATER) are unaffected.
+func _classify_coastal_water(island: IslandData, rings: int) -> void:
+	var visited := {}
+	var frontier: Array[Vector2i] = []
+
+	for y in range(island.height):
+		for x in range(island.width):
+			var cell := Vector2i(x, y)
+			if not GameTypes.is_water(island.get_terrain(cell)):
+				visited[cell] = true
+				frontier.append(cell)
+
+	var distance := 0
+	while not frontier.is_empty() and distance < rings:
+		distance += 1
+		var next_frontier: Array[Vector2i] = []
+		for cell in frontier:
+			for neighbor in HexGridScript.neighbors(cell):
+				if visited.has(neighbor) or not island.is_in_bounds(neighbor):
+					continue
+				visited[neighbor] = true
+				if island.get_terrain(neighbor) == GameTypes.Terrain.WATER:
+					island.set_terrain(neighbor, GameTypes.Terrain.COAST)
+					next_frontier.append(neighbor)
+		frontier = next_frontier
 
 
 # Scatters the robot's three lost tools on open grass cells. Order follows the ItemType

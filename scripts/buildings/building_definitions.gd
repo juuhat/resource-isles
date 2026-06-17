@@ -137,7 +137,8 @@ static func build_all() -> Array[BuildingDefinition]:
 	# Built on the sandy shoreline and must touch open water — the future
 	# launch point for boats and inter-island travel. Placeable only for now;
 	# no transport behavior yet (see docs/island-unlocks.md, step 1).
-	dock.required_adjacent = [_terrain_ref(GameTypes.Terrain.WATER)]
+	# Coast = the shallow water that always rings land, so a shoreline dock touches it.
+	dock.required_adjacent = [_terrain_ref(GameTypes.Terrain.COAST)]
 	definitions.append(dock)
 
 	return definitions

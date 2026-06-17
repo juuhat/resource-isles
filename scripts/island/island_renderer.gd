@@ -13,7 +13,13 @@ extends Node3D
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const WATER_SHADER := preload("res://assets/shaders/water.gdshader")
+const WATER_DEPTH_SHADER := preload("res://assets/shaders/water_depth.gdshader")
 const ROWBOAT_TEXTURE := preload("res://assets/vehicles/rowboat.png")
+
+# Two interchangeable water looks. STYLIZED_RING: the baked shore-distance shader
+# (water.gdshader). DEPTH_FRESNEL: a transparent fresnel/normal-map shader that derives
+# shoreline foam from the depth buffer (water_depth.gdshader). Toggle with set_water_style().
+enum WaterStyle { STYLIZED_RING, DEPTH_FRESNEL }
 
 const ITEM_TEXTURES := {
 	GameTypes.ItemType.AXE: preload("res://assets/icons/axe.png"),
@@ -38,6 +44,7 @@ const STONE_TOP_Y := 26.0
 
 @export var cell_size := Vector2(128.0, 128.0)
 @export var show_grid := true
+@export var water_style: WaterStyle = WaterStyle.STYLIZED_RING
 
 var island: IslandData
 var resource_node_database: ResourceNodeDatabase
@@ -83,15 +90,11 @@ func _ready() -> void:
 	_grid_instance.material_override = _make_grid_material()
 	add_child(_grid_instance)
 
-	_water_material = ShaderMaterial.new()
-	_water_material.shader = WATER_SHADER
-	_water_material.set_shader_parameter("shallow_color", SHALLOW_WATER_COLOR)
-	_water_material.set_shader_parameter("deep_color", DEEP_WATER_COLOR)
 	_water_instance = MeshInstance3D.new()
 	_water_instance.name = "Water"
-	_water_instance.material_override = _water_material
 	_water_instance.visible = false
 	add_child(_water_instance)
+	_apply_water_style()
 
 
 func setup(new_resource_node_database: ResourceNodeDatabase, new_building_manager: BuildingManager) -> void:
@@ -105,10 +108,13 @@ func render(new_island: IslandData) -> void:
 	hovered_cell = Vector2i(-1, -1)
 	_highlighted_cell = Vector2i(-1, -1)
 	_rebuild_terrain()
-	_rebuild_water()
 	_rebuild_grid()
 	_rebuild_objects()
 	_rebuild_preview()
+	# Water is now drawn as classified coast/ocean tiles in _rebuild_terrain; the shader
+	# plane is parked (see _rebuild_water / the water_*.gdshader files) for optional reuse.
+	if _water_instance != null:
+		_water_instance.visible = false
 
 
 # Object-only rebuild — cheaper, for placements and ground-item pickups (replaces the
@@ -280,9 +286,8 @@ func _rebuild_terrain() -> void:
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
 			var terrain_type := island.get_terrain(cell)
-			# Water is a single shader-driven plane, not per-cell prisms.
-			if terrain_type == GameTypes.Terrain.WATER:
-				continue
+			# Every cell is a tile now — water included — so coast/ocean read as discrete,
+			# selectable, hoverable tiles (Civ-style), colored by their classification.
 			var tile := MeshInstance3D.new()
 			tile.mesh = _prism_mesh
 			tile.material_override = _terrain_material(terrain_type)
@@ -311,9 +316,21 @@ func _terrain_material(terrain_type: int) -> StandardMaterial3D:
 
 # --- Water ---
 
-# A single horizontal plane covering the map (plus open-ocean margin) at water height,
-# driven by the water shader. The shore-distance texture gives it the shallow ring and the
-# foam line; the shader animates shimmer and foam over time.
+# Swap the water look at runtime (STYLIZED_RING <-> DEPTH_FRESNEL), rebuilding the material
+# and the plane (the depth shader needs a subdivided plane for its vertex ripple).
+func set_water_style(style: WaterStyle) -> void:
+	water_style = style
+	_apply_water_style()
+	_rebuild_water()
+
+
+func _apply_water_style() -> void:
+	_water_material = _make_depth_water_material() if water_style == WaterStyle.DEPTH_FRESNEL else _make_stylized_water_material()
+	if _water_instance != null:
+		_water_instance.material_override = _water_material
+
+
+# A single horizontal plane covering the map (plus open-ocean margin) at water height.
 func _rebuild_water() -> void:
 	if _water_instance == null:
 		return
@@ -323,18 +340,64 @@ func _rebuild_water() -> void:
 		return
 
 	var bake := _build_shore_distance_texture()
-	_water_material.set_shader_parameter("shore_distance", bake["texture"])
-	_water_material.set_shader_parameter("grid_min", bake["min"])
-	_water_material.set_shader_parameter("grid_size", bake["size"])
-
 	var extent: float = maxf(bake["size"].x, bake["size"].y)
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(extent, extent) * 2.5
+	if water_style == WaterStyle.DEPTH_FRESNEL:
+		# Subdivide so the shader's per-vertex wind ripple has vertices to displace.
+		plane.subdivide_width = 64
+		plane.subdivide_depth = 64
 	_water_instance.mesh = plane
+
+	# STYLIZED_RING reads a baked shore-distance field; DEPTH_FRESNEL derives the shoreline
+	# from the depth buffer at runtime, so it needs no baked texture.
+	if water_style == WaterStyle.STYLIZED_RING:
+		_water_material.set_shader_parameter("shore_distance", bake["texture"])
+		_water_material.set_shader_parameter("grid_min", bake["min"])
+		_water_material.set_shader_parameter("grid_size", bake["size"])
 
 	var center := get_map_center()
 	_water_instance.position = Vector3(center.x, WATER_TOP_Y, center.z)
 	_water_instance.visible = true
+
+
+func _make_stylized_water_material() -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = WATER_SHADER
+	material.set_shader_parameter("shallow_color", SHALLOW_WATER_COLOR)
+	material.set_shader_parameter("deep_color", DEEP_WATER_COLOR)
+	return material
+
+
+func _make_depth_water_material() -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = WATER_DEPTH_SHADER
+	# Procedural noise fills the textures the shader expects — normal-map noise for the two
+	# scrolling ripple layers, plain noise for the foam edge break-up.
+	material.set_shader_parameter("norRand1", _make_water_noise(true, 0.03, 1))
+	material.set_shader_parameter("norRand2", _make_water_noise(true, 0.05, 2))
+	material.set_shader_parameter("edgeNoise", _make_water_noise(false, 0.04, 3))
+	material.set_shader_parameter("baseCol", SHALLOW_WATER_COLOR)
+	material.set_shader_parameter("deepCol", DEEP_WATER_COLOR)
+	material.set_shader_parameter("fresnelColor", Color(0.75, 0.95, 1.0))
+	material.set_shader_parameter("edgeColor", Color(1.0, 1.0, 1.0))
+	material.set_shader_parameter("alpha", 0.85)
+	material.set_shader_parameter("noiseScaler", 0.0015)
+	return material
+
+
+func _make_water_noise(as_normal: bool, frequency: float, noise_seed: int) -> NoiseTexture2D:
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.frequency = frequency
+	noise.seed = noise_seed
+	var texture := NoiseTexture2D.new()
+	texture.width = 256
+	texture.height = 256
+	texture.seamless = true
+	texture.as_normal_map = as_normal
+	texture.noise = noise
+	return texture
 
 
 # Bakes a grayscale field over the map's world bounds: each texel is the normalized distance
@@ -412,8 +475,6 @@ func _rebuild_grid() -> void:
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
 			var terrain_type := island.get_terrain(cell)
-			if terrain_type == GameTypes.Terrain.WATER:
-				continue
 
 			var center := HexGridScript.cell_center_3d(cell, cell_size)
 			center.y = _terrain_top_y(terrain_type) + 0.5
@@ -698,8 +759,10 @@ func _color_for_terrain(terrain_type: int) -> Color:
 			return SAND_COLOR
 		GameTypes.Terrain.STONE:
 			return STONE_COLOR
-		_:
+		GameTypes.Terrain.COAST:
 			return SHALLOW_WATER_COLOR
+		_:
+			return DEEP_WATER_COLOR
 
 
 func _cell_contains_xz(cell: Vector2i, point: Vector2) -> bool:
@@ -713,7 +776,7 @@ func _cell_contains_xz(cell: Vector2i, point: Vector2) -> bool:
 
 func _dock_boat_cell(dock_cell: Vector2i) -> Vector2i:
 	for neighbor in HexGridScript.neighbors(dock_cell):
-		if island.is_in_bounds(neighbor) and island.get_terrain(neighbor) == GameTypes.Terrain.WATER:
+		if island.is_in_bounds(neighbor) and GameTypes.is_water(island.get_terrain(neighbor)):
 			return neighbor
 	return Vector2i(-1, -1)
 

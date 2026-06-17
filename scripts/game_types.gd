@@ -2,11 +2,18 @@ class_name GameTypes
 extends RefCounted
 
 enum Terrain {
-	WATER,
+	WATER,  # deep water (ocean) — the default for unset cells
 	SAND,
 	GRASS,
 	STONE,
+	COAST,  # shallow water within a few tiles of land (Civ-style coast)
 }
+
+
+# True for any water tile (deep ocean or shallow coast). Use this for "is this water"
+# checks rather than comparing to a single terrain value.
+static func is_water(terrain_type: int) -> bool:
+	return terrain_type == Terrain.WATER or terrain_type == Terrain.COAST
 
 enum BuildingType {
 	CRASHED_SPACESHIP,
@@ -99,7 +106,9 @@ enum Stat {
 static func terrain_display_name(terrain_type: int) -> String:
 	match terrain_type:
 		Terrain.WATER:
-			return "Water"
+			return "Ocean"
+		Terrain.COAST:
+			return "Coast"
 		Terrain.SAND:
 			return "Sand"
 		Terrain.GRASS:
