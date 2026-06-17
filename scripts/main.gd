@@ -263,9 +263,11 @@ func _input(event: InputEvent) -> void:
 		if is_panning or is_left_panning:
 			_pan_camera(event.relative)
 
-		var ground_point = _screen_to_ground(event.position)
-		if ground_point != null:
-			renderer.set_hovered_world_position(ground_point)
+		if camera != null:
+			renderer.set_hovered_from_ray(
+				camera.project_ray_origin(event.position),
+				camera.project_ray_normal(event.position)
+			)
 
 
 func _handle_left_click() -> void:
@@ -328,22 +330,6 @@ func _set_distance(new_distance: float) -> void:
 func _pan_camera(screen_delta: Vector2) -> void:
 	var pan_scale := camera_distance * 0.0016
 	camera_pivot.position += Vector3(-screen_delta.x, 0.0, -screen_delta.y) * pan_scale
-
-
-# Intersect the mouse ray with the land plane. Returns a Vector3 ground point, or null
-# if the ray is parallel to / points away from the plane.
-func _screen_to_ground(screen_position: Vector2):
-	if camera == null:
-		return null
-	var origin := camera.project_ray_origin(screen_position)
-	var direction := camera.project_ray_normal(screen_position)
-	if absf(direction.y) < 0.00001:
-		return null
-	var plane_y := renderer.ground_pick_y()
-	var t := (plane_y - origin.y) / direction.y
-	if t < 0.0:
-		return null
-	return origin + direction * t
 
 
 func _command_unit_to_hovered() -> bool:

@@ -49,10 +49,13 @@ var placement_can_afford := true
 var _terrain_root: Node3D
 var _objects_root: Node3D
 var _preview_root: Node3D
-var _hover_mesh: MeshInstance3D
 var _prism_mesh: ArrayMesh
 var _cap_mesh: ArrayMesh
 var _terrain_materials := {}
+var _highlight_materials := {}
+# cell -> the terrain MeshInstance3D for that cell, so hover can recolor it in place.
+var _tiles := {}
+var _highlighted_cell := Vector2i(-1, -1)
 
 
 func _ready() -> void:
@@ -71,13 +74,6 @@ func _ready() -> void:
 	_preview_root.name = "PlacementPreview"
 	add_child(_preview_root)
 
-	_hover_mesh = MeshInstance3D.new()
-	_hover_mesh.name = "Hover"
-	_hover_mesh.mesh = _cap_mesh
-	_hover_mesh.material_override = _make_overlay_material(Color(1.0, 1.0, 1.0, 0.18))
-	_hover_mesh.visible = false
-	add_child(_hover_mesh)
-
 
 func setup(new_resource_node_database: ResourceNodeDatabase, new_building_manager: BuildingManager) -> void:
 	resource_node_database = new_resource_node_database
@@ -88,8 +84,7 @@ func setup(new_resource_node_database: ResourceNodeDatabase, new_building_manage
 func render(new_island: IslandData) -> void:
 	island = new_island
 	hovered_cell = Vector2i(-1, -1)
-	if _hover_mesh != null:
-		_hover_mesh.visible = false
+	_highlighted_cell = Vector2i(-1, -1)
 	_rebuild_terrain()
 	_rebuild_objects()
 	_rebuild_preview()
@@ -142,12 +137,6 @@ func world_to_cell(world_position: Vector3) -> Vector2i:
 	return nearest_cell if island.is_in_bounds(nearest_cell) else Vector2i(-1, -1)
 
 
-# Y of the horizontal plane main.gd raycasts against for mouse picking — the land
-# surface, where most interaction happens.
-func ground_pick_y() -> float:
-	return GRASS_TOP_Y
-
-
 func get_map_center() -> Vector3:
 	if island == null:
 		return Vector3.ZERO
@@ -173,8 +162,8 @@ func get_map_radius() -> float:
 	return 0.5 * maxf(island.width * cell_size.x, island.height * cell_size.y * 0.75)
 
 
-func set_hovered_world_position(world_position: Vector3) -> void:
-	var cell := world_to_cell(world_position)
+func set_hovered_from_ray(origin: Vector3, direction: Vector3) -> void:
+	var cell := cell_from_ray(origin, direction)
 
 	if island == null or not island.is_in_bounds(cell):
 		cell = Vector2i(-1, -1)
@@ -183,9 +172,37 @@ func set_hovered_world_position(world_position: Vector3) -> void:
 		return
 
 	hovered_cell = cell
-	_update_hover_mesh()
+	_update_hover()
 	if placement_preview_enabled:
 		_rebuild_preview()
+
+
+# Picks the hovered cell from a camera ray with per-tile height awareness: intersect the
+# land plane for an approximate cell, then re-intersect at that cell's actual top height so
+# the selection lands on the tile under the cursor rather than on a fixed-height plane.
+func cell_from_ray(origin: Vector3, direction: Vector3) -> Vector2i:
+	var approx = _ray_plane_xz(origin, direction, GRASS_TOP_Y)
+	if approx == null:
+		return Vector2i(-1, -1)
+
+	var cell := world_to_cell(approx)
+	if island != null and island.is_in_bounds(cell):
+		var refined = _ray_plane_xz(origin, direction, _terrain_top_y(island.get_terrain(cell)))
+		if refined != null:
+			cell = world_to_cell(refined)
+
+	return cell
+
+
+# Ray/horizontal-plane intersection, returning the hit as a Vector3 (or null if the ray is
+# parallel to or points away from the plane).
+func _ray_plane_xz(origin: Vector3, direction: Vector3, plane_y: float):
+	if absf(direction.y) < 0.00001:
+		return null
+	var t := (plane_y - origin.y) / direction.y
+	if t < 0.0:
+		return null
+	return origin + direction * t
 
 
 func set_placement_preview(
@@ -228,6 +245,7 @@ func get_hovered_resource_node_type() -> int:
 
 func _rebuild_terrain() -> void:
 	_clear(_terrain_root)
+	_tiles.clear()
 	if island == null:
 		return
 
@@ -238,9 +256,13 @@ func _rebuild_terrain() -> void:
 			var tile := MeshInstance3D.new()
 			tile.mesh = _prism_mesh
 			tile.material_override = _terrain_material(terrain_type)
-			tile.position = cell_to_world(cell)
+			# The prism mesh is centered on its origin, so place it at the cell center (not
+			# the top-left anchor) to line up with units, objects, and mouse picking.
+			var center := HexGridScript.cell_center_3d(cell, cell_size)
+			tile.position = Vector3(center.x, 0.0, center.z)
 			tile.scale = Vector3(1.0, _terrain_top_y(terrain_type), 1.0)
 			_terrain_root.add_child(tile)
+			_tiles[cell] = tile
 
 
 func _terrain_material(terrain_type: int) -> StandardMaterial3D:
@@ -254,6 +276,19 @@ func _terrain_material(terrain_type: int) -> StandardMaterial3D:
 	# code-generated prism, cheap for opaque terrain.
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_terrain_materials[terrain_type] = material
+	return material
+
+
+# Brightened terrain material for the cell under the cursor — the hover indicator.
+func _highlight_material(terrain_type: int) -> StandardMaterial3D:
+	if _highlight_materials.has(terrain_type):
+		return _highlight_materials[terrain_type]
+
+	var material := StandardMaterial3D.new()
+	material.albedo_color = _color_for_terrain(terrain_type).lightened(0.35)
+	material.roughness = 1.0
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_highlight_materials[terrain_type] = material
 	return material
 
 
@@ -359,17 +394,27 @@ func _rebuild_preview() -> void:
 
 # --- Hover ---
 
-func _update_hover_mesh() -> void:
-	if _hover_mesh == null:
+# Recolor the cell under the cursor in place (brightened terrain), restoring the
+# previously hovered cell. Recoloring the actual tile avoids the depth/parallax artifacts
+# of a separate overlay mesh floating above the surface.
+func _update_hover() -> void:
+	if _highlighted_cell != Vector2i(-1, -1):
+		_restore_tile(_highlighted_cell)
+		_highlighted_cell = Vector2i(-1, -1)
+
+	if island == null or hovered_cell == Vector2i(-1, -1):
 		return
 
-	if hovered_cell == Vector2i(-1, -1):
-		_hover_mesh.visible = false
-		return
+	var tile = _tiles.get(hovered_cell)
+	if tile != null:
+		tile.material_override = _highlight_material(island.get_terrain(hovered_cell))
+		_highlighted_cell = hovered_cell
 
-	var center := get_cell_center(hovered_cell)
-	_hover_mesh.position = Vector3(center.x, center.y + 0.5, center.z)
-	_hover_mesh.visible = true
+
+func _restore_tile(cell: Vector2i) -> void:
+	var tile = _tiles.get(cell)
+	if tile != null and island != null:
+		tile.material_override = _terrain_material(island.get_terrain(cell))
 
 
 # --- Billboard helper ---
@@ -416,23 +461,26 @@ func _build_hex_prism_mesh() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	# Unit-height prism (y 0..1); instances scale Y to the desired top height.
+	# Unit-height prism (y 0..1); instances scale Y to the desired top height. Normals are
+	# set explicitly per face (flat shading) so the top is a uniformly lit flat hex cap and
+	# the walls don't smooth into it (which would read as a rounded, shaded bump).
 	var top := HexGridScript.hex_corners_3d(Vector3(0.0, 1.0, 0.0), cell_size)
 	var bottom := HexGridScript.hex_corners_3d(Vector3.ZERO, cell_size)
 	var center_top := Vector3(0.0, 1.0, 0.0)
 
+	st.set_normal(Vector3.UP)
 	for i in range(6):
-		var a := top[i]
-		var b := top[(i + 1) % 6]
 		st.add_vertex(center_top)
-		st.add_vertex(a)
-		st.add_vertex(b)
+		st.add_vertex(top[i])
+		st.add_vertex(top[(i + 1) % 6])
 
 	for i in range(6):
 		var b0 := bottom[i]
 		var b1 := bottom[(i + 1) % 6]
 		var t0 := top[i]
 		var t1 := top[(i + 1) % 6]
+		var mid := (b0 + b1) * 0.5
+		st.set_normal(Vector3(mid.x, 0.0, mid.z).normalized())
 		st.add_vertex(b0)
 		st.add_vertex(b1)
 		st.add_vertex(t1)
@@ -440,7 +488,6 @@ func _build_hex_prism_mesh() -> ArrayMesh:
 		st.add_vertex(t1)
 		st.add_vertex(t0)
 
-	st.generate_normals()
 	return st.commit()
 
 
@@ -449,12 +496,12 @@ func _build_hex_cap_mesh() -> ArrayMesh:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
 	var ring := HexGridScript.hex_corners_3d(Vector3.ZERO, cell_size)
+	st.set_normal(Vector3.UP)
 	for i in range(6):
 		st.add_vertex(Vector3.ZERO)
 		st.add_vertex(ring[i])
 		st.add_vertex(ring[(i + 1) % 6])
 
-	st.generate_normals()
 	return st.commit()
 
 
