@@ -17,9 +17,9 @@ const WATER_DEPTH_SHADER := preload("res://assets/shaders/water_depth.gdshader")
 const WATER_LOWPOLY_SHADER := preload("res://assets/shaders/water_lowpoly.gdshader")
 const ROWBOAT_TEXTURE := preload("res://assets/vehicles/rowboat.png")
 
-# Two interchangeable water looks. STYLIZED_RING: the baked shore-distance shader
-# (water.gdshader). DEPTH_FRESNEL: a transparent fresnel/normal-map shader that derives
-# shoreline foam from the depth buffer (water_depth.gdshader). Toggle with set_water_style().
+# Two interchangeable water looks. STYLIZED_RING is the default mobile-map water: an opaque
+# animated plane plus generated shoreline foam. DEPTH_FRESNEL is kept for comparison, but
+# can be fragile on mobile because it depends on transparent depth-buffer reads.
 enum WaterStyle { STYLIZED_RING, DEPTH_FRESNEL }
 
 const ITEM_TEXTURES := {
@@ -33,8 +33,10 @@ const BOAT_SIZE_TILES := Vector2(0.8, 0.8)
 const SAND_COLOR := Color("#e3bc83")
 const GRASS_COLOR := Color("#9ea131")
 const STONE_COLOR := Color("#8e8791")
-const SHALLOW_WATER_COLOR := Color("#479bd2")
-const DEEP_WATER_COLOR := Color("#2a7ebf")
+const SHALLOW_WATER_COLOR := Color("#14ada3")
+const MID_WATER_COLOR := Color("#0d7f85")
+const DEEP_WATER_COLOR := Color("#064c56")
+const SHORE_FOAM_COLOR := Color("#ecefcf")
 
 # Prism top heights per terrain (world units). Land sits above water for a layered
 # island silhouette; the differences are small so unit movement reads as gentle steps.
@@ -110,13 +112,10 @@ func render(new_island: IslandData) -> void:
 	hovered_cell = Vector2i(-1, -1)
 	_highlighted_cell = Vector2i(-1, -1)
 	_rebuild_terrain()
+	_rebuild_water()
 	_rebuild_grid()
 	_rebuild_objects()
 	_rebuild_preview()
-	# Water is now drawn as classified coast/ocean tiles in _rebuild_terrain; the shader
-	# plane is parked (see _rebuild_water / the water_*.gdshader files) for optional reuse.
-	if _water_instance != null:
-		_water_instance.visible = false
 
 
 # Object-only rebuild — cheaper, for placements and ground-item pickups (replaces the
@@ -288,8 +287,8 @@ func _rebuild_terrain() -> void:
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
 			var terrain_type := island.get_terrain(cell)
-			# Every cell is a tile now — water included — so coast/ocean read as discrete,
-			# selectable, hoverable tiles (Civ-style), colored by their classification.
+			if GameTypes.is_water(terrain_type):
+				continue
 			var tile := MeshInstance3D.new()
 			tile.mesh = _prism_mesh
 			tile.material_override = _tile_material(terrain_type)
@@ -302,12 +301,9 @@ func _rebuild_terrain() -> void:
 			_tiles[cell] = tile
 
 
-# Material for a tile. Water (coast/ocean) still generates as classified, colored tiles, but
-# the animated low-poly water shader is disabled for now — re-enable by uncommenting the
-# branch below (see _water_tile_material / water_lowpoly.gdshader).
+# Material for a land tile. Water cells are represented by the animated ocean plane instead
+# of opaque hex prisms, which keeps the surface continuous and avoids shader z-fighting.
 func _tile_material(terrain_type: int) -> Material:
-	#if GameTypes.is_water(terrain_type):
-	#	return _water_tile_material(terrain_type)
 	return _terrain_material(terrain_type)
 
 
@@ -392,7 +388,9 @@ func _make_stylized_water_material() -> ShaderMaterial:
 	var material := ShaderMaterial.new()
 	material.shader = WATER_SHADER
 	material.set_shader_parameter("shallow_color", SHALLOW_WATER_COLOR)
+	material.set_shader_parameter("mid_color", MID_WATER_COLOR)
 	material.set_shader_parameter("deep_color", DEEP_WATER_COLOR)
+	material.set_shader_parameter("foam_color", SHORE_FOAM_COLOR)
 	return material
 
 
@@ -444,7 +442,7 @@ func _build_shore_distance_texture() -> Dictionary:
 			min_xz.y = minf(min_xz.y, xz.y)
 			max_xz.x = maxf(max_xz.x, xz.x)
 			max_xz.y = maxf(max_xz.y, xz.y)
-			if island.get_terrain(cell) != GameTypes.Terrain.WATER:
+			if not GameTypes.is_water(island.get_terrain(cell)):
 				land_centers.append(xz)
 
 	var size := max_xz - min_xz
@@ -502,8 +500,7 @@ func _rebuild_grid() -> void:
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
 			var terrain_type := island.get_terrain(cell)
-			# Grid on land and shallow coast only; deep ocean stays clean.
-			if terrain_type == GameTypes.Terrain.WATER:
+			if GameTypes.is_water(terrain_type):
 				continue
 
 			var center := HexGridScript.cell_center_3d(cell, cell_size)

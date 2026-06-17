@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_disabled, diffuse_burley, specular_schlick_ggx;
+render_mode unshaded, cull_disabled;
 
 // Per-island shore-distance field, baked in island_renderer.gd: R = normalized distance
 // from this world point to the nearest land (0 at the shore, 1 in open water). UVs are
@@ -9,14 +9,18 @@ uniform sampler2D shore_distance : filter_linear;
 uniform vec2 grid_min;
 uniform vec2 grid_size;
 
-uniform vec4 shallow_color : source_color = vec4(0.278, 0.608, 0.824, 1.0);
-uniform vec4 deep_color : source_color = vec4(0.165, 0.494, 0.749, 1.0);
-uniform vec4 foam_color : source_color = vec4(0.95, 0.98, 1.0, 1.0);
+uniform vec4 shallow_color : source_color = vec4(0.08, 0.68, 0.64, 1.0);
+uniform vec4 mid_color : source_color = vec4(0.05, 0.50, 0.52, 1.0);
+uniform vec4 deep_color : source_color = vec4(0.02, 0.30, 0.34, 1.0);
+uniform vec4 glint_color : source_color = vec4(0.55, 0.90, 0.86, 1.0);
+uniform vec4 foam_color : source_color = vec4(0.92, 0.94, 0.82, 1.0);
 
-uniform float deep_start = 0.6;     // shore value at which water reads as fully deep
-uniform float foam_width = 0.06;    // shore-value band where foam appears
-uniform float shimmer_scale = 0.015;
-uniform float shimmer_speed = 0.5;
+uniform float deep_start = 0.7;     // shore value at which water reads as fully deep
+uniform float foam_width = 0.035;
+uniform float shimmer_scale = 0.006;
+uniform float shimmer_speed = 0.12;
+uniform float wave_scale = 0.018;
+uniform float wave_strength = 0.055;
 
 varying vec3 world_pos;
 
@@ -47,24 +51,28 @@ void fragment() {
 	vec2 uv = (world_pos.xz - grid_min) / grid_size;
 	float shore = texture(shore_distance, clamp(uv, vec2(0.0), vec2(1.0))).r;
 
-	// Shallow ring near land, fading to deep water.
+	// Shallow turquoise near land, fading to darker teal in open water.
 	float depth_t = smoothstep(0.0, deep_start, shore);
-	vec3 col = mix(shallow_color.rgb, deep_color.rgb, depth_t);
+	vec3 col = mix(shallow_color.rgb, mid_color.rgb, smoothstep(0.0, 0.55, depth_t));
+	col = mix(col, deep_color.rgb, smoothstep(0.45, 1.0, depth_t));
 
-	// Shimmer: two scrolling noise layers add subtle moving highlights.
+	// Broad animated color movement, like soft painterly patches in mobile map water.
+	float large = value_noise(world_pos.xz * shimmer_scale + vec2(TIME * shimmer_speed, TIME * shimmer_speed * 0.55));
+	float counter = value_noise(world_pos.xz * shimmer_scale * 1.8 - vec2(TIME * shimmer_speed * 0.42, TIME * shimmer_speed * 0.18));
+	float swirls = smoothstep(0.18, 0.98, large * 0.65 + counter * 0.35);
+	col = mix(col, shallow_color.rgb, swirls * wave_strength * (0.35 + shore * 0.65));
+
+	// Tiny moving glints break up the flat plane without normals, transparency, or depth reads.
 	float n1 = value_noise(world_pos.xz * shimmer_scale + vec2(TIME * shimmer_speed, TIME * shimmer_speed * 0.7));
-	float n2 = value_noise(world_pos.xz * shimmer_scale * 2.0 - vec2(TIME * shimmer_speed * 0.5, 0.0));
-	float shimmer = smoothstep(0.55, 1.0, n1 * 0.6 + n2 * 0.4);
-	col += vec3(0.07) * shimmer;
+	float n2 = value_noise(world_pos.xz * wave_scale - vec2(TIME * shimmer_speed * 0.8, TIME * shimmer_speed * 0.2));
+	float shimmer = smoothstep(0.88, 1.0, n1 * 0.55 + n2 * 0.45);
+	col = mix(col, glint_color.rgb, shimmer * 0.045);
 
-	// Animated foam band hugging the shoreline.
-	float edge = foam_width * (0.7 + 0.3 * sin(TIME * 2.0 + world_pos.x * 0.05 + world_pos.z * 0.05));
-	float foam = 1.0 - smoothstep(0.0, edge, shore);
-	foam *= 0.55 + 0.45 * value_noise(world_pos.xz * 0.05 + vec2(TIME * 0.6));
-	col = mix(col, foam_color.rgb, clamp(foam, 0.0, 1.0));
+	// A clean pale band sells the mobile-map shoreline more reliably than depth foam.
+	float foam = 1.0 - smoothstep(0.0, foam_width, shore);
+	float broken = value_noise(world_pos.xz * 0.025 + vec2(TIME * 0.08, -TIME * 0.05));
+	foam *= mix(0.65, 1.0, broken);
+	col = mix(col, foam_color.rgb, clamp(foam * 0.75, 0.0, 1.0));
 
 	ALBEDO = col;
-	ROUGHNESS = 0.15;
-	METALLIC = 0.0;
-	SPECULAR = 0.5;
 }
