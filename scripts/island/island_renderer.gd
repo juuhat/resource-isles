@@ -502,6 +502,9 @@ func _rebuild_grid() -> void:
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
 			var terrain_type := island.get_terrain(cell)
+			# Grid on land and shallow coast only; deep ocean stays clean.
+			if terrain_type == GameTypes.Terrain.WATER:
+				continue
 
 			var center := HexGridScript.cell_center_3d(cell, cell_size)
 			center.y = _terrain_top_y(terrain_type) + 0.5
@@ -517,7 +520,7 @@ func _rebuild_grid() -> void:
 func _make_grid_material() -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_color = Color(0.0, 0.0, 0.0, 0.22)
+	material.albedo_color = Color(0.0, 0.0, 0.0, 0.1)
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material
@@ -661,12 +664,15 @@ func _restore_tile(cell: Vector2i) -> void:
 		tile.material_override = _tile_material(island.get_terrain(cell))
 
 
-# --- Billboard helper ---
+# --- Sprite helper ---
 
+# Builds a sprite laid flat on the ground (top-down decal) rather than an upright billboard.
 func _make_billboard(texture: Texture2D, size_tiles: Vector2, _offset_tiles: Vector2) -> Sprite3D:
 	var sprite := Sprite3D.new()
 	sprite.texture = texture
-	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	sprite.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	# Lay the sprite flat in the XZ plane, facing up; image top points away from the camera.
+	sprite.rotation.x = -PI / 2.0
 	sprite.shaded = false
 	sprite.double_sided = true
 	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
@@ -679,12 +685,9 @@ func _make_billboard(texture: Texture2D, size_tiles: Vector2, _offset_tiles: Vec
 	return sprite
 
 
-# Raise a (centered) Sprite3D so its bottom edge rests on the ground at its current XZ.
+# Nudge a flat sprite just above the tile surface so it doesn't z-fight with the terrain top.
 func _lift_to_ground(sprite: Sprite3D) -> void:
-	if sprite.texture == null:
-		return
-	var world_height := sprite.texture.get_height() * sprite.pixel_size
-	sprite.position.y += world_height * 0.5
+	sprite.position.y += 0.5
 
 
 func _offset_xz(offset_tiles: Vector2) -> Vector3:
