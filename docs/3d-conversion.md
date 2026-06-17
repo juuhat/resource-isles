@@ -1,167 +1,144 @@
-# 3D Conversion Plan
+# 3D Conversion
 
-An implementation plan for moving Resource Isles from its current 2D presentation
-(immediate-mode `_draw()` on `Node2D`, `Camera2D`) to a 3D one (`Camera3D`, code-generated
-hex terrain, sprites as billboards). This is **direction, not yet implemented**.
+How Resource Isles moved from a 2D presentation (immediate-mode `_draw()` on `Node2D`,
+`Camera2D`) to a 3D one (`Camera3D`, code-generated hex terrain, sprites as billboards).
+The **2.5D milestone is implemented** — a real 3D camera and code-generated hex terrain,
+with the existing 2D art reused as upright billboards. The path to full 3D models is noted
+where it differs.
 
-Unlike the other docs here, this is engineering direction rather than game design — the
-gameplay does not change at all. The target is a **2.5D** build: a real 3D camera and
-code-generated hex terrain, but the existing 2D art reused as upright billboards. The path
-to full 3D models is noted where it differs.
+Unlike the other docs here, this is engineering record rather than game design — the
+gameplay did not change at all. See the *What's Left* section at the end for the remaining
+polish and the full-3D upgrade path.
 
 See also: [Player Unit and Manual Gathering](player-unit-and-manual-gathering.md) for the
-robot's movement and verbs (the unit being converted in Phase 3), and the
-[README](../README.md) for the overall structure.
+robot's movement and verbs, and the [README](../README.md) for the overall structure.
 
 ## The Core Idea
 
-The game is already cleanly split. The **simulation layer operates entirely on `Vector2i`
+The game was already cleanly split. The **simulation layer operates entirely on `Vector2i`
 hex cells** — logical grid coordinates, never pixels. Nothing in `island_data`, `hex_grid`,
 `hex_pathfinder`, `island_generator`, `building_manager`, `production_manager`,
 `power_manager`, `resource_manager`, `quest_manager`, or `world_data` touches rendering
 coordinates. The only float `Vector2` uses in the sim are worldgen distance math (grid-space)
-and the `visual_size_tiles` / `visual_offset_tiles` fields, which are *tile fractions* and
+and the `visual_size_tiles` / `visual_offset_tiles` fields, which are *tile fractions* that
 map directly onto 3D XZ scale.
 
-So this is **not a rewrite of the game**. It is a rewrite of the **presentation layer**,
+So this was **not a rewrite of the game**. It was a rewrite of the **presentation layer**,
 concentrated in four files: [`island_renderer.gd`](../scripts/island/island_renderer.gd),
 [`player_unit.gd`](../scripts/player/player_unit.gd), [`main.gd`](../scripts/main.gd) (camera
 and input), and [`floating_text.gd`](../scripts/ui/floating_text.gd).
 
-**Guiding rule:** keep `IslandRenderer`'s public interface stable — `render`,
-`get_cell_center`, `cell_to_world`, `set_hovered_world_position`, `try_place_hovered_building`,
-`get_hovered_building_type`, `hovered_cell`. If those keep their names, `main.gd`,
-`player_unit.gd`, and the UI barely notice the change; only the *return types* shift from
-`Vector2` to `Vector3`.
+**Guiding rule (held):** `IslandRenderer`'s public interface stayed stable so `main.gd`,
+`player_unit.gd`, and the UI barely changed; mostly the return types shifted from `Vector2`
+to `Vector3`. Two methods were renamed during the work: `set_hovered_world_position(Vector2)`
+became `set_hovered_from_ray(origin, direction)` (the camera now passes a ray, not a screen
+point), and the old `queue_redraw()` contract became `refresh()`.
 
-## What Carries Over Unchanged
+## What Carried Over Unchanged
 
-- **All sim/logic scripts** above — zero changes. Saves (cell/inventory data) are unaffected,
-  so there is no save-format break.
+- **All sim/logic scripts** above — zero changes. Saves (cell/inventory data) are unaffected;
+  there was no save-format break.
 - **The entire UI layer.** Every panel is `CanvasLayer` / `Control`: `resource_bar`,
   `building_menu`, `building_info_panel`, `action_bar`, `quest_log_view`,
-  `quest_tracker_view`, `world_map`, `toast`, `screen_fade`. 3D does not touch them.
+  `quest_tracker_view`, `world_map`, `toast`, `screen_fade`. 3D does not touch them — the
+  world-map mini widget still draws in 2D via `_draw()` inside its `CanvasLayer`, which is
+  valid in a 3D scene.
 - **The hex coordinate system.** `hex_grid.gd` (odd-r offset neighbors, the corner math) is
-  dimension-free; only the `cell → world` mapping changes.
+  dimension-free; only the `cell → world` mapping was added.
 
-## What Gets Rebuilt
+## Status by Phase
 
-The one piece that genuinely does not port is the hand-drawn water (the shimmer and
-shoreline foam in `island_renderer.gd`); it is rebuilt as a shader on a water plane. The
-manual depth-sort of drawn objects is *deleted* — the 3D depth buffer replaces it for free.
+All six phases are **done**. What was actually built, and where it diverged from the
+original plan:
 
-## Phases
+### Phase 0 — Scaffolding ✅
 
-Sequenced so the game stays runnable at the end of each phase. Phases 0–1 are low-risk and
-make everything downstream concrete; Phase 2 holds essentially all the risk.
-
-### Phase 0 — Scaffolding (~½ day)
-
-Goal: the 3D scene boots with a camera; nothing is drawn yet.
-
-- `project.godot`: Jolt 3D physics is already enabled; keep the `mobile` renderer.
 - [`game.tscn`](../game.tscn): root `Node2D` → `Node3D`.
-- [`main.gd`](../scripts/main.gd): `extends Node2D` → `extends Node3D`.
-- Add a `WorldEnvironment` and a `DirectionalLight3D` (sun) so meshes are lit.
+- [`main.gd`](../scripts/main.gd): `extends Node3D`; `_setup_camera_and_light()` builds a
+  `Camera3D` on a pivot, a `DirectionalLight3D` sun, and a `WorldEnvironment` (sky color +
+  ambient). Jolt 3D physics was already enabled; the `mobile` renderer is kept.
 
-Breaking: `position` / `global_position` on the root and its children become `Vector3`.
-Compiles, renders nothing — expected.
+### Phase 1 — Coordinate mapping ✅
 
-### Phase 1 — Coordinate mapping (~½ day, the keystone)
+Added as **static helpers in [`hex_grid.gd`](../scripts/island/hex_grid.gd)** rather than
+mutating the renderer, so the change was non-breaking and landed first on its own:
+`cell_to_world_3d`, `cell_center_3d`, and `hex_corners_3d` (the ground-plane corner ring, in
+the same winding as the 2D `hex_points`). They mirror the pointy-top, odd-r layout exactly,
+placing cells on the XZ plane with Y left at 0 for the caller to raise by tile height.
 
-Everything downstream depends on this. Port `cell_to_world` from the renderer with Y → Z:
+### Phase 2 — Terrain renderer ✅
 
-```gdscript
-func cell_to_world(cell: Vector2i) -> Vector3:
-    return Vector3(
-        (cell.x + _row_column_offset(cell.y)) * cell_size.x,
-        0.0,
-        cell.y * cell_size.y * 0.75
-    )
-```
+[`island_renderer.gd`](../scripts/island/island_renderer.gd) rewritten as a `Node3D` that
+spawns mesh instances:
 
-`get_cell_center` returns a `Vector3` (center on XZ, Y at tile-top height). `_row_column_offset`
-and all of `hex_grid.gd` stay exactly as they are.
+- **One shared hex-prism `ArrayMesh`** built with `SurfaceTool`, with **explicit per-face
+  normals** (up for the cap, outward for walls) for crisp flat shading — `generate_normals()`
+  smoothed the cap into the walls and made each tile read as a rounded, shaded bump.
+- One `MeshInstance3D` per cell, positioned at the **cell center** (the prism mesh is centered
+  on its origin) and scaled in Y by terrain height (water 6 → sand 14 → grass 20 → stone 26).
+- Terrain tinted by reusing the `GRASS_COLOR` / `SAND_COLOR` / `STONE_COLOR` constants as
+  material albedos; `cull_mode = CULL_DISABLED` makes it robust to winding.
+- **Grid:** a single `PRIMITIVE_LINES` mesh tracing the top hexagon of every land cell, just
+  above each tile top, toggled by `set_show_grid()` (SPACE).
+- **Hover:** the cell under the cursor is **recolored in place** (a brightened terrain
+  material), restoring the previous cell — no floating overlay mesh.
+- **Placement preview:** flat hex-cap markers (green/red) over the footprint plus a
+  translucent ghost building billboard.
+- Buildings, resource nodes, ground items, and dock boats are **`Sprite3D` billboards**
+  (`BILLBOARD_FIXED_Y`, alpha-scissor) reusing the existing textures, sized by
+  `visual_size_tiles`. The manual depth-sort is gone — the depth buffer handles ordering.
+- **Water:** a single shader-driven plane ([`water.gdshader`](../assets/shaders/water.gdshader))
+  at water height, not per-cell prisms. A baked **shore-distance texture** (ported from the 2D
+  `_create_water_gradient_texture`) gives the shallow→deep ring and the shoreline foam band; the
+  shader animates shimmer and foam over `TIME`.
 
-### Phase 2 — Terrain renderer (~2–4 days, the big one)
+### Phase 3 — Player unit ✅
 
-Rewrite [`island_renderer.gd`](../scripts/island/island_renderer.gd). It stops being a
-`Node2D` with `_draw()` and becomes a `Node3D` that spawns and pools mesh instances.
+[`player_unit.gd`](../scripts/player/player_unit.gd): `Node3D` with a robot `Sprite3D` and a
+flat `CylinderMesh` disc as the selection/ground marker. Movement loop is the same logic in
+`Vector3`.
 
-- Build **one shared hex-prism mesh** with `SurfaceTool` (top cap + 6 side quads), reusing the
-  same corner math as `hex_grid.hex_points`. Alternatively, a `CylinderMesh` with
-  `radial_segments = 6` and equal top/bottom radii *is* a hex prism with no custom geometry —
-  fine for prototyping.
-- Instance the prism per cell at `cell_to_world(cell)`, tinted by terrain. Reuse the existing
-  `GRASS_COLOR` / `SAND_COLOR` / `STONE_COLOR` constants as material albedos.
-- **Elevation for free:** grass prisms taller than sand, water lowest — layered island look,
-  no extra art.
-- If perf needs it, use `MultiMeshInstance3D` per terrain type (thousands of identical tiles
-  in one draw call).
-- **Water:** the hand-drawn shimmer and shoreline foam become a flat plane + a `ShaderMaterial`
-  (or a flat stub initially). This is the only piece that is rebuilt rather than ported.
-- **Grid / hover / placement preview:** the `_draw`-based overlays become a ground
-  decal/shader or thin outline meshes. Hover = highlight the prism material; placement preview
-  = tinted ghost meshes over the footprint cells.
-- **Deleted:** the manual `_draw_sorted_objects` y-sort — the depth buffer handles ordering.
+### Phase 4 — Camera, input, and picking ✅
 
-Buildings and resource nodes (still owned by the renderer) each become a `Sprite3D` billboard
-using the **existing textures**, positioned at the cell and scaled by the existing
-`visual_size_tiles` / `visual_offset_tiles` fields.
+In [`main.gd`](../scripts/main.gd): `Camera3D` on a pivot at a fixed 55° pitch; wheel zoom →
+pivot-to-camera distance; drag → pivot pan on XZ; `_center_camera()` frames the island via
+`get_map_center()` / `get_map_radius()`. **Picking is height-aware:** it intersects the
+camera ray with the land plane for an approximate cell, then re-intersects at that cell's
+actual top height (`cell_from_ray`) so the hover lands on the tile under the cursor regardless
+of elevation.
 
-> **Full-3D upgrade path:** swap each `Sprite3D` for a model `MeshInstance3D`. Nothing else in
-> the renderer changes, so this is incremental and can come later.
+### Phase 5 — Floating text ✅
 
-### Phase 3 — Player unit (~½ day)
+[`floating_text.gd`](../scripts/ui/floating_text.gd): `Node2D` + `_draw()` → a billboarded
+`Label3D` that rises and fades, then frees itself.
 
-[`player_unit.gd`](../scripts/player/player_unit.gd): `Node2D` + `_draw()` → `Node3D` with a
-`Sprite3D` child for the robot texture and a flat ring mesh/decal replacing the drawn ground
-marker. The movement loop in `_process` is unchanged logic — just `Vector2` → `Vector3` and
-drop `queue_redraw()`.
+## What's Left
 
-### Phase 4 — Camera, input, and picking (~1–2 days)
+The 2.5D build is complete and playable. Remaining items are polish or the full-3D path —
+none block play:
 
-In [`main.gd`](../scripts/main.gd):
+- **Grid line thickness.** 3D `PRIMITIVE_LINES` render at 1px regardless of zoom, so the grid
+  looks thin when zoomed out. A bolder, zoom-stable grid needs thin quad strips along each edge
+  or baking the grid into the tile material/shader.
+- **Terrain batching (perf).** Terrain is one `MeshInstance3D` per cell. Fine for current
+  island sizes, but `MultiMeshInstance3D` per terrain type would collapse it to a few draw
+  calls if islands grow. (In-place hover recolor would then need a shader param instead of a
+  material swap.)
+- **Lighting polish.** The `DirectionalLight3D` has no shadows enabled, and `ambient_light_energy`
+  is a flat `0.5`. Enabling shadows and tuning ambient would add depth; bigger elevation gaps
+  make the darker side walls more prominent and want more ambient to compensate.
+- **Camera rotation.** Yaw is fixed (no orbit-around control), pitch is a constant. A rotate
+  binding is easy to add on the pivot if wanted.
+- **Full 3D models (the upgrade path).** Buildings, resource nodes, the robot, and the boat are
+  still billboards. Swapping each `Sprite3D` for a model `MeshInstance3D` is isolated inside the
+  renderer / player unit — incremental, and the larger cost is the art (modeling every asset),
+  not code.
 
-- `Camera2D` → `Camera3D`, mounted on a pivot `Node3D` for a tilted top-down / orbit view.
-- **Zoom:** `camera.zoom` → camera distance along local Z (or FOV).
-- **Pan:** the drag handler moves the pivot on the XZ plane.
-- **Picking (the real change):** today `world_to_cell` takes a `Vector2` from
-  `get_global_mouse_position()`. In 3D, raycast from `camera.project_ray_origin` /
-  `project_ray_normal` onto the ground plane (Y = 0), then feed the resulting XZ into a 3D
-  `world_to_cell`. Jolt is enabled, so this can hit tile colliders, but plain plane-intersection
-  math is cheaper and recommended.
-- `_center_camera` repositions the pivot instead of a `Camera2D`.
+## Notes for Future Work
 
-### Phase 5 — Floating text (~½ day)
-
-[`floating_text.gd`](../scripts/ui/floating_text.gd): `Node2D` → `Label3D` (billboarded,
-world-anchored), or keep it 2D and project the cell's 3D position to screen. The UI layer
-needs no other changes.
-
-## Effort Summary
-
-| Phase | Files | Effort |
-| --- | --- | --- |
-| 0 Scaffolding | game.tscn, main.gd, project | ½ day |
-| 1 Coordinate mapping | hex_grid / renderer | ½ day |
-| 2 Terrain + water + billboards | island_renderer.gd | 2–4 days |
-| 3 Player unit | player_unit.gd | ½ day |
-| 4 Camera + picking | main.gd | 1–2 days |
-| 5 Floating text | floating_text.gd | ½ day |
-| — UI | (none) | 0 |
-
-**~1–1.5 weeks for a working 2.5D build that reuses all current art.** No save-format break,
-no sim-logic break. The only genuinely new authoring is the water shader; the only real risk
-concentration is Phase 2.
-
-## Risks and Notes
-
-- **Water shader** is the single piece with no 2D equivalent to port. Stub it flat first; treat
-  the shader as polish.
-- **Pointy-top vs flat-top orientation.** The current layout is pointy-top
-  (`hex_points` puts a corner at top-center). A generated prism may need a 30° Y rotation to
-  match; verify against `hex_grid.neighbor` directions so picking and rendering agree.
-- **Art is the larger half of *full* 3D.** Code-generated terrain needs no art, but real 3D
-  buildings/resource nodes/robot/boat need models. The 2.5D billboard approach defers all of
-  that — which is why it is the recommended first target.
+- **Pick-plane refinement** assumes roughly flat-topped tiles at known heights; if terrain ever
+  gets per-cell variable height, switch to a physics raycast against tile colliders (Jolt is
+  enabled) instead of the plane-intersection refine.
+- **Coordinate parity:** terrain, units, objects, grid, hover, and picking all resolve through
+  `cell_center_3d`. Anything new must use the cell *center*, not the `cell_to_world` anchor, or
+  it will sit half a tile off (the bug that made early hover target the wrong row).

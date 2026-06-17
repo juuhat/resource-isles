@@ -12,6 +12,7 @@ extends Node3D
 # try_place_hovered_building(), get_hovered_building_type(), hovered_cell, cell_size.
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
+const WATER_SHADER := preload("res://assets/shaders/water.gdshader")
 const ROWBOAT_TEXTURE := preload("res://assets/vehicles/rowboat.png")
 
 const ITEM_TEXTURES := {
@@ -50,6 +51,8 @@ var _terrain_root: Node3D
 var _objects_root: Node3D
 var _preview_root: Node3D
 var _grid_instance: MeshInstance3D
+var _water_instance: MeshInstance3D
+var _water_material: ShaderMaterial
 var _prism_mesh: ArrayMesh
 var _cap_mesh: ArrayMesh
 var _terrain_materials := {}
@@ -80,6 +83,16 @@ func _ready() -> void:
 	_grid_instance.material_override = _make_grid_material()
 	add_child(_grid_instance)
 
+	_water_material = ShaderMaterial.new()
+	_water_material.shader = WATER_SHADER
+	_water_material.set_shader_parameter("shallow_color", SHALLOW_WATER_COLOR)
+	_water_material.set_shader_parameter("deep_color", DEEP_WATER_COLOR)
+	_water_instance = MeshInstance3D.new()
+	_water_instance.name = "Water"
+	_water_instance.material_override = _water_material
+	_water_instance.visible = false
+	add_child(_water_instance)
+
 
 func setup(new_resource_node_database: ResourceNodeDatabase, new_building_manager: BuildingManager) -> void:
 	resource_node_database = new_resource_node_database
@@ -92,6 +105,7 @@ func render(new_island: IslandData) -> void:
 	hovered_cell = Vector2i(-1, -1)
 	_highlighted_cell = Vector2i(-1, -1)
 	_rebuild_terrain()
+	_rebuild_water()
 	_rebuild_grid()
 	_rebuild_objects()
 	_rebuild_preview()
@@ -266,6 +280,9 @@ func _rebuild_terrain() -> void:
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
 			var terrain_type := island.get_terrain(cell)
+			# Water is a single shader-driven plane, not per-cell prisms.
+			if terrain_type == GameTypes.Terrain.WATER:
+				continue
 			var tile := MeshInstance3D.new()
 			tile.mesh = _prism_mesh
 			tile.material_override = _terrain_material(terrain_type)
@@ -290,6 +307,87 @@ func _terrain_material(terrain_type: int) -> StandardMaterial3D:
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_terrain_materials[terrain_type] = material
 	return material
+
+
+# --- Water ---
+
+# A single horizontal plane covering the map (plus open-ocean margin) at water height,
+# driven by the water shader. The shore-distance texture gives it the shallow ring and the
+# foam line; the shader animates shimmer and foam over time.
+func _rebuild_water() -> void:
+	if _water_instance == null:
+		return
+
+	if island == null:
+		_water_instance.visible = false
+		return
+
+	var bake := _build_shore_distance_texture()
+	_water_material.set_shader_parameter("shore_distance", bake["texture"])
+	_water_material.set_shader_parameter("grid_min", bake["min"])
+	_water_material.set_shader_parameter("grid_size", bake["size"])
+
+	var extent: float = maxf(bake["size"].x, bake["size"].y)
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(extent, extent) * 2.5
+	_water_instance.mesh = plane
+
+	var center := get_map_center()
+	_water_instance.position = Vector3(center.x, WATER_TOP_Y, center.z)
+	_water_instance.visible = true
+
+
+# Bakes a grayscale field over the map's world bounds: each texel is the normalized distance
+# from that world point to the nearest land cell (0 at the shore, 1 in open water). Ported
+# from the 2D renderer's water gradient; the shader reads it for shallow/deep and foam.
+func _build_shore_distance_texture() -> Dictionary:
+	var min_xz := Vector2(INF, INF)
+	var max_xz := Vector2(-INF, -INF)
+	var land_centers: Array[Vector2] = []
+
+	for y in range(island.height):
+		for x in range(island.width):
+			var cell := Vector2i(x, y)
+			var center := HexGridScript.cell_center_3d(cell, cell_size)
+			var xz := Vector2(center.x, center.z)
+			min_xz.x = minf(min_xz.x, xz.x)
+			min_xz.y = minf(min_xz.y, xz.y)
+			max_xz.x = maxf(max_xz.x, xz.x)
+			max_xz.y = maxf(max_xz.y, xz.y)
+			if island.get_terrain(cell) != GameTypes.Terrain.WATER:
+				land_centers.append(xz)
+
+	var size := max_xz - min_xz
+	if size.x <= 0.0:
+		size.x = cell_size.x
+	if size.y <= 0.0:
+		size.y = cell_size.y
+
+	var shore_buffer := cell_size.x * 0.5  # one half-tile out still reads as shore
+	var max_distance := cell_size.x * 6.0  # how far the shallow ring extends
+	var texture_width := 128
+	var texture_height := maxi(1, roundi(texture_width * size.y / size.x))
+	var image := Image.create(texture_width, texture_height, false, Image.FORMAT_RGBA8)
+
+	for j in range(texture_height):
+		for i in range(texture_width):
+			var point := min_xz + Vector2(
+				(float(i) + 0.5) / float(texture_width) * size.x,
+				(float(j) + 0.5) / float(texture_height) * size.y
+			)
+			var nearest := INF
+			for land in land_centers:
+				var d := point.distance_to(land)
+				if d < nearest:
+					nearest = d
+			var shore := 1.0 if land_centers.is_empty() else clampf((nearest - shore_buffer) / max_distance, 0.0, 1.0)
+			image.set_pixel(i, j, Color(shore, shore, shore, 1.0))
+
+	return {
+		"texture": ImageTexture.create_from_image(image),
+		"min": min_xz,
+		"size": size,
+	}
 
 
 # --- Grid ---
