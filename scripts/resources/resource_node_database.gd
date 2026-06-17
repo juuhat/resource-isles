@@ -4,6 +4,7 @@ extends RefCounted
 const ResourceNodeDefinitionScript := preload("res://scripts/resources/resource_node_definition.gd")
 const FOREST_TEXTURE := preload("res://assets/resources/forest.png")
 const STONE_TEXTURE := preload("res://assets/resources/stone.png")
+const PINE_FOREST_MODEL := preload("res://assets/models/pine_forest.glb")
 
 var definitions: Dictionary = {}
 
@@ -18,6 +19,7 @@ func _init() -> void:
 		Vector2(1.0, 1.25),
 		Vector2(0.0, -0.25)
 	)
+	forest.model = PINE_FOREST_MODEL
 	forest.scavenge_amount = 3
 	_add_definition(forest)
 

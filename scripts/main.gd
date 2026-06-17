@@ -138,6 +138,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_camera_controls(delta)
+
 	if current_island == null:
 		return
 
@@ -177,6 +179,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if key_event.keycode == KEY_SPACE:
 		renderer.set_show_grid(not renderer.show_grid)
+
+	# Print the current camera framing so a good test angle can be recorded.
+	if key_event.keycode == KEY_C and camera_pivot != null:
+		print("Camera: pitch=%.1f  yaw=%.1f  distance=%.0f" % [
+			camera_pitch_degrees, rad_to_deg(camera_pivot.rotation.y), camera_distance
+		])
 
 	if key_event.keycode == KEY_ESCAPE:
 		if quest_log_view.is_open():
@@ -324,11 +332,34 @@ func _set_distance(new_distance: float) -> void:
 	_update_camera()
 
 
-# Drag-pan: slide the pivot across the XZ ground. Scaled by distance so the world keeps
-# pace with the cursor regardless of zoom.
+func _set_pitch(degrees: float) -> void:
+	camera_pitch_degrees = clampf(degrees, 10.0, 89.0)
+	_update_camera()
+
+
+# Live camera controls for testing angles: Q/E orbit (yaw), R/F tilt (pitch). Wheel zooms
+# and drag pans as before; press C to print the current pitch/yaw/distance.
+func _update_camera_controls(delta: float) -> void:
+	if camera_pivot == null:
+		return
+	var yaw_speed := 1.5
+	var pitch_speed := 40.0
+	if Input.is_key_pressed(KEY_Q):
+		camera_pivot.rotation.y -= yaw_speed * delta
+	if Input.is_key_pressed(KEY_E):
+		camera_pivot.rotation.y += yaw_speed * delta
+	if Input.is_key_pressed(KEY_R):
+		_set_pitch(camera_pitch_degrees + pitch_speed * delta)
+	if Input.is_key_pressed(KEY_F):
+		_set_pitch(camera_pitch_degrees - pitch_speed * delta)
+
+
+# Drag-pan: slide the pivot across the ground, relative to the current yaw so it tracks the
+# cursor whatever direction the camera faces. Scaled by distance so it keeps pace with zoom.
 func _pan_camera(screen_delta: Vector2) -> void:
 	var pan_scale := camera_distance * 0.0016
-	camera_pivot.position += Vector3(-screen_delta.x, 0.0, -screen_delta.y) * pan_scale
+	var local_delta := Vector3(-screen_delta.x, 0.0, -screen_delta.y) * pan_scale
+	camera_pivot.position += camera_pivot.basis * local_delta
 
 
 func _command_unit_to_hovered() -> bool:

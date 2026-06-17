@@ -137,10 +137,43 @@ none block play:
   make the darker side walls more prominent and want more ambient to compensate.
 - **Camera rotation.** Yaw is fixed (no orbit-around control), pitch is a constant. A rotate
   binding is easy to add on the pivot if wanted.
-- **Full 3D models (the upgrade path).** The robot is now a real 3D model
-  (`player_model.glb`); buildings, resource nodes, and the boat are still billboards. Swapping
-  each remaining `Sprite3D` for a model is isolated inside the renderer — incremental, and the
-  larger cost is the art (modeling each asset), not code.
+- **Full 3D models (the upgrade path).** The robot (`player_model.glb`) and the forest resource
+  node (`pine_forest.glb`) are now real 3D models; buildings, the stone node, ground items, and
+  the boat are still billboards. Swapping each remaining `Sprite3D` for a model is isolated
+  inside the renderer (`_spawn_model` is generic and reusable) — incremental, and the larger
+  cost is the art, not code. See the open question below on standardizing the pipeline.
+
+## Open Question — Model Import Pipeline
+
+We're bringing models in from **Meshy** (AI generation), likely with **Blender** cleanup in
+between, and there's no agreed convention yet — so each model currently lands with a different
+scale, orientation, and origin, and the renderer compensates ad hoc. We should decide on a
+standard. What we have so far:
+
+- **Runtime compensation (current).** `_spawn_model` in
+  [`island_renderer.gd`](../scripts/island/island_renderer.gd) measures the instance's AABB
+  (`_instance_aabb`), scales it so its width spans `visual_size_tiles`, and lifts it by the
+  bounds' min-Y so its base sits on the ground. `player_unit.gd` instead hard-codes
+  `MODEL_NATIVE_HEIGHT` and a `MODEL_YAW_OFFSET`. Two different approaches already.
+- **Inconsistent origins.** `player_model.glb` has feet at `y=0`; `pine_forest.glb` is
+  vertically centered (base at `y≈-0.72`), which is why one needs a lift and the other doesn't.
+- **Facing.** glTF forward is `-Z`, but generated models don't reliably honor it — the robot
+  needed a 180° yaw flip found by trial.
+
+Questions to settle (and then write up as a checklist):
+
+1. **Normalize at export or at runtime?** Preferred: normalize in **Blender** before export —
+   origin at the base/footprint center, forward = `-Z`, apply all transforms (scale = 1), and
+   pick a real-world-ish unit so a *single* scale rule (or a per-definition `model_scale`) works.
+   That would let us drop the per-spawn AABB measure.
+2. **Meshy export settings.** Confirm format (`.glb`), up-axis (Y-up for Godot), and a
+   consistent export scale so models don't arrive wildly different sizes.
+3. **Blender cleanup pass.** What's the minimum: decimate/retopo to keep poly counts low and
+   consistent with the flat-shaded look, recenter origin, orient forward, apply transforms, and
+   possibly bake to vertex colors / a flat material to match the cel-style terrain (Meshy's
+   baked-texture PBR can clash).
+4. **A documented per-model checklist** so any new asset drops in predictably (scale, origin,
+   forward, materials, naming) instead of being hand-tuned in code each time.
 
 ## Notes for Future Work
 

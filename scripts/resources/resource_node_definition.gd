@@ -4,6 +4,8 @@ extends RefCounted
 var id: int
 var display_name: String
 var texture: Texture2D
+# Optional 3D model. When set, the renderer instances this instead of the flat texture.
+var model: PackedScene = null
 var footprint_size: Vector2i
 var visual_size_tiles: Vector2
 var visual_offset_tiles: Vector2

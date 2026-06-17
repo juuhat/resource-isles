@@ -563,13 +563,61 @@ func _rebuild_objects() -> void:
 
 func _spawn_resource(cell: Vector2i, resource_node_type: int) -> void:
 	var definition := resource_node_database.get_definition(resource_node_type)
-	if definition == null or definition.texture == null:
+	if definition == null:
+		return
+
+	if definition.model != null:
+		_spawn_model(definition.model, [cell], definition.visual_size_tiles, definition.visual_offset_tiles)
+		return
+
+	if definition.texture == null:
 		return
 
 	var sprite := _make_billboard(definition.texture, definition.visual_size_tiles, definition.visual_offset_tiles)
 	sprite.position = _ground_anchor([cell]) + _offset_xz(definition.visual_offset_tiles)
 	_lift_to_ground(sprite)
 	_objects_root.add_child(sprite)
+
+
+# Instances a 3D model on a (multi-cell) footprint: auto-scaled so its width spans
+# size_tiles, and lifted so its lowest point rests on the ground.
+func _spawn_model(scene: PackedScene, cells: Array, size_tiles: Vector2, offset_tiles: Vector2) -> void:
+	var model := scene.instantiate() as Node3D
+	if model == null:
+		return
+
+	# Added at origin first so its untransformed bounds read as native model space.
+	_objects_root.add_child(model)
+	var bounds := _instance_aabb(model)
+	var native_width := maxf(bounds.size.x, bounds.size.z)
+	if native_width <= 0.0:
+		native_width = 1.0
+
+	var model_scale := (size_tiles.x * cell_size.x) / native_width
+	model.scale = Vector3(model_scale, model_scale, model_scale)
+
+	var ground := _ground_anchor(cells) + _offset_xz(offset_tiles)
+	# Lift so the model's lowest point (bounds.position.y, scaled) sits on the tile.
+	model.position = Vector3(ground.x, ground.y - bounds.position.y * model_scale, ground.z)
+
+
+# Native bounds of a freshly-instanced model (added at origin), merged over its meshes.
+func _instance_aabb(root: Node3D) -> AABB:
+	var combined := AABB()
+	var has := false
+	var stack: Array = [root]
+	while stack.size() > 0:
+		var node = stack.pop_back()
+		for child in node.get_children():
+			stack.append(child)
+		if node is MeshInstance3D:
+			var world_aabb: AABB = node.global_transform * node.get_aabb()
+			if not has:
+				combined = world_aabb
+				has = true
+			else:
+				combined = combined.merge(world_aabb)
+	return combined
 
 
 func _spawn_item(cell: Vector2i, item_type: int) -> void:
