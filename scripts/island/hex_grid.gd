@@ -68,3 +68,47 @@ static func point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> boo
 		previous_index = index
 
 	return inside
+
+
+# --- 3D coordinate mapping (see docs/3d-conversion.md, Phase 1) ---
+# These are the dimension-bridge between the cell-based simulation and the planned
+# 3D renderer. They mirror the 2D layout used by IslandRenderer exactly (pointy-top,
+# odd-r offset: odd rows shift half a tile, rows pack at 0.75 spacing) but place cells
+# on the XZ ground plane with Y left at 0 for the caller to raise by tile height. The
+# 2D renderer is unaffected; nothing calls these until Phase 2.
+
+
+# Top-left-equivalent anchor of a cell's bounding box on the ground plane. This is the
+# 3D analogue of IslandRenderer.cell_to_world (its 2D Y becomes Z here).
+static func cell_to_world_3d(cell: Vector2i, cell_size: Vector2) -> Vector3:
+	return Vector3(
+		(float(cell.x) + _row_offset_3d(cell.y)) * cell_size.x,
+		0.0,
+		float(cell.y) * cell_size.y * 0.75
+	)
+
+
+# Center of a cell on the ground plane — where a unit, building, or sprite sits.
+static func cell_center_3d(cell: Vector2i, cell_size: Vector2) -> Vector3:
+	return cell_to_world_3d(cell, cell_size) + Vector3(cell_size.x * 0.5, 0.0, cell_size.y * 0.5)
+
+
+# The six hex corners on the ground plane, in the same winding as hex_points so edge
+# and neighbor indexing stays consistent. Used by Phase 2 to build the prism mesh and
+# tile outlines.
+static func hex_corners_3d(center: Vector3, cell_size: Vector2) -> PackedVector3Array:
+	var half_x := cell_size.x * 0.5
+	var quarter_z := cell_size.y * 0.25
+	var half_z := cell_size.y * 0.5
+	return PackedVector3Array([
+		center + Vector3(0.0, 0.0, -half_z),
+		center + Vector3(half_x, 0.0, -quarter_z),
+		center + Vector3(half_x, 0.0, quarter_z),
+		center + Vector3(0.0, 0.0, half_z),
+		center + Vector3(-half_x, 0.0, quarter_z),
+		center + Vector3(-half_x, 0.0, -quarter_z),
+	])
+
+
+static func _row_offset_3d(row: int) -> float:
+	return 0.5 if row % 2 != 0 else 0.0

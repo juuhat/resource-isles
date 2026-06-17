@@ -1,4 +1,4 @@
-extends Node2D
+extends Node3D
 
 const IslandGeneratorScript := preload("res://scripts/island/island_generator.gd")
 const IslandRendererScript := preload("res://scripts/island/island_renderer.gd")
@@ -45,11 +45,15 @@ const DRAG_THRESHOLD := 6.0
 
 var generator := IslandGeneratorScript.new()
 var renderer: IslandRenderer
-var camera: Camera2D
+var camera_pivot: Node3D
+var camera: Camera3D
 var seed_value := 1
 var zoom_step := 1.1
-var min_zoom := 0.25
-var max_zoom := 1.5
+# Camera orbits a pivot at a fixed pitch; zoom changes the pivot-to-camera distance.
+var camera_distance := 1800.0
+var camera_pitch_degrees := 55.0
+var min_distance := 500.0
+var max_distance := 6000.0
 var is_panning := false
 var is_left_panning := false
 var left_button_down := false
@@ -126,11 +130,7 @@ func _ready() -> void:
 	player_unit.entered_cell.connect(_on_unit_entered_cell)
 	add_child(player_unit)
 
-	camera = Camera2D.new()
-	camera.name = "Camera2D"
-	camera.enabled = true
-	camera.zoom = Vector2(0.375, 0.375)
-	add_child(camera)
+	_setup_camera_and_light()
 
 	world = WorldDataScript.new()
 	_add_ui()
@@ -177,7 +177,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if key_event.keycode == KEY_SPACE:
 		renderer.show_grid = not renderer.show_grid
-		renderer.queue_redraw()
+		renderer.refresh()
 
 	if key_event.keycode == KEY_ESCAPE:
 		if quest_log_view.is_open():
@@ -234,9 +234,9 @@ func _input(event: InputEvent) -> void:
 		var is_over_ui := get_viewport().gui_get_hovered_control() != null
 
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
-			_set_zoom(camera.zoom.x * zoom_step)
+			_set_distance(camera_distance / zoom_step)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
-			_set_zoom(camera.zoom.x / zoom_step)
+			_set_distance(camera_distance * zoom_step)
 		elif event.button_index == MOUSE_BUTTON_MIDDLE:
 			is_panning = event.pressed
 		elif event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed and not is_over_ui:
@@ -261,9 +261,11 @@ func _input(event: InputEvent) -> void:
 			is_left_panning = true
 
 		if is_panning or is_left_panning:
-			camera.position -= event.relative / camera.zoom.x
+			_pan_camera(event.relative)
 
-		renderer.set_hovered_world_position(get_global_mouse_position())
+		var ground_point = _screen_to_ground(event.position)
+		if ground_point != null:
+			renderer.set_hovered_world_position(ground_point)
 
 
 func _handle_left_click() -> void:
@@ -278,10 +280,70 @@ func _handle_left_click() -> void:
 	_try_select_building()
 
 
-func _set_zoom(new_zoom: float) -> void:
-	var clamped_zoom := clampf(new_zoom, min_zoom, max_zoom)
-	camera.zoom = Vector2(clamped_zoom, clamped_zoom)
-	renderer.queue_redraw()
+func _setup_camera_and_light() -> void:
+	camera_pivot = Node3D.new()
+	camera_pivot.name = "CameraPivot"
+	add_child(camera_pivot)
+
+	camera = Camera3D.new()
+	camera.name = "Camera3D"
+	camera.far = 20000.0
+	camera.current = true
+	camera_pivot.add_child(camera)
+	_update_camera()
+
+	var sun := DirectionalLight3D.new()
+	sun.name = "Sun"
+	sun.rotation = Vector3(deg_to_rad(-55.0), deg_to_rad(-40.0), 0.0)
+	add_child(sun)
+
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = Color(0.0901961, 0.435294, 0.658824)
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color(0.6, 0.65, 0.75)
+	environment.ambient_light_energy = 0.5
+	var world_environment := WorldEnvironment.new()
+	world_environment.name = "WorldEnvironment"
+	world_environment.environment = environment
+	add_child(world_environment)
+
+
+# Position the camera at the current distance/pitch behind the pivot and look at it.
+func _update_camera() -> void:
+	if camera == null:
+		return
+	var pitch := deg_to_rad(camera_pitch_degrees)
+	camera.position = Vector3(0.0, sin(pitch) * camera_distance, cos(pitch) * camera_distance)
+	camera.rotation = Vector3(-pitch, 0.0, 0.0)
+
+
+func _set_distance(new_distance: float) -> void:
+	camera_distance = clampf(new_distance, min_distance, max_distance)
+	_update_camera()
+
+
+# Drag-pan: slide the pivot across the XZ ground. Scaled by distance so the world keeps
+# pace with the cursor regardless of zoom.
+func _pan_camera(screen_delta: Vector2) -> void:
+	var pan_scale := camera_distance * 0.0016
+	camera_pivot.position += Vector3(-screen_delta.x, 0.0, -screen_delta.y) * pan_scale
+
+
+# Intersect the mouse ray with the land plane. Returns a Vector3 ground point, or null
+# if the ray is parallel to / points away from the plane.
+func _screen_to_ground(screen_position: Vector2):
+	if camera == null:
+		return null
+	var origin := camera.project_ray_origin(screen_position)
+	var direction := camera.project_ray_normal(screen_position)
+	if absf(direction.y) < 0.00001:
+		return null
+	var plane_y := renderer.ground_pick_y()
+	var t := (plane_y - origin.y) / direction.y
+	if t < 0.0:
+		return null
+	return origin + direction * t
 
 
 func _command_unit_to_hovered() -> bool:
@@ -325,7 +387,7 @@ func _on_unit_entered_cell(cell: Vector2i) -> void:
 		"+%s" % GameTypes.item_display_name(item_type),
 		Color(1.0, 0.95, 0.7)
 	)
-	renderer.queue_redraw()
+	renderer.refresh()
 
 
 func _on_unit_arrived(cell: Vector2i) -> void:
@@ -549,7 +611,7 @@ func _on_input_consumed(anchor_cell: Vector2i, resource_type: int, amount: int) 
 	)
 
 
-func _spawn_floating_text(world_position: Vector2, text: String, color: Color, font_size := 22) -> void:
+func _spawn_floating_text(world_position: Vector3, text: String, color: Color, font_size := 22) -> void:
 	var floating := FloatingTextScript.new()
 	floating.text = text
 	floating.color = color
@@ -749,8 +811,8 @@ func _find_crashed_spaceship_cell() -> Vector2i:
 
 
 func _center_camera(_island: IslandData) -> void:
-	var bounds := renderer.get_map_bounds()
-	camera.position = bounds.position + bounds.size * 0.5
+	camera_pivot.position = renderer.get_map_center()
+	_set_distance(renderer.get_map_radius() * 2.2)
 
 
 func _select_no_building() -> void:

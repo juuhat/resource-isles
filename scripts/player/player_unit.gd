@@ -1,14 +1,13 @@
 class_name PlayerUnit
-extends Node2D
+extends Node3D
 
-# The player-controlled robot. Holds a current hex cell and walks along a queued
-# path of cells at a constant world-space speed. Emits `arrived` once the whole
-# path is consumed so the caller can trigger an on-arrival action (e.g. harvesting).
+# The player-controlled robot (3D, see docs/3d-conversion.md Phase 3). Holds a current
+# hex cell and walks along a queued path of cells at a constant world-space speed on the
+# XZ ground plane. The robot is an upright Sprite3D billboard reusing the 2D art; a flat
+# disc under it is the selection/ground marker. Movement logic is unchanged from the 2D
+# version — only the coordinate type (Vector2 -> Vector3) differs.
 
 signal arrived(cell: Vector2i)
-# Fires each time the robot steps onto a new cell while walking (including pass-through
-# cells, not just the destination) so callers can react to what's underfoot — e.g.
-# picking up a ground item. See main.gd.
 signal entered_cell(cell: Vector2i)
 
 const ROBOT_TEXTURE := preload("res://assets/player/player_robot.png")
@@ -26,16 +25,46 @@ var current_cell := Vector2i(-1, -1)
 var selected := false
 
 var _path: Array[Vector2i] = []
-var _target_world := Vector2.ZERO
+var _target_world := Vector3.ZERO
 var _pending_cell := Vector2i(-1, -1)
 var _moving := false
+var _sprite: Sprite3D
+var _marker: MeshInstance3D
+var _marker_material: StandardMaterial3D
 var _select_player: AudioStreamPlayer
 var _last_sound_index := -1
 
 
 func _ready() -> void:
-	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-	z_index = 10
+	_marker_material = StandardMaterial3D.new()
+	_marker_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_marker_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_marker_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	var disc := CylinderMesh.new()
+	disc.top_radius = renderer.cell_size.x * 0.3 if renderer != null else 38.0
+	disc.bottom_radius = disc.top_radius
+	disc.height = 1.0
+	disc.radial_segments = 24
+	_marker = MeshInstance3D.new()
+	_marker.mesh = disc
+	_marker.material_override = _marker_material
+	_marker.position.y = 1.0
+	add_child(_marker)
+
+	_sprite = Sprite3D.new()
+	_sprite.texture = ROBOT_TEXTURE
+	_sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	_sprite.shaded = false
+	_sprite.double_sided = true
+	_sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	_sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	var cell_size := renderer.cell_size if renderer != null else Vector2(128.0, 128.0)
+	_sprite.pixel_size = (visual_size_tiles.x * cell_size.x) / float(maxi(1, ROBOT_TEXTURE.get_width()))
+	_sprite.position.y = ROBOT_TEXTURE.get_height() * _sprite.pixel_size * 0.5
+	add_child(_sprite)
+
+	_update_marker_color()
 
 	_select_player = AudioStreamPlayer.new()
 	add_child(_select_player)
@@ -51,7 +80,6 @@ func place_at(cell: Vector2i) -> void:
 	_path.clear()
 	_moving = false
 	visible = true
-	queue_redraw()
 
 
 func follow_path(path: Array[Vector2i]) -> void:
@@ -72,7 +100,13 @@ func set_selected(value: bool) -> void:
 	selected = value
 	if selected:
 		_play_select_sound()
-	queue_redraw()
+	_update_marker_color()
+
+
+func _update_marker_color() -> void:
+	if _marker_material == null:
+		return
+	_marker_material.albedo_color = Color(0.35, 0.85, 1.0, 0.5) if selected else Color(0.0, 0.0, 0.0, 0.22)
 
 
 func _play_select_sound() -> void:
@@ -80,7 +114,6 @@ func _play_select_sound() -> void:
 		return
 
 	var index := randi() % SELECT_SOUNDS.size()
-	# Avoid playing the same clip twice in a row when there's more than one.
 	if index == _last_sound_index and SELECT_SOUNDS.size() > 1:
 		index = (index + 1) % SELECT_SOUNDS.size()
 	_last_sound_index = index
@@ -105,8 +138,6 @@ func _process(delta: float) -> void:
 	else:
 		position += to_target / distance * step
 
-	queue_redraw()
-
 
 func _advance_to_next() -> void:
 	if _path.is_empty():
@@ -117,28 +148,3 @@ func _advance_to_next() -> void:
 	_pending_cell = _path.pop_front()
 	_target_world = renderer.get_cell_center(_pending_cell)
 	_moving = true
-
-
-func _draw() -> void:
-	if renderer == null:
-		return
-
-	var cell_size := renderer.cell_size
-	var size := Vector2(visual_size_tiles.x * cell_size.x, visual_size_tiles.y * cell_size.y)
-
-	_draw_ground_marker(cell_size)
-
-	# Anchor the sprite so its feet rest near the cell center.
-	var rect := Rect2(Vector2(-size.x * 0.5, -size.y * 0.78), size)
-	draw_texture_rect(ROBOT_TEXTURE, rect, false)
-
-
-func _draw_ground_marker(cell_size: Vector2) -> void:
-	var radius := cell_size.x * 0.3
-	var color := Color(0.35, 0.85, 1.0, 0.35) if selected else Color(0.0, 0.0, 0.0, 0.18)
-
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.5))
-	draw_circle(Vector2.ZERO, radius, color)
-	if selected:
-		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 32, Color(0.5, 0.95, 1.0, 0.7), 2.0, true)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

@@ -1,33 +1,42 @@
 class_name IslandRenderer
-extends Node2D
+extends Node3D
+
+# 3D island renderer (see docs/3d-conversion.md, Phase 2). Terrain is built from
+# code-generated hex prisms (one shared mesh, one instance per cell, tinted by terrain
+# and raised by elevation). Buildings, resource nodes, ground items, and dock boats are
+# drawn as upright Sprite3D billboards reusing the existing 2D art (the 2.5D approach).
+#
+# The public interface is kept compatible with the 2D renderer it replaces so main.gd
+# and player_unit.gd are largely unchanged: render(), refresh(), get_cell_center(),
+# cell_to_world(), world_to_cell(), set_hovered_world_position(), set_placement_preview(),
+# try_place_hovered_building(), get_hovered_building_type(), hovered_cell, cell_size.
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
-const TILE_TEXTURE := preload("res://assets/tiles/tile.png")
 const ROWBOAT_TEXTURE := preload("res://assets/vehicles/rowboat.png")
 
-# Ground-pickup icons, keyed by GameTypes.ItemType.
 const ITEM_TEXTURES := {
 	GameTypes.ItemType.AXE: preload("res://assets/icons/axe.png"),
 	GameTypes.ItemType.PICKAXE: preload("res://assets/icons/pickaxe.png"),
 	GameTypes.ItemType.HAMMER: preload("res://assets/icons/hammer.png"),
 }
 
-# A dock's boat is an attachment drawn on the adjacent water tile, sized a little
-# smaller than a full tile so it reads as a little boat rather than a structure.
 const BOAT_SIZE_TILES := Vector2(0.8, 0.8)
 
-const SHALLOW_WATER_COLOR := Color("#479bd2")
-const DEEP_WATER_COLOR := Color("#2a7ebf")
 const SAND_COLOR := Color("#e3bc83")
 const GRASS_COLOR := Color("#9ea131")
 const STONE_COLOR := Color("#8e8791")
-const WATER_REDRAW_INTERVAL := 0.08
-const NORTH_SHORE_WATER_DIRECTIONS := [0, 4, 5]
+const SHALLOW_WATER_COLOR := Color("#479bd2")
+const DEEP_WATER_COLOR := Color("#2a7ebf")
+
+# Prism top heights per terrain (world units). Land sits above water for a layered
+# island silhouette; the differences are small so unit movement reads as gentle steps.
+const WATER_TOP_Y := 6.0
+const SAND_TOP_Y := 14.0
+const GRASS_TOP_Y := 20.0
+const STONE_TOP_Y := 26.0
 
 @export var cell_size := Vector2(128.0, 128.0)
 @export var show_grid := true
-@export var grid_line_width := 1.0
-@export var animate_water := true
 
 var island: IslandData
 var resource_node_database: ResourceNodeDatabase
@@ -36,38 +45,38 @@ var hovered_cell := Vector2i(-1, -1)
 var placement_preview_enabled := false
 var placement_building_type := GameTypes.BuildingType.LOGGER_CAMP
 var placement_can_afford := true
-var water_time := 0.0
-var water_redraw_elapsed := 0.0
-var water_gradient_texture: ImageTexture
-var map_bounds := Rect2(Vector2.ZERO, Vector2.ZERO)
-var land_tiles: Array[Dictionary] = []
-var water_tiles: Array[Dictionary] = []
-var water_surface_tiles: Array[Dictionary] = []
-var grid_line_segments := PackedVector2Array()
+
+var _terrain_root: Node3D
+var _objects_root: Node3D
+var _preview_root: Node3D
+var _hover_mesh: MeshInstance3D
+var _prism_mesh: ArrayMesh
+var _cap_mesh: ArrayMesh
+var _terrain_materials := {}
 
 
 func _ready() -> void:
-	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_prism_mesh = _build_hex_prism_mesh()
+	_cap_mesh = _build_hex_cap_mesh()
 
+	_terrain_root = Node3D.new()
+	_terrain_root.name = "Terrain"
+	add_child(_terrain_root)
 
-func _process(delta: float) -> void:
-	if not animate_water:
-		return
+	_objects_root = Node3D.new()
+	_objects_root.name = "Objects"
+	add_child(_objects_root)
 
-	water_redraw_elapsed += delta
-	if water_redraw_elapsed < WATER_REDRAW_INTERVAL:
-		return
+	_preview_root = Node3D.new()
+	_preview_root.name = "PlacementPreview"
+	add_child(_preview_root)
 
-	water_time += water_redraw_elapsed
-	water_redraw_elapsed = 0.0
-	queue_redraw()
-
-
-func render(new_island: IslandData) -> void:
-	island = new_island
-	water_gradient_texture = null
-	_rebuild_terrain_cache()
-	queue_redraw()
+	_hover_mesh = MeshInstance3D.new()
+	_hover_mesh.name = "Hover"
+	_hover_mesh.mesh = _cap_mesh
+	_hover_mesh.material_override = _make_overlay_material(Color(1.0, 1.0, 1.0, 0.18))
+	_hover_mesh.visible = false
+	add_child(_hover_mesh)
 
 
 func setup(new_resource_node_database: ResourceNodeDatabase, new_building_manager: BuildingManager) -> void:
@@ -75,38 +84,43 @@ func setup(new_resource_node_database: ResourceNodeDatabase, new_building_manage
 	building_manager = new_building_manager
 
 
-func _draw() -> void:
-	if island == null:
-		return
-
-	_draw_terrain()
-
-	if show_grid:
-		_draw_grid()
-
-	_draw_hover()
-
-	_draw_sorted_objects()
-
-	_draw_placement_preview()
+# Full rebuild — terrain and all objects. Called on island entry/switch.
+func render(new_island: IslandData) -> void:
+	island = new_island
+	hovered_cell = Vector2i(-1, -1)
+	if _hover_mesh != null:
+		_hover_mesh.visible = false
+	_rebuild_terrain()
+	_rebuild_objects()
+	_rebuild_preview()
 
 
-func cell_to_world(cell: Vector2i) -> Vector2:
-	return Vector2(
-		(float(cell.x) + _row_column_offset(cell.y)) * cell_size.x,
-		cell.y * cell_size.y * 0.75
-	)
+# Object-only rebuild — cheaper, for placements and ground-item pickups (replaces the
+# old queue_redraw() calls).
+func refresh() -> void:
+	_rebuild_objects()
+	_rebuild_preview()
 
 
-func world_to_cell(world_position: Vector2) -> Vector2i:
+# --- Coordinate mapping (delegates to HexGrid, see Phase 1) ---
+
+func cell_to_world(cell: Vector2i) -> Vector3:
+	return HexGridScript.cell_to_world_3d(cell, cell_size)
+
+
+func get_cell_center(cell: Vector2i) -> Vector3:
+	var center := HexGridScript.cell_center_3d(cell, cell_size)
+	center.y = _terrain_top_y(_terrain_of(cell))
+	return center
+
+
+func world_to_cell(world_position: Vector3) -> Vector2i:
 	if island == null:
 		return Vector2i(-1, -1)
 
-	if not get_map_bounds().grow(maxf(cell_size.x, cell_size.y) * 0.25).has_point(world_position):
-		return Vector2i(-1, -1)
-
-	var row := roundi(world_position.y / (cell_size.y * 0.75))
-	var column := roundi(world_position.x / cell_size.x - _row_column_offset(row))
+	var point := Vector2(world_position.x, world_position.z)
+	var row := roundi(world_position.z / (cell_size.y * 0.75))
+	var column := roundi(world_position.x / cell_size.x - _row_offset(row))
 	var nearest_cell := Vector2i(column, row)
 	var nearest_distance := INF
 
@@ -116,11 +130,11 @@ func world_to_cell(world_position: Vector2) -> Vector2i:
 			if not island.is_in_bounds(cell):
 				continue
 
-			var points := HexGridScript.hex_points(cell_to_world(cell), cell_size)
-			if HexGridScript.point_in_polygon(world_position, points):
+			if _cell_contains_xz(cell, point):
 				return cell
 
-			var distance := world_position.distance_squared_to(_cell_center(cell))
+			var center := HexGridScript.cell_center_3d(cell, cell_size)
+			var distance := point.distance_squared_to(Vector2(center.x, center.z))
 			if distance < nearest_distance:
 				nearest_distance = distance
 				nearest_cell = cell
@@ -128,21 +142,38 @@ func world_to_cell(world_position: Vector2) -> Vector2i:
 	return nearest_cell if island.is_in_bounds(nearest_cell) else Vector2i(-1, -1)
 
 
-func get_cell_center(cell: Vector2i) -> Vector2:
-	return _cell_center(cell)
+# Y of the horizontal plane main.gd raycasts against for mouse picking — the land
+# surface, where most interaction happens.
+func ground_pick_y() -> float:
+	return GRASS_TOP_Y
 
 
-func get_map_bounds() -> Rect2:
+func get_map_center() -> Vector3:
 	if island == null:
-		return Rect2(Vector2.ZERO, Vector2.ZERO)
+		return Vector3.ZERO
 
-	if map_bounds.size == Vector2.ZERO:
-		map_bounds = _calculate_map_bounds()
+	var min_xz := Vector2(INF, INF)
+	var max_xz := Vector2(-INF, -INF)
+	for y in range(island.height):
+		for x in range(island.width):
+			var center := HexGridScript.cell_center_3d(Vector2i(x, y), cell_size)
+			min_xz.x = minf(min_xz.x, center.x)
+			min_xz.y = minf(min_xz.y, center.z)
+			max_xz.x = maxf(max_xz.x, center.x)
+			max_xz.y = maxf(max_xz.y, center.z)
 
-	return map_bounds
+	var mid := (min_xz + max_xz) * 0.5
+	return Vector3(mid.x, GRASS_TOP_Y, mid.y)
 
 
-func set_hovered_world_position(world_position: Vector2) -> void:
+func get_map_radius() -> float:
+	if island == null:
+		return cell_size.x
+
+	return 0.5 * maxf(island.width * cell_size.x, island.height * cell_size.y * 0.75)
+
+
+func set_hovered_world_position(world_position: Vector3) -> void:
 	var cell := world_to_cell(world_position)
 
 	if island == null or not island.is_in_bounds(cell):
@@ -152,7 +183,9 @@ func set_hovered_world_position(world_position: Vector2) -> void:
 		return
 
 	hovered_cell = cell
-	queue_redraw()
+	_update_hover_mesh()
+	if placement_preview_enabled:
+		_rebuild_preview()
 
 
 func set_placement_preview(
@@ -163,7 +196,7 @@ func set_placement_preview(
 	placement_preview_enabled = enabled
 	placement_building_type = building_type
 	placement_can_afford = can_afford
-	queue_redraw()
+	_rebuild_preview()
 
 
 func try_place_hovered_building(building_type: int = GameTypes.BuildingType.LOGGER_CAMP) -> bool:
@@ -172,7 +205,7 @@ func try_place_hovered_building(building_type: int = GameTypes.BuildingType.LOGG
 
 	var placed := building_manager.try_place(hovered_cell, building_type, island)
 	if placed:
-		queue_redraw()
+		refresh()
 
 	return placed
 
@@ -191,509 +224,267 @@ func get_hovered_resource_node_type() -> int:
 	return island.get_resource_node_type(hovered_cell)
 
 
-func _draw_terrain() -> void:
-	_draw_water_background()
+# --- Terrain ---
 
-	for tile in water_tiles:
-		_draw_water_tile(tile)
-
-	for tile in land_tiles:
-		var terrain_type: int = tile["terrain_type"]
-		var rect: Rect2 = tile["rect"]
-		draw_texture_rect(TILE_TEXTURE, rect, false, _color_for_terrain(terrain_type))
-
-	_draw_water_surface_details()
-
-
-func _draw_water_tile(tile: Dictionary) -> void:
-	var rect: Rect2 = tile["rect"]
-	var depth: float = tile["depth"]
-	draw_texture_rect(TILE_TEXTURE, rect, false, _water_color_for_depth(depth))
-
-
-func _rebuild_terrain_cache() -> void:
-	land_tiles.clear()
-	water_tiles.clear()
-	water_surface_tiles.clear()
-	grid_line_segments.clear()
-
+func _rebuild_terrain() -> void:
+	_clear(_terrain_root)
 	if island == null:
 		return
-
-	map_bounds = _calculate_map_bounds()
 
 	for y in range(island.height):
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
 			var terrain_type := island.get_terrain(cell)
-			var rect := Rect2(cell_to_world(cell), cell_size)
-
-			if terrain_type == GameTypes.Terrain.WATER:
-				var depth := _water_depth_factor(cell)
-				water_tiles.append({
-					"rect": rect,
-					"depth": depth,
-				})
-				water_surface_tiles.append({
-					"cell": cell,
-					"rect": rect,
-					"depth": depth,
-					"shore_mask": _shore_mask_for_water_cell(cell),
-					"draw_shimmer": _cell_noise(cell, 22.0) > 0.58,
-				})
-			else:
-				land_tiles.append({
-					"terrain_type": terrain_type,
-					"rect": rect,
-				})
-
-	_rebuild_grid_cache()
+			var tile := MeshInstance3D.new()
+			tile.mesh = _prism_mesh
+			tile.material_override = _terrain_material(terrain_type)
+			tile.position = cell_to_world(cell)
+			tile.scale = Vector3(1.0, _terrain_top_y(terrain_type), 1.0)
+			_terrain_root.add_child(tile)
 
 
-func _draw_water_background() -> void:
-	if water_gradient_texture == null:
-		water_gradient_texture = _create_water_gradient_texture()
+func _terrain_material(terrain_type: int) -> StandardMaterial3D:
+	if _terrain_materials.has(terrain_type):
+		return _terrain_materials[terrain_type]
 
-	draw_texture_rect(water_gradient_texture, map_bounds, false)
-
-
-func _create_water_gradient_texture() -> ImageTexture:
-	var bounds := map_bounds
-	var texture_width := 256
-	var texture_height := maxi(1, roundi(texture_width * bounds.size.y / bounds.size.x))
-	var image := Image.create(texture_width, texture_height, false, Image.FORMAT_RGBA8)
-	var shallow_color := Color("#47aba9")
-	var deep_color := Color("#468099")
-	var shallow_buffer_tiles := 3.0
-	var max_depth_tiles := 10.0
-	var land_rects := _get_land_rects_in_tile_space()
-
-	for y in range(texture_height):
-		for x in range(texture_width):
-			var point := Vector2(
-				(float(x) + 0.5) / float(texture_width) * float(island.width),
-				(float(y) + 0.5) / float(texture_height) * float(island.height)
-			)
-			var distance := _distance_to_nearest_land(point, land_rects)
-			var gradient := clampf(
-				(distance - shallow_buffer_tiles) / max_depth_tiles,
-				0.0,
-				1.0
-			)
-			gradient = gradient * gradient * (3.0 - 2.0 * gradient)
-			image.set_pixel(x, y, shallow_color.lerp(deep_color, gradient))
-
-	return ImageTexture.create_from_image(image)
+	var material := StandardMaterial3D.new()
+	material.albedo_color = _color_for_terrain(terrain_type)
+	material.roughness = 1.0
+	# Cull disabled keeps every face visible regardless of winding — robust for the
+	# code-generated prism, cheap for opaque terrain.
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_terrain_materials[terrain_type] = material
+	return material
 
 
-func _get_land_rects_in_tile_space() -> Array[Rect2]:
-	var land_rects: Array[Rect2] = []
+# --- Objects (billboards) ---
 
-	for y in range(island.height):
-		for x in range(island.width):
-			var cell := Vector2i(x, y)
-			if _is_land(cell):
-				land_rects.append(Rect2(Vector2(x, y), Vector2.ONE))
-
-	return land_rects
-
-
-func _calculate_map_bounds() -> Rect2:
-	var bounds := Rect2(cell_to_world(Vector2i.ZERO), cell_size)
-
-	for y in range(island.height):
-		for x in range(island.width):
-			bounds = bounds.merge(Rect2(cell_to_world(Vector2i(x, y)), cell_size))
-
-	return bounds
-
-
-func _distance_to_nearest_land(point: Vector2, land_rects: Array[Rect2]) -> float:
-	if land_rects.is_empty():
-		return 0.0
-
-	var nearest := INF
-	for rect in land_rects:
-		var distance := _distance_to_rect(point, rect)
-		if distance < nearest:
-			nearest = distance
-
-	return nearest
-
-
-func _distance_to_rect(point: Vector2, rect: Rect2) -> float:
-	var dx := maxf(maxf(rect.position.x - point.x, 0.0), point.x - rect.end.x)
-	var dy := maxf(maxf(rect.position.y - point.y, 0.0), point.y - rect.end.y)
-	return Vector2(dx, dy).length()
-
-
-func _draw_water_surface_details() -> void:
-	for tile in water_surface_tiles:
-		var cell: Vector2i = tile["cell"]
-		var depth: float = tile["depth"]
-		var rect: Rect2 = tile["rect"]
-
-		if tile["draw_shimmer"]:
-			_draw_water_shimmer(cell, depth)
-
-		var shore_mask: int = tile["shore_mask"]
-		if shore_mask != 0:
-			_draw_shoreline_foam(rect, cell, shore_mask)
-
-
-func _draw_water_shimmer(cell: Vector2i, depth: float) -> void:
-	if depth < 0.18:
+func _rebuild_objects() -> void:
+	_clear(_objects_root)
+	if island == null:
 		return
-
-	var pos := cell_to_world(cell)
-	var seed := _cell_noise(cell, 0.0)
-	var phase := seed * TAU + water_time * lerpf(0.45, 0.85, _cell_noise(cell, 3.7))
-	var alpha := 0.025 + (sin(phase) * 0.5 + 0.5) * 0.055
-	var line_width := _screen_pixels_to_world(1.0)
-	var shimmer_color := Color(0.82, 1.0, 1.0, alpha)
-	var wave_count := 1 + int(depth > 0.65 and seed > 0.70)
-
-	for index in range(wave_count):
-		var local_phase := phase + index * 2.4
-		var x_noise := _cell_noise(cell, 8.0 + index)
-		var y_noise := _cell_noise(cell, 15.0 + index)
-		var center := pos + Vector2(
-			cell_size.x * (0.24 + x_noise * 0.52),
-			cell_size.y * (0.30 + y_noise * 0.40 + sin(local_phase * 0.55) * 0.07)
-		)
-		var length := cell_size.x * (0.28 + depth * 0.18 + x_noise * 0.12)
-		var height := cell_size.y * (0.018 + y_noise * 0.018)
-		var points := PackedVector2Array([
-			center + Vector2(-length, height * sin(local_phase)),
-			center + Vector2(-length * 0.35, height * sin(local_phase + 1.2)),
-			center + Vector2(length * 0.35, height * sin(local_phase + 2.4)),
-			center + Vector2(length, height * sin(local_phase + 3.6)),
-		])
-
-		draw_polyline(points, shimmer_color, line_width, true)
-
-
-func _cell_noise(cell: Vector2i, salt: float) -> float:
-	var value := sin(float(cell.x) * 12.9898 + float(cell.y) * 78.233 + salt * 37.719) * 43758.5453
-	return value - floorf(value)
-
-
-func _draw_shoreline_foam(rect: Rect2, cell: Vector2i, shore_mask: int) -> void:
-	var foam_phase := water_time * 0.9 + cell.x * 0.9 + cell.y * 0.6
-	var pulse := sin(foam_phase) * 0.5 + 0.5
-	var drift := sin(foam_phase * 0.7 + 1.8) * 0.5 + 0.5
-	var foam_width := minf(cell_size.x, cell_size.y) * lerpf(0.045, 0.065, pulse)
-	var foam_color := Color(0.86, 0.98, 1.0, 0.0).lerp(
-		Color(0.98, 0.98, 0.92, 0.0),
-		drift
-	)
-	foam_color.a = 0.26 + pulse * 0.08
-
-	for direction_index in range(6):
-		if NORTH_SHORE_WATER_DIRECTIONS.has(direction_index):
-			continue
-
-		if (shore_mask & _shore_bit(direction_index)) != 0:
-			draw_polyline(_hex_edge_points(rect.position, direction_index), foam_color, foam_width, true)
-
-
-func _shore_mask_for_water_cell(cell: Vector2i) -> int:
-	var mask := 0
-
-	for direction_index in range(6):
-		if _is_land(HexGridScript.neighbor(cell, direction_index)):
-			mask |= _shore_bit(direction_index)
-
-	return mask
-
-
-func _water_depth_factor(cell: Vector2i) -> float:
-	var max_distance := 5
-	var visited := {cell: true}
-	var frontier: Array[Vector2i] = [cell]
-
-	for distance in range(1, max_distance + 1):
-		var next_frontier: Array[Vector2i] = []
-
-		for frontier_cell in frontier:
-			for neighbor in HexGridScript.neighbors(frontier_cell):
-				if visited.has(neighbor):
-					continue
-
-				visited[neighbor] = true
-				if _is_land(neighbor):
-					return float(distance - 1) / float(max_distance)
-
-				if island.is_in_bounds(neighbor):
-					next_frontier.append(neighbor)
-
-		frontier = next_frontier
-
-	return 1.0
-
-
-func _is_water(cell: Vector2i) -> bool:
-	return island.is_in_bounds(cell) and island.get_terrain(cell) == GameTypes.Terrain.WATER
-
-
-func _is_land(cell: Vector2i) -> bool:
-	return island.is_in_bounds(cell) and island.get_terrain(cell) != GameTypes.Terrain.WATER
-
-
-func _draw_grid() -> void:
-	var color := Color(0.0, 0.0, 0.0, 0.05)
-	var line_width := _screen_pixels_to_world(grid_line_width)
-
-	draw_multiline(grid_line_segments, color, line_width, true)
-
-
-func _rebuild_grid_cache() -> void:
-	for y in range(island.height):
-		for x in range(island.width):
-			var cell := Vector2i(x, y)
-			if island.get_terrain(cell) == GameTypes.Terrain.WATER and _water_depth_factor(cell) > 0.2:
-				continue
-
-			var points := HexGridScript.hex_points(cell_to_world(cell), cell_size)
-
-			for index in range(points.size()):
-				grid_line_segments.append(points[index])
-				grid_line_segments.append(points[(index + 1) % points.size()])
-
-
-func _draw_sorted_objects() -> void:
-	var draw_items: Array[Dictionary] = []
 
 	for cell in island.resources.keys():
-		draw_items.append({
-			"kind": "resource",
-			"cell": cell,
-			"type": island.resources[cell],
-		})
+		_spawn_resource(cell, island.resources[cell])
 
 	for cell in island.items.keys():
-		draw_items.append({
-			"kind": "item",
-			"cell": cell,
-			"type": island.items[cell],
-		})
+		_spawn_item(cell, island.items[cell])
 
-	for cell in island.buildings.keys():
-		var building_type: int = island.buildings[cell].type
-		draw_items.append({
-			"kind": "building",
-			"cell": cell,
-			"sort_cell": _get_last_footprint_cell(cell),
-			"type": building_type,
-		})
-
+	for anchor_cell in island.buildings.keys():
+		var building_type: int = island.buildings[anchor_cell].type
+		_spawn_building(anchor_cell, building_type)
 		if building_type == GameTypes.BuildingType.DOCK:
-			var boat_cell := _dock_boat_cell(cell)
+			var boat_cell := _dock_boat_cell(anchor_cell)
 			if boat_cell != Vector2i(-1, -1):
-				draw_items.append({
-					"kind": "boat",
-					"cell": boat_cell,
-					"sort_cell": boat_cell,
-					"type": 0,
-				})
-
-	draw_items.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var a_cell: Vector2i = a.get("sort_cell", a["cell"])
-		var b_cell: Vector2i = b.get("sort_cell", b["cell"])
-
-		if a_cell.y == b_cell.y:
-			return a_cell.x < b_cell.x
-
-		return a_cell.y < b_cell.y
-	)
-
-	for item in draw_items:
-		var kind: String = item["kind"]
-		var cell: Vector2i = item["cell"]
-		var object_type: int = item["type"]
-
-		if kind == "resource":
-			_draw_resource(cell, object_type)
-		elif kind == "item":
-			_draw_item(cell, object_type)
-		elif kind == "boat":
-			_draw_boat(cell)
-		else:
-			_draw_building(cell, object_type)
+				_spawn_boat(boat_cell)
 
 
-func _draw_item(cell: Vector2i, item_type: int) -> void:
-	var texture: Texture2D = ITEM_TEXTURES.get(item_type)
-	if texture == null:
-		return
-
-	# Half-tile icon, centered on the cell and floated up slightly so it reads as a
-	# pickup sitting on the ground rather than terrain.
-	var size := Vector2(cell_size.x * 0.5, cell_size.y * 0.5)
-	var position := cell_to_world(cell) + Vector2(
-		(cell_size.x - size.x) * 0.5,
-		(cell_size.y - size.y) * 0.5 - cell_size.y * 0.15
-	)
-	draw_texture_rect(texture, Rect2(position, size), false)
-
-
-func _draw_resource(cell: Vector2i, resource_node_type: int) -> void:
+func _spawn_resource(cell: Vector2i, resource_node_type: int) -> void:
 	var definition := resource_node_database.get_definition(resource_node_type)
 	if definition == null or definition.texture == null:
 		return
 
-	var rect := Rect2(
-		cell_to_world(cell) + Vector2(
-			definition.visual_offset_tiles.x * cell_size.x,
-			definition.visual_offset_tiles.y * cell_size.y
-		),
-		Vector2(
-			definition.visual_size_tiles.x * cell_size.x,
-			definition.visual_size_tiles.y * cell_size.y
-		)
-	)
-	draw_texture_rect(definition.texture, rect, false)
+	var sprite := _make_billboard(definition.texture, definition.visual_size_tiles, definition.visual_offset_tiles)
+	sprite.position = _ground_anchor([cell]) + _offset_xz(definition.visual_offset_tiles)
+	_lift_to_ground(sprite)
+	_objects_root.add_child(sprite)
 
 
-func _draw_building(cell: Vector2i, building_type: int) -> void:
+func _spawn_item(cell: Vector2i, item_type: int) -> void:
+	var texture: Texture2D = ITEM_TEXTURES.get(item_type)
+	if texture == null:
+		return
+
+	var sprite := _make_billboard(texture, Vector2(0.5, 0.5), Vector2.ZERO)
+	sprite.position = _ground_anchor([cell])
+	_lift_to_ground(sprite)
+	_objects_root.add_child(sprite)
+
+
+func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 	var definition := building_manager.get_definition(building_type)
 	if definition == null or definition.texture == null:
 		return
 
-	var rect := _visual_bounds(cell, building_type)
-	draw_texture_rect(definition.texture, rect, false)
+	var footprint := island.get_building_footprint_cells(anchor_cell)
+	if footprint.is_empty():
+		footprint = [anchor_cell]
+
+	var sprite := _make_billboard(definition.texture, definition.visual_size_tiles, definition.visual_offset_tiles)
+	sprite.position = _ground_anchor(footprint) + _offset_xz(definition.visual_offset_tiles)
+	_lift_to_ground(sprite)
+	_objects_root.add_child(sprite)
 
 
-func _draw_boat(water_cell: Vector2i) -> void:
-	var size := Vector2(
-		BOAT_SIZE_TILES.x * cell_size.x,
-		BOAT_SIZE_TILES.y * cell_size.y
-	)
-	var rect := Rect2(_cell_center(water_cell) - size * 0.5, size)
-	draw_texture_rect(ROWBOAT_TEXTURE, rect, false)
+func _spawn_boat(water_cell: Vector2i) -> void:
+	var sprite := _make_billboard(ROWBOAT_TEXTURE, BOAT_SIZE_TILES, Vector2.ZERO)
+	sprite.position = get_cell_center(water_cell)
+	_lift_to_ground(sprite)
+	_objects_root.add_child(sprite)
 
 
-# The water tile a dock's boat sits on. A dock always has a water neighbor (its
-# placement rule requires one); the first one found is used for now.
-func _dock_boat_cell(dock_cell: Vector2i) -> Vector2i:
-	for neighbor in HexGridScript.neighbors(dock_cell):
-		if _is_water(neighbor):
-			return neighbor
+# --- Placement preview ---
 
-	return Vector2i(-1, -1)
-
-
-func _draw_hover() -> void:
-	if hovered_cell == Vector2i(-1, -1):
+func _rebuild_preview() -> void:
+	if _preview_root == null:
 		return
 
-	draw_colored_polygon(
-		HexGridScript.hex_points(cell_to_world(hovered_cell), cell_size),
-		Color(1.0, 1.0, 1.0, 0.16)
-	)
+	_clear(_preview_root)
 
-
-func _draw_placement_preview() -> void:
-	if not placement_preview_enabled or hovered_cell == Vector2i(-1, -1):
+	if not placement_preview_enabled or island == null or hovered_cell == Vector2i(-1, -1):
 		return
 
-	var rect := _visual_bounds(hovered_cell, placement_building_type)
-	var preview_footprint := building_manager.get_footprint_cells(hovered_cell, placement_building_type)
+	var footprint := building_manager.get_footprint_cells(hovered_cell, placement_building_type)
 	var can_place := building_manager.can_place(hovered_cell, placement_building_type, island) and placement_can_afford
-	var tint := Color(1.0, 1.0, 1.0, 0.55) if can_place else Color(1.0, 0.2, 0.2, 0.45)
+	var tint := Color(0.45, 1.0, 0.5, 0.4) if can_place else Color(1.0, 0.3, 0.3, 0.4)
 
-	for cell in preview_footprint:
-		if island.is_in_bounds(cell):
-			draw_colored_polygon(HexGridScript.hex_points(cell_to_world(cell), cell_size), tint)
+	for cell in footprint:
+		if not island.is_in_bounds(cell):
+			continue
+		var marker := MeshInstance3D.new()
+		marker.mesh = _cap_mesh
+		marker.material_override = _make_overlay_material(tint)
+		var center := get_cell_center(cell)
+		marker.position = Vector3(center.x, center.y + 0.6, center.z)
+		_preview_root.add_child(marker)
 
 	var definition := building_manager.get_definition(placement_building_type)
 	if definition != null and definition.texture != null:
-		draw_texture_rect(definition.texture, rect, false, tint)
+		var ghost := _make_billboard(definition.texture, definition.visual_size_tiles, definition.visual_offset_tiles)
+		ghost.modulate = Color(1.0, 1.0, 1.0, 0.6)
+		ghost.position = _ground_anchor(footprint) + _offset_xz(definition.visual_offset_tiles)
+		_lift_to_ground(ghost)
+		_preview_root.add_child(ghost)
 
 
-func _row_column_offset(row: int) -> float:
-	return 0.5 if row % 2 != 0 else 0.0
+# --- Hover ---
+
+func _update_hover_mesh() -> void:
+	if _hover_mesh == null:
+		return
+
+	if hovered_cell == Vector2i(-1, -1):
+		_hover_mesh.visible = false
+		return
+
+	var center := get_cell_center(hovered_cell)
+	_hover_mesh.position = Vector3(center.x, center.y + 0.5, center.z)
+	_hover_mesh.visible = true
 
 
-func _cell_center(cell: Vector2i) -> Vector2:
-	return cell_to_world(cell) + cell_size * 0.5
+# --- Billboard helper ---
+
+func _make_billboard(texture: Texture2D, size_tiles: Vector2, _offset_tiles: Vector2) -> Sprite3D:
+	var sprite := Sprite3D.new()
+	sprite.texture = texture
+	sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	sprite.shaded = false
+	sprite.double_sided = true
+	sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	# Scissor cut so the sprite writes depth and sorts correctly against terrain.
+	sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+
+	var target_width := size_tiles.x * cell_size.x
+	var texture_width := maxi(1, texture.get_width())
+	sprite.pixel_size = target_width / float(texture_width)
+	return sprite
 
 
-func _shore_bit(direction_index: int) -> int:
-	return 1 << direction_index
+# Raise a (centered) Sprite3D so its bottom edge rests on the ground at its current XZ.
+func _lift_to_ground(sprite: Sprite3D) -> void:
+	if sprite.texture == null:
+		return
+	var world_height := sprite.texture.get_height() * sprite.pixel_size
+	sprite.position.y += world_height * 0.5
 
 
-func _hex_edge_points(top_left: Vector2, direction_index: int) -> PackedVector2Array:
-	var points := HexGridScript.hex_points(top_left, cell_size)
-	var edge_indices := [
-		Vector2i(1, 2),
-		Vector2i(0, 1),
-		Vector2i(5, 0),
-		Vector2i(4, 5),
-		Vector2i(3, 4),
-		Vector2i(2, 3),
-	]
-	var edge: Vector2i = edge_indices[posmod(direction_index, edge_indices.size())]
-	return PackedVector2Array([points[edge.x], points[edge.y]])
+func _offset_xz(offset_tiles: Vector2) -> Vector3:
+	return Vector3(offset_tiles.x * cell_size.x, 0.0, offset_tiles.y * cell_size.y)
 
 
-func _footprint_bounds(cell: Vector2i, building_type: int) -> Rect2:
-	var bounds := Rect2(cell_to_world(cell), cell_size)
-	var cells := island.get_building_footprint_cells(cell) if island.buildings.has(cell) else building_manager.get_footprint_cells(cell, building_type)
-
-	for footprint_cell in cells:
-		bounds = bounds.merge(Rect2(cell_to_world(footprint_cell), cell_size))
-
-	return bounds
+# Ground point at the center of a (multi-cell) footprint, at land-surface height.
+func _ground_anchor(cells: Array) -> Vector3:
+	var sum := Vector3.ZERO
+	for cell in cells:
+		sum += get_cell_center(cell)
+	return sum / float(maxi(1, cells.size()))
 
 
-func _visual_bounds(cell: Vector2i, building_type: int) -> Rect2:
-	var definition := building_manager.get_definition(building_type)
-	if definition == null:
-		return _footprint_bounds(cell, building_type)
+# --- Mesh builders ---
 
-	var footprint := _footprint_bounds(cell, building_type)
-	var size := _visual_size_for_building(building_type)
-	var position := Vector2(
-		footprint.position.x + footprint.size.x * 0.5 - size.x * 0.5,
-		footprint.position.y + footprint.size.y * 0.5 - size.y * 0.5
-	) + Vector2(
-		definition.visual_offset_tiles.x * cell_size.x,
-		definition.visual_offset_tiles.y * cell_size.y
-	)
-	return Rect2(position, size)
+func _build_hex_prism_mesh() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
+	# Unit-height prism (y 0..1); instances scale Y to the desired top height.
+	var top := HexGridScript.hex_corners_3d(Vector3(0.0, 1.0, 0.0), cell_size)
+	var bottom := HexGridScript.hex_corners_3d(Vector3.ZERO, cell_size)
+	var center_top := Vector3(0.0, 1.0, 0.0)
 
-func _visual_size_for_building(building_type: int) -> Vector2:
-	var definition := building_manager.get_definition(building_type)
-	if definition == null or definition.texture == null:
-		return cell_size
+	for i in range(6):
+		var a := top[i]
+		var b := top[(i + 1) % 6]
+		st.add_vertex(center_top)
+		st.add_vertex(a)
+		st.add_vertex(b)
 
-	return Vector2(
-		definition.visual_size_tiles.x * cell_size.x,
-		definition.visual_size_tiles.y * cell_size.y
-	)
+	for i in range(6):
+		var b0 := bottom[i]
+		var b1 := bottom[(i + 1) % 6]
+		var t0 := top[i]
+		var t1 := top[(i + 1) % 6]
+		st.add_vertex(b0)
+		st.add_vertex(b1)
+		st.add_vertex(t1)
+		st.add_vertex(b0)
+		st.add_vertex(t1)
+		st.add_vertex(t0)
 
-
-func _get_last_footprint_cell(cell: Vector2i) -> Vector2i:
-	var last_cell := cell
-
-	for footprint_cell in island.get_building_footprint_cells(cell):
-		if footprint_cell.y > last_cell.y or (
-			footprint_cell.y == last_cell.y
-			and footprint_cell.x > last_cell.x
-		):
-			last_cell = footprint_cell
-
-	return last_cell
+	st.generate_normals()
+	return st.commit()
 
 
-func _screen_pixels_to_world(screen_pixels: float) -> float:
-	var camera := get_viewport().get_camera_2d()
-	if camera == null:
-		return screen_pixels
+func _build_hex_cap_mesh() -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	return screen_pixels / camera.zoom.x
+	var ring := HexGridScript.hex_corners_3d(Vector3.ZERO, cell_size)
+	for i in range(6):
+		st.add_vertex(Vector3.ZERO)
+		st.add_vertex(ring[i])
+		st.add_vertex(ring[(i + 1) % 6])
+
+	st.generate_normals()
+	return st.commit()
+
+
+func _make_overlay_material(color: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return material
+
+
+# --- Small helpers ---
+
+func _terrain_of(cell: Vector2i) -> int:
+	if island == null:
+		return GameTypes.Terrain.WATER
+	return island.get_terrain(cell)
+
+
+func _terrain_top_y(terrain_type: int) -> float:
+	match terrain_type:
+		GameTypes.Terrain.GRASS:
+			return GRASS_TOP_Y
+		GameTypes.Terrain.SAND:
+			return SAND_TOP_Y
+		GameTypes.Terrain.STONE:
+			return STONE_TOP_Y
+		_:
+			return WATER_TOP_Y
 
 
 func _color_for_terrain(terrain_type: int) -> Color:
@@ -708,5 +499,28 @@ func _color_for_terrain(terrain_type: int) -> Color:
 			return SHALLOW_WATER_COLOR
 
 
-func _water_color_for_depth(depth: float) -> Color:
-	return SHALLOW_WATER_COLOR if depth <= 0.2 else DEEP_WATER_COLOR
+func _cell_contains_xz(cell: Vector2i, point: Vector2) -> bool:
+	var center := HexGridScript.cell_center_3d(cell, cell_size)
+	var corners := HexGridScript.hex_corners_3d(center, cell_size)
+	var polygon := PackedVector2Array()
+	for corner in corners:
+		polygon.append(Vector2(corner.x, corner.z))
+	return HexGridScript.point_in_polygon(point, polygon)
+
+
+func _dock_boat_cell(dock_cell: Vector2i) -> Vector2i:
+	for neighbor in HexGridScript.neighbors(dock_cell):
+		if island.is_in_bounds(neighbor) and island.get_terrain(neighbor) == GameTypes.Terrain.WATER:
+			return neighbor
+	return Vector2i(-1, -1)
+
+
+func _row_offset(row: int) -> float:
+	return 0.5 if row % 2 != 0 else 0.0
+
+
+func _clear(node: Node) -> void:
+	if node == null:
+		return
+	for child in node.get_children():
+		child.queue_free()
