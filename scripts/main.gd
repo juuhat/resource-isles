@@ -176,8 +176,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		world_map.refresh()
 
 	if key_event.keycode == KEY_SPACE:
-		renderer.show_grid = not renderer.show_grid
-		renderer.refresh()
+		renderer.set_show_grid(not renderer.show_grid)
 
 	if key_event.keycode == KEY_ESCAPE:
 		if quest_log_view.is_open():

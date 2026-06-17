@@ -49,6 +49,7 @@ var placement_can_afford := true
 var _terrain_root: Node3D
 var _objects_root: Node3D
 var _preview_root: Node3D
+var _grid_instance: MeshInstance3D
 var _prism_mesh: ArrayMesh
 var _cap_mesh: ArrayMesh
 var _terrain_materials := {}
@@ -74,6 +75,11 @@ func _ready() -> void:
 	_preview_root.name = "PlacementPreview"
 	add_child(_preview_root)
 
+	_grid_instance = MeshInstance3D.new()
+	_grid_instance.name = "Grid"
+	_grid_instance.material_override = _make_grid_material()
+	add_child(_grid_instance)
+
 
 func setup(new_resource_node_database: ResourceNodeDatabase, new_building_manager: BuildingManager) -> void:
 	resource_node_database = new_resource_node_database
@@ -86,6 +92,7 @@ func render(new_island: IslandData) -> void:
 	hovered_cell = Vector2i(-1, -1)
 	_highlighted_cell = Vector2i(-1, -1)
 	_rebuild_terrain()
+	_rebuild_grid()
 	_rebuild_objects()
 	_rebuild_preview()
 
@@ -95,6 +102,12 @@ func render(new_island: IslandData) -> void:
 func refresh() -> void:
 	_rebuild_objects()
 	_rebuild_preview()
+
+
+func set_show_grid(value: bool) -> void:
+	show_grid = value
+	if _grid_instance != null:
+		_grid_instance.visible = value
 
 
 # --- Coordinate mapping (delegates to HexGrid, see Phase 1) ---
@@ -276,6 +289,51 @@ func _terrain_material(terrain_type: int) -> StandardMaterial3D:
 	# code-generated prism, cheap for opaque terrain.
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_terrain_materials[terrain_type] = material
+	return material
+
+
+# --- Grid ---
+
+# A single line-mesh tracing the top hexagon of every land cell. Lines sit just above the
+# tile top to avoid z-fighting; water is skipped so the grid reads as the island's plots.
+func _rebuild_grid() -> void:
+	if _grid_instance == null:
+		return
+
+	_grid_instance.visible = show_grid
+
+	if island == null:
+		_grid_instance.mesh = null
+		return
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_LINES)
+	var has_segments := false
+
+	for y in range(island.height):
+		for x in range(island.width):
+			var cell := Vector2i(x, y)
+			var terrain_type := island.get_terrain(cell)
+			if terrain_type == GameTypes.Terrain.WATER:
+				continue
+
+			var center := HexGridScript.cell_center_3d(cell, cell_size)
+			center.y = _terrain_top_y(terrain_type) + 0.5
+			var corners := HexGridScript.hex_corners_3d(center, cell_size)
+			for i in range(6):
+				st.add_vertex(corners[i])
+				st.add_vertex(corners[(i + 1) % 6])
+				has_segments = true
+
+	_grid_instance.mesh = st.commit() if has_segments else null
+
+
+func _make_grid_material() -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = Color(0.0, 0.0, 0.0, 0.22)
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material
 
 
