@@ -58,8 +58,6 @@ enum RewardKind {
 # Robot self-improvements granted as quest rewards; effects applied in main.gd.
 enum RobotUpgrade {
 	HARVESTING,  # the robot can harvest resource nodes at all (gated until tools recovered)
-	FAST_STEPS,  # faster movement between tiles
-	AUTO_GATHER, # keep harvesting a node without re-issuing the command
 }
 
 enum ResourceNodeType {
@@ -85,7 +83,14 @@ enum Stat {
 	WOOD_GATHERED,
 	STONE_GATHERED,
 	PLANKS_GATHERED,
-	BUILDINGS_BUILT,
+	BUILDINGS_BUILT, # total of every building placed, any type
+	# Per-building-type build counts (cumulative). Keep in sync with BuildingType; the
+	# StatTracker bumps both BUILDINGS_BUILT and the matching one of these on each placement.
+	LOGGER_CAMPS_BUILT,
+	QUARRIES_BUILT,
+	BURNER_GENERATORS_BUILT,
+	SAWMILLS_BUILT,
+	DOCKS_BUILT,
 	TOOLS_COLLECTED,
 	ISLANDS_REACHED, # new islands discovered/sailed to (the starter doesn't count)
 }
@@ -131,6 +136,16 @@ static func stat_display_name(stat: int) -> String:
 			return "Planks gathered"
 		Stat.BUILDINGS_BUILT:
 			return "Buildings built"
+		Stat.LOGGER_CAMPS_BUILT:
+			return "Logger's Camps built"
+		Stat.QUARRIES_BUILT:
+			return "Quarries built"
+		Stat.BURNER_GENERATORS_BUILT:
+			return "Burner Generators built"
+		Stat.SAWMILLS_BUILT:
+			return "Sawmills built"
+		Stat.DOCKS_BUILT:
+			return "Docks built"
 		Stat.TOOLS_COLLECTED:
 			return "Tools recovered"
 		Stat.ISLANDS_REACHED:

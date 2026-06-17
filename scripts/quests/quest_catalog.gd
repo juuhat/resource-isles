@@ -25,9 +25,8 @@ static func build_all() -> Array[Quest]:
 		GameTypes.QuestId.RESCUE_THE_DOG,
 		GameTypes.QuestKind.MAIN,
 		"Rescue K9-DA",
-		"The crash threw Companion Unit K9-DA, your robot dog, clear of the ship and onto a "
-			+ "neighbouring island. Gather what you need, build a boat, and sail out to bring "
-			+ "him home.",
+		"The crash threw Companion Unit K9-DA clear of the ship and onto a "
+			+ "neighbouring island. Gather what you need to build a boat and rescue him.",
 		[_objective("Sail to a new island", GameTypes.Stat.ISLANDS_REACHED, 1)],
 		# No mechanical reward — the payoff is the story beat (and the dock itself is
 		# unlocked by the SET_SAIL milestone below, not here, to avoid a circular gate).
@@ -57,8 +56,7 @@ static func build_all() -> Array[Quest]:
 		],
 		[
 			QuestReward.unlock_building(GameTypes.BuildingType.LOGGER_CAMP, "Unlocks the Logger's Camp"),
-			QuestReward.unlock_building(GameTypes.BuildingType.QUARRY, "Unlocks the Quarry"),
-			QuestReward.robot_upgrade_reward(GameTypes.RobotUpgrade.FAST_STEPS, "The robot moves faster"),
+			QuestReward.unlock_building(GameTypes.BuildingType.QUARRY, "Unlocks the Quarry")
 		]
 	))
 
@@ -66,15 +64,17 @@ static func build_all() -> Array[Quest]:
 		GameTypes.QuestId.SCALE_UP,
 		GameTypes.QuestKind.MILESTONE,
 		"Scale Up",
-		"Stockpile a real haul of wood and stone to set up refining and steady power.",
+		"Put the land to work: raise a Logger's Camp and a Quarry, then stockpile a real "
+			+ "haul of wood and stone for refining and steady power.",
 		[
+			_objective("Build a Logger's Camp", GameTypes.Stat.LOGGER_CAMPS_BUILT, 1),
+			_objective("Build a Quarry", GameTypes.Stat.QUARRIES_BUILT, 1),
 			_objective("Gather wood", GameTypes.Stat.WOOD_GATHERED, 100),
 			_objective("Gather stone", GameTypes.Stat.STONE_GATHERED, 100),
 		],
 		[
 			QuestReward.unlock_building(GameTypes.BuildingType.SAWMILL, "Unlocks the Sawmill"),
-			QuestReward.unlock_building(GameTypes.BuildingType.BURNER_GENERATOR, "Unlocks the Burner Generator"),
-			QuestReward.robot_upgrade_reward(GameTypes.RobotUpgrade.AUTO_GATHER, "The robot keeps harvesting on its own"),
+			QuestReward.unlock_building(GameTypes.BuildingType.BURNER_GENERATOR, "Unlocks the Burner Generator")
 		]
 	))
 

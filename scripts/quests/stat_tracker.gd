@@ -44,3 +44,30 @@ func _resource_gathered_stat(resource_type: int) -> int:
 			return GameTypes.Stat.PLANKS_GATHERED
 		_:
 			return -1
+
+
+# Records a building placement against the generic BUILDINGS_BUILT total and its
+# per-building-type counter. Worldgen-only buildings (e.g. the crash) aren't placed
+# through here, so they don't count. Building types without a per-type stat just bump
+# the generic total.
+func record_building_built(building_type: int) -> void:
+	add(GameTypes.Stat.BUILDINGS_BUILT, 1)
+	var stat := _building_built_stat(building_type)
+	if stat != -1:
+		add(stat, 1)
+
+
+func _building_built_stat(building_type: int) -> int:
+	match building_type:
+		GameTypes.BuildingType.LOGGER_CAMP:
+			return GameTypes.Stat.LOGGER_CAMPS_BUILT
+		GameTypes.BuildingType.QUARRY:
+			return GameTypes.Stat.QUARRIES_BUILT
+		GameTypes.BuildingType.BURNER_GENERATOR:
+			return GameTypes.Stat.BURNER_GENERATORS_BUILT
+		GameTypes.BuildingType.SAWMILL:
+			return GameTypes.Stat.SAWMILLS_BUILT
+		GameTypes.BuildingType.DOCK:
+			return GameTypes.Stat.DOCKS_BUILT
+		_:
+			return -1

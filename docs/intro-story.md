@@ -64,8 +64,8 @@ each milestone is a concrete step toward the boat that reaches the dog. A milest
 | **Main objective:** rescue the dog | `RESCUE_THE_DOG` (MAIN) — completes on `Stat.ISLANDS_REACHED` ≥ 1 | The north-star goal: sail out and bring the dog home |
 | Wake by the wreck | `CRASHED_SPACESHIP` spawn landmark | Spawn point + future win target |
 | Tools flung loose in the crash | `ItemType.AXE` / `PICKAXE` / `HAMMER` pickups; milestone `HELLO_WORLD` | Walk-over collection; unlocks `RobotUpgrade.HARVESTING` |
-| Break ground | `BREAK_GROUND` (20 wood + 20 stone) → `LOGGER_CAMP` + `QUARRY` + `FAST_STEPS` | Hand-gather wood *and* stone; first buildings |
-| Scale up | `SCALE_UP` (100 wood + 100 stone) → `SAWMILL` + `BURNER_GENERATOR` + `AUTO_GATHER` | Refining + steady power |
+| Break ground | `BREAK_GROUND` (20 wood + 20 stone) → `LOGGER_CAMP` + `QUARRY` | Hand-gather wood *and* stone; first buildings |
+| Scale up | `SCALE_UP` (build `LOGGER_CAMP` + `QUARRY`, 100 wood + 100 stone) → `SAWMILL` + `BURNER_GENERATOR` | Put the first buildings to work; refining + steady power |
 | Build the boat | `SET_SAIL` (12 planks + 3 buildings) → `DOCK` | Capability gate for sea travel → **sail to the dog** |
 
 So the entire island-1 chain *is* the rescue mission. The player isn't doing chores; every

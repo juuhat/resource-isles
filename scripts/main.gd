@@ -227,11 +227,6 @@ func _apply_reward(reward: QuestReward) -> void:
 	match reward.robot_upgrade:
 		GameTypes.RobotUpgrade.HARVESTING:
 			pass # Capability gate read via quest_manager.is_upgrade_active(); no imperative change.
-		GameTypes.RobotUpgrade.FAST_STEPS:
-			if player_unit != null:
-				player_unit.move_speed *= 1.5
-		GameTypes.RobotUpgrade.AUTO_GATHER:
-			pass # TODO: auto-repeat harvest on the current node (hook in _update_harvest).
 
 
 func _input(event: InputEvent) -> void:
@@ -619,7 +614,7 @@ func _try_place_selected_building() -> bool:
 		return false
 
 	resource_manager.spend(cost)
-	stat_tracker.add(GameTypes.Stat.BUILDINGS_BUILT, 1)
+	stat_tracker.record_building_built(selected_building_type)
 	if _placement_player != null:
 		_placement_player.play()
 	return true
