@@ -99,9 +99,12 @@ spawns mesh instances:
 
 ### Phase 3 — Player unit ✅
 
-[`player_unit.gd`](../scripts/player/player_unit.gd): `Node3D` with a robot `Sprite3D` and a
-flat `CylinderMesh` disc as the selection/ground marker. Movement loop is the same logic in
-`Vector3`.
+[`player_unit.gd`](../scripts/player/player_unit.gd): `Node3D` holding the robot **3D model**
+(`player_model.glb`, instantiated and scaled to the on-map size; feet at origin so it stands on
+the tile) and a flat `CylinderMesh` disc as the selection/ground marker. Movement loop is the
+same logic in `Vector3`, and the model smoothly turns to face its travel direction
+(`_face_direction`, `turn_speed`). The model is static (no animations yet), so it slides
+rather than walks.
 
 ### Phase 4 — Camera, input, and picking ✅
 
@@ -134,10 +137,10 @@ none block play:
   make the darker side walls more prominent and want more ambient to compensate.
 - **Camera rotation.** Yaw is fixed (no orbit-around control), pitch is a constant. A rotate
   binding is easy to add on the pivot if wanted.
-- **Full 3D models (the upgrade path).** Buildings, resource nodes, the robot, and the boat are
-  still billboards. Swapping each `Sprite3D` for a model `MeshInstance3D` is isolated inside the
-  renderer / player unit — incremental, and the larger cost is the art (modeling every asset),
-  not code.
+- **Full 3D models (the upgrade path).** The robot is now a real 3D model
+  (`player_model.glb`); buildings, resource nodes, and the boat are still billboards. Swapping
+  each remaining `Sprite3D` for a model is isolated inside the renderer — incremental, and the
+  larger cost is the art (modeling each asset), not code.
 
 ## Notes for Future Work
 

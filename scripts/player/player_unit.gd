@@ -3,14 +3,20 @@ extends Node3D
 
 # The player-controlled robot (3D, see docs/3d-conversion.md Phase 3). Holds a current
 # hex cell and walks along a queued path of cells at a constant world-space speed on the
-# XZ ground plane. The robot is an upright Sprite3D billboard reusing the 2D art; a flat
-# disc under it is the selection/ground marker. Movement logic is unchanged from the 2D
-# version — only the coordinate type (Vector2 -> Vector3) differs.
+# XZ ground plane. The robot is a 3D model (player_model.glb); a flat disc under it is the
+# selection/ground marker. Movement logic is unchanged from the 2D version — only the
+# coordinate type (Vector2 -> Vector3) differs.
 
 signal arrived(cell: Vector2i)
 signal entered_cell(cell: Vector2i)
 
-const ROBOT_TEXTURE := preload("res://assets/player/player_robot.png")
+const PLAYER_MODEL := preload("res://assets/player/player_model.glb")
+# The model's native height in glTF units (feet at y=0), from its mesh bounds — used to
+# scale it to the desired on-map size.
+const MODEL_NATIVE_HEIGHT := 1.2
+# Yaw offset (radians) applied so the model's modeled front points the right way. Used by
+# both the rest pose and movement facing so they stay in sync.
+const MODEL_YAW_OFFSET := 0.0
 const SELECT_SOUNDS: Array[AudioStream] = [
 	preload("res://assets/audio/sfx/player1.wav"),
 	preload("res://assets/audio/sfx/player2.wav"),
@@ -19,6 +25,8 @@ const SELECT_SOUNDS: Array[AudioStream] = [
 
 @export var move_speed := 320.0
 @export var visual_size_tiles := Vector2(0.65, 0.65)
+# How quickly the model turns to face its travel direction (higher = snappier).
+@export var turn_speed := 12.0
 
 var renderer: IslandRenderer
 var current_cell := Vector2i(-1, -1)
@@ -28,7 +36,7 @@ var _path: Array[Vector2i] = []
 var _target_world := Vector3.ZERO
 var _pending_cell := Vector2i(-1, -1)
 var _moving := false
-var _sprite: Sprite3D
+var _model: Node3D
 var _marker: MeshInstance3D
 var _marker_material: StandardMaterial3D
 var _select_player: AudioStreamPlayer
@@ -52,17 +60,14 @@ func _ready() -> void:
 	_marker.position.y = 1.0
 	add_child(_marker)
 
-	_sprite = Sprite3D.new()
-	_sprite.texture = ROBOT_TEXTURE
-	_sprite.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	_sprite.shaded = false
-	_sprite.double_sided = true
-	_sprite.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
-	_sprite.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+	# Scale the model so its height matches the intended on-map size (visual_size_tiles in
+	# tile fractions). Its feet are at y=0, so it sits straight on the tile.
+	_model = PLAYER_MODEL.instantiate()
 	var cell_size := renderer.cell_size if renderer != null else Vector2(128.0, 128.0)
-	_sprite.pixel_size = (visual_size_tiles.x * cell_size.x) / float(maxi(1, ROBOT_TEXTURE.get_width()))
-	_sprite.position.y = ROBOT_TEXTURE.get_height() * _sprite.pixel_size * 0.5
-	add_child(_sprite)
+	var model_scale := (visual_size_tiles.y * cell_size.y) / MODEL_NATIVE_HEIGHT
+	_model.scale = Vector3(model_scale, model_scale, model_scale)
+	_model.rotation.y = MODEL_YAW_OFFSET
+	add_child(_model)
 
 	_update_marker_color()
 
@@ -122,11 +127,26 @@ func _play_select_sound() -> void:
 	_select_player.play()
 
 
+# Smoothly turn the model so its front faces the horizontal travel direction, applying the
+# same MODEL_YAW_OFFSET as the rest pose. Uses lerp_angle so it takes the shortest way around.
+func _face_direction(direction: Vector3, delta: float) -> void:
+	if _model == null:
+		return
+
+	var flat := Vector3(direction.x, 0.0, direction.z)
+	if flat.length() < 0.001:
+		return
+
+	var target_yaw := atan2(flat.x, flat.z) + MODEL_YAW_OFFSET
+	_model.rotation.y = lerp_angle(_model.rotation.y, target_yaw, clampf(delta * turn_speed, 0.0, 1.0))
+
+
 func _process(delta: float) -> void:
 	if not _moving:
 		return
 
 	var to_target := _target_world - position
+	_face_direction(to_target, delta)
 	var distance := to_target.length()
 	var step := move_speed * delta
 
