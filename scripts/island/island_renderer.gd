@@ -14,6 +14,7 @@ extends Node3D
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const WATER_SHADER := preload("res://assets/shaders/water.gdshader")
 const WATER_DEPTH_SHADER := preload("res://assets/shaders/water_depth.gdshader")
+const WATER_LOWPOLY_SHADER := preload("res://assets/shaders/water_lowpoly.gdshader")
 const ROWBOAT_TEXTURE := preload("res://assets/vehicles/rowboat.png")
 
 # Two interchangeable water looks. STYLIZED_RING: the baked shore-distance shader
@@ -63,6 +64,7 @@ var _water_material: ShaderMaterial
 var _prism_mesh: ArrayMesh
 var _cap_mesh: ArrayMesh
 var _terrain_materials := {}
+var _water_tile_materials := {}
 var _highlight_materials := {}
 # cell -> the terrain MeshInstance3D for that cell, so hover can recolor it in place.
 var _tiles := {}
@@ -290,7 +292,7 @@ func _rebuild_terrain() -> void:
 			# selectable, hoverable tiles (Civ-style), colored by their classification.
 			var tile := MeshInstance3D.new()
 			tile.mesh = _prism_mesh
-			tile.material_override = _terrain_material(terrain_type)
+			tile.material_override = _tile_material(terrain_type)
 			# The prism mesh is centered on its origin, so place it at the cell center (not
 			# the top-left anchor) to line up with units, objects, and mouse picking.
 			var center := HexGridScript.cell_center_3d(cell, cell_size)
@@ -298,6 +300,15 @@ func _rebuild_terrain() -> void:
 			tile.scale = Vector3(1.0, _terrain_top_y(terrain_type), 1.0)
 			_terrain_root.add_child(tile)
 			_tiles[cell] = tile
+
+
+# Material for a tile. Water (coast/ocean) still generates as classified, colored tiles, but
+# the animated low-poly water shader is disabled for now — re-enable by uncommenting the
+# branch below (see _water_tile_material / water_lowpoly.gdshader).
+func _tile_material(terrain_type: int) -> Material:
+	#if GameTypes.is_water(terrain_type):
+	#	return _water_tile_material(terrain_type)
+	return _terrain_material(terrain_type)
 
 
 func _terrain_material(terrain_type: int) -> StandardMaterial3D:
@@ -311,6 +322,22 @@ func _terrain_material(terrain_type: int) -> StandardMaterial3D:
 	# code-generated prism, cheap for opaque terrain.
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_terrain_materials[terrain_type] = material
+	return material
+
+
+# Shared low-poly water material per water type — coast gets the shallow tint and calmer
+# waves, ocean the deep tint. Surface height tells the shader which verts are the surface.
+func _water_tile_material(terrain_type: int) -> ShaderMaterial:
+	if _water_tile_materials.has(terrain_type):
+		return _water_tile_materials[terrain_type]
+
+	var is_coast := terrain_type == GameTypes.Terrain.COAST
+	var material := ShaderMaterial.new()
+	material.shader = WATER_LOWPOLY_SHADER
+	material.set_shader_parameter("base_color", SHALLOW_WATER_COLOR if is_coast else DEEP_WATER_COLOR)
+	material.set_shader_parameter("surface_y", WATER_TOP_Y)
+	material.set_shader_parameter("wave_height", 0.8 if is_coast else 1.5)
+	_water_tile_materials[terrain_type] = material
 	return material
 
 
@@ -631,7 +658,7 @@ func _update_hover() -> void:
 func _restore_tile(cell: Vector2i) -> void:
 	var tile = _tiles.get(cell)
 	if tile != null and island != null:
-		tile.material_override = _terrain_material(island.get_terrain(cell))
+		tile.material_override = _tile_material(island.get_terrain(cell))
 
 
 # --- Billboard helper ---
