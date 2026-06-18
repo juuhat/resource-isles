@@ -13,7 +13,8 @@ extends Node3D
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 # Roystan toon water (see assets/shaders/water_toon.gdshader): a transparent animated
-# plane that derives shallow tint and shoreline foam from the scene depth buffer.
+# plane with a flat tint plus scrolling noise; the shoreline foam band comes from the baked
+# per-island shore-distance field (set in _rebuild_water), not the depth buffer.
 const WATER_TOON_SHADER := preload("res://assets/shaders/water_toon.gdshader")
 const WATER_SURFACE_NOISE := preload("res://assets/shaders/water_toon/PerlinNoise.png")
 const WATER_DISTORT_NOISE := preload("res://assets/shaders/water_toon/WaterDistortion.png")
@@ -30,8 +31,6 @@ const BOAT_SIZE_TILES := Vector2(0.8, 0.8)
 const SAND_COLOR := Color("#e3bc83")
 const GRASS_COLOR := Color("#9ea131")
 const STONE_COLOR := Color("#8e8791")
-const SHALLOW_WATER_COLOR := Color("#7abce5")
-const DEEP_WATER_COLOR := Color("#1979c6")
 const SHORE_FOAM_COLOR := Color("#ffffff40")
 # Single flat translucent surface tint; depth comes from the seabed showing through.
 const WATER_SURFACE_COLOR := Color("#2d62a5")
@@ -862,18 +861,16 @@ func _is_plot_cell(terrain_type: int) -> bool:
 	return terrain_type != GameTypes.Terrain.WATER
 
 
+# Land caps only — water cells render the seabed via _seabed_color, so this is never
+# called with WATER/COAST.
 func _color_for_terrain(terrain_type: int) -> Color:
 	match terrain_type:
 		GameTypes.Terrain.GRASS:
 			return GRASS_COLOR
 		GameTypes.Terrain.SAND:
 			return SAND_COLOR
-		GameTypes.Terrain.STONE:
-			return STONE_COLOR
-		GameTypes.Terrain.COAST:
-			return SHALLOW_WATER_COLOR
 		_:
-			return DEEP_WATER_COLOR
+			return STONE_COLOR
 
 
 func _cell_contains_xz(cell: Vector2i, point: Vector2) -> bool:
