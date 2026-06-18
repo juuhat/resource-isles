@@ -32,7 +32,7 @@ const GRASS_COLOR := Color("#9ea131")
 const STONE_COLOR := Color("#8e8791")
 const SHALLOW_WATER_COLOR := Color("#14ada3")
 const DEEP_WATER_COLOR := Color("#064c56")
-const SHORE_FOAM_COLOR := Color("#ecefcf")
+const SHORE_FOAM_COLOR := Color("#ffffff0a")
 
 # Prism top heights per terrain (world units). Land sits above water for a layered
 # island silhouette; the differences are small so unit movement reads as gentle steps.
