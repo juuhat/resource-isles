@@ -304,7 +304,7 @@ func _rebuild_terrain() -> void:
 			tile.mesh = _prism_mesh
 			# Land caps use their terrain colour; the submerged seabed uses sandy ground so
 			# the blue reads as the translucent water above it, not painted-on floor.
-			tile.material_override = _seabed_material(terrain_type) if is_water else _tile_material(terrain_type)
+			tile.material_override = _base_tile_material(terrain_type)
 			# The prism mesh is centered on its origin, so place it at the cell center (not
 			# the top-left anchor) to line up with units, objects, and mouse picking.
 			var center := HexGridScript.cell_center_3d(cell, cell_size)
@@ -318,14 +318,25 @@ func _rebuild_terrain() -> void:
 				tile.position = Vector3(center.x, 0.0, center.z)
 				tile.scale = Vector3(1.0, _terrain_top_y(terrain_type), 1.0)
 			_terrain_root.add_child(tile)
-			# Only land tiles are hover targets; the seabed is purely visual.
-			if not is_water:
+			# Land and shallow coast are hover targets; deep ocean is purely visual.
+			if _is_plot_cell(terrain_type):
 				_tiles[cell] = tile
 
 
 # Flat colour for a land cap (grass/sand/stone). The submerged seabed uses _seabed_material.
 func _tile_material(terrain_type: int) -> Material:
 	return _terrain_material(terrain_type)
+
+
+# Base material for a cell's tile: sandy seabed for water cells, terrain colour for land.
+# Used when (re)building tiles and when restoring a tile after a hover.
+func _base_tile_material(terrain_type: int) -> Material:
+	return _seabed_material(terrain_type) if GameTypes.is_water(terrain_type) else _terrain_material(terrain_type)
+
+
+# Base flat colour for a cell's tile (drives the brightened hover highlight).
+func _base_tile_color(terrain_type: int) -> Color:
+	return _seabed_color(terrain_type) if GameTypes.is_water(terrain_type) else _color_for_terrain(terrain_type)
 
 
 func _terrain_material(terrain_type: int) -> StandardMaterial3D:
@@ -349,11 +360,15 @@ func _seabed_material(terrain_type: int) -> StandardMaterial3D:
 		return _seabed_materials[terrain_type]
 
 	var material := StandardMaterial3D.new()
-	material.albedo_color = SEABED_COAST_COLOR if terrain_type == GameTypes.Terrain.COAST else SEABED_OCEAN_COLOR
+	material.albedo_color = _seabed_color(terrain_type)
 	material.roughness = 1.0
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_seabed_materials[terrain_type] = material
 	return material
+
+
+func _seabed_color(terrain_type: int) -> Color:
+	return SEABED_COAST_COLOR if terrain_type == GameTypes.Terrain.COAST else SEABED_OCEAN_COLOR
 
 
 # --- Water ---
@@ -461,8 +476,9 @@ func _build_shore_distance_texture() -> Dictionary:
 
 # --- Grid ---
 
-# A single line-mesh tracing the top hexagon of every land cell. Lines sit just above the
-# tile top to avoid z-fighting; water is skipped so the grid reads as the island's plots.
+# A single line-mesh tracing the top hexagon of every land and shallow-coast cell. Lines sit
+# just above the tile top to avoid z-fighting; only deep ocean is skipped, so the grid reads
+# as the island's plots (coast lines sit on the seabed, seen through the water).
 func _rebuild_grid() -> void:
 	if _grid_instance == null:
 		return
@@ -481,11 +497,11 @@ func _rebuild_grid() -> void:
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
 			var terrain_type := island.get_terrain(cell)
-			if GameTypes.is_water(terrain_type):
+			if not _is_plot_cell(terrain_type):
 				continue
 
 			var center := HexGridScript.cell_center_3d(cell, cell_size)
-			center.y = _terrain_top_y(terrain_type) + 0.5
+			center.y = _tile_top_y(terrain_type) + 0.5
 			var corners := HexGridScript.hex_corners_3d(center, cell_size)
 			for i in range(6):
 				st.add_vertex(corners[i])
@@ -510,7 +526,7 @@ func _highlight_material(terrain_type: int) -> StandardMaterial3D:
 		return _highlight_materials[terrain_type]
 
 	var material := StandardMaterial3D.new()
-	material.albedo_color = _color_for_terrain(terrain_type).lightened(0.35)
+	material.albedo_color = _base_tile_color(terrain_type).lightened(0.35)
 	material.roughness = 1.0
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_highlight_materials[terrain_type] = material
@@ -687,7 +703,7 @@ func _update_hover() -> void:
 func _restore_tile(cell: Vector2i) -> void:
 	var tile = _tiles.get(cell)
 	if tile != null and island != null:
-		tile.material_override = _tile_material(island.get_terrain(cell))
+		tile.material_override = _base_tile_material(island.get_terrain(cell))
 
 
 # --- Sprite helper ---
@@ -811,6 +827,17 @@ func _terrain_top_y(terrain_type: int) -> float:
 # drops deeper, so the basin gets shallower toward the shore.
 func _water_seabed_top_y(terrain_type: int) -> float:
 	return COAST_SEABED_TOP_Y if terrain_type == GameTypes.Terrain.COAST else OCEAN_SEABED_TOP_Y
+
+
+# Visible top height of a cell's tile: a land cap height, or the dropped seabed top for water.
+func _tile_top_y(terrain_type: int) -> float:
+	return _water_seabed_top_y(terrain_type) if GameTypes.is_water(terrain_type) else _terrain_top_y(terrain_type)
+
+
+# Cells that read as interactive plots: land and shallow coast get the grid and hover
+# highlight; deep ocean does not.
+func _is_plot_cell(terrain_type: int) -> bool:
+	return terrain_type != GameTypes.Terrain.WATER
 
 
 func _color_for_terrain(terrain_type: int) -> Color:
