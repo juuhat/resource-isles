@@ -413,12 +413,18 @@ func _make_toon_water_material() -> ShaderMaterial:
 	# much floor is visible (toward 1.0 hides it, lower reveals more).
 	material.set_shader_parameter("water_color", Color(WATER_SURFACE_COLOR, 1.0))
 	material.set_shader_parameter("foam_color", SHORE_FOAM_COLOR)
-	material.set_shader_parameter("foam_distance", 0.03)
-	material.set_shader_parameter("surface_noise_cutoff", 0.777)
-	material.set_shader_parameter("surface_distortion_amount", 0.27)
-	material.set_shader_parameter("surface_noise_scale", Vector2(0.01, 0.04))
-	material.set_shader_parameter("distort_noise_scale", 0.01)
-	material.set_shader_parameter("surface_noise_scroll", Vector2(0.03, 0.03))
+	material.set_shader_parameter("foam_distance", 0.04)
+	material.set_shader_parameter("surface_noise_cutoff", 0.74)
+	material.set_shader_parameter("surface_distortion_amount", 0.18)
+	material.set_shader_parameter("surface_noise_scale", Vector2(0.012, 0.018))
+	material.set_shader_parameter("distort_noise_scale", 0.006)
+	material.set_shader_parameter("surface_noise_scroll", Vector2(0.018, 0.011))
+	material.set_shader_parameter("wave_streak_color", Color(Color("#b6dbf2"), 0.18))
+	material.set_shader_parameter("wave_streak_strength", 0.34)
+	material.set_shader_parameter("wave_streak_cutoff", 0.73)
+	material.set_shader_parameter("wave_streak_scale", Vector2(0.0014, 0.006))
+	material.set_shader_parameter("wave_streak_scroll", Vector2(0.018, 0.004))
+	material.set_shader_parameter("wave_patch_scale", 0.0028)
 	return material
 
 

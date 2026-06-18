@@ -30,6 +30,13 @@ uniform float foam_distance : hint_range(0.0, 1.0) = 0.12; // how far from shore
 uniform float surface_noise_cutoff : hint_range(0.0, 1.0) = 0.777;
 uniform float surface_distortion_amount : hint_range(0.0, 1.0) = 0.27;
 
+uniform vec4 wave_streak_color : source_color = vec4(0.75, 0.9, 1.0, 0.18);
+uniform float wave_streak_strength : hint_range(0.0, 1.0) = 0.35;
+uniform float wave_streak_cutoff : hint_range(0.0, 1.0) = 0.72;
+uniform vec2 wave_streak_scale = vec2(0.0014, 0.006);
+uniform vec2 wave_streak_scroll = vec2(0.018, 0.004);
+uniform float wave_patch_scale = 0.0028;
+
 // Noise is sampled in world space (the plane is far larger than a UV tile), so these are
 // world-space frequencies rather than the original's per-mesh UV tiling. Keep the scale well
 // below 1/tile_size (~1/128) and roughly isotropic, or the foam repeats per hex tile.
@@ -65,21 +72,44 @@ void fragment() {
 	);
 	float surfaceNoiseSample = texture(surfaceNoise, noise_uv).r;
 
-	// Foam shows where the noise clears a cutoff that drops toward the shoreline, so the
-	// pale foam concentrates near land and thins out into open water.
+	// Foam shows where the noise clears a cutoff that drops toward the shoreline. Away from
+	// land it fades out completely so open water does not become evenly speckled.
 	float foamDepth = clamp(shore / foam_distance, 0.0, 1.0);
-	float surfaceNoiseCutoff = foamDepth * surface_noise_cutoff;
+	float shoreFoamMask = 1.0 - smoothstep(0.18, 1.0, foamDepth);
+	float surfaceNoiseCutoff = mix(0.08, surface_noise_cutoff, foamDepth);
 	float surfaceNoiseAmount = smoothstep(
 		surfaceNoiseCutoff - SMOOTHSTEP_AA,
 		surfaceNoiseCutoff + SMOOTHSTEP_AA,
 		surfaceNoiseSample
+	) * shoreFoamMask;
+
+	// Sparse elongated shimmer for open water. A broad patch mask breaks up the pattern so
+	// the streaks appear in drifting clusters instead of a uniform field of dots.
+	vec2 streak_uv = vec2(
+		world_pos.x * wave_streak_scale.x + TIME * wave_streak_scroll.x,
+		world_pos.z * wave_streak_scale.y - TIME * wave_streak_scroll.y
+	) + distortAmount * 0.08;
+	float streakNoise = texture(surfaceNoise, streak_uv).r;
+	float patchNoise = texture(
+		distortNoise,
+		world_pos.xz * wave_patch_scale + vec2(TIME * 0.004, -TIME * 0.003)
+	).r;
+	float openWaterMask = smoothstep(foam_distance, foam_distance * 4.0, shore);
+	float waveStreakAmount = smoothstep(
+		wave_streak_cutoff,
+		wave_streak_cutoff + 0.08,
+		streakNoise
 	);
+	waveStreakAmount *= smoothstep(0.42, 0.86, patchNoise) * openWaterMask * wave_streak_strength;
 
 	vec4 waterColor = water_color;
 
 	vec4 surfaceNoiseColor = foam_color;
 	surfaceNoiseColor.a *= surfaceNoiseAmount;
+	vec4 waveStreakColor = wave_streak_color;
+	waveStreakColor.a *= waveStreakAmount;
 	vec4 color = alphaBlend(surfaceNoiseColor, waterColor);
+	color = alphaBlend(waveStreakColor, color);
 
 	ALBEDO = color.rgb;
 	ALPHA = color.a;
