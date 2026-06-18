@@ -33,6 +33,7 @@ uniform float surface_distortion_amount : hint_range(0.0, 1.0) = 0.27;
 uniform vec4 wave_streak_color : source_color = vec4(0.75, 0.9, 1.0, 0.18);
 uniform float wave_streak_strength : hint_range(0.0, 1.0) = 0.35;
 uniform float wave_streak_cutoff : hint_range(0.0, 1.0) = 0.72;
+uniform float wave_streak_softness : hint_range(0.001, 0.2) = 0.025;
 uniform vec2 wave_streak_scale = vec2(0.0014, 0.006);
 uniform vec2 wave_streak_scroll = vec2(0.018, 0.004);
 uniform float wave_patch_scale = 0.0028;
@@ -83,8 +84,8 @@ void fragment() {
 		surfaceNoiseSample
 	) * shoreFoamMask;
 
-	// Sparse elongated shimmer for open water. A broad patch mask breaks up the pattern so
-	// the streaks appear in drifting clusters instead of a uniform field of dots.
+	// Sparse elongated wave lines for open water. A broad patch mask breaks up the pattern
+	// so the crisp strokes appear in drifting clusters instead of a uniform field of dots.
 	vec2 streak_uv = vec2(
 		world_pos.x * wave_streak_scale.x + TIME * wave_streak_scroll.x,
 		world_pos.z * wave_streak_scale.y - TIME * wave_streak_scroll.y
@@ -97,7 +98,7 @@ void fragment() {
 	float openWaterMask = smoothstep(foam_distance, foam_distance * 4.0, shore);
 	float waveStreakAmount = smoothstep(
 		wave_streak_cutoff,
-		wave_streak_cutoff + 0.08,
+		wave_streak_cutoff + wave_streak_softness,
 		streakNoise
 	);
 	waveStreakAmount *= smoothstep(0.42, 0.86, patchNoise) * openWaterMask * wave_streak_strength;

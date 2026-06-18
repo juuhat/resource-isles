@@ -40,8 +40,8 @@ const WATER_SURFACE_ALPHA := 0.55
 # Seabed ground tones (Minecraft-style): the floor under water is real ground, not blue —
 # the blue comes from the translucent surface plane above it. Coast is a sandy shelf, the
 # open-ocean floor is a darker, muddier sand.
-const SEABED_COAST_COLOR := Color("#2d62a5")
-const SEABED_OCEAN_COLOR := Color("#2d62a5")
+const SEABED_COAST_COLOR := Color("#19a5ff")
+const SEABED_OCEAN_COLOR := Color("#1c8fe9")
 
 # Prism top heights per terrain (world units). Land sits above water for a layered
 # island silhouette; the differences are small so unit movement reads as gentle steps.
@@ -420,9 +420,10 @@ func _make_toon_water_material() -> ShaderMaterial:
 	material.set_shader_parameter("surface_noise_scale", Vector2(0.012, 0.018))
 	material.set_shader_parameter("distort_noise_scale", 0.006)
 	material.set_shader_parameter("surface_noise_scroll", Vector2(0.018, 0.011))
-	material.set_shader_parameter("wave_streak_color", Color(Color("#b6dbf2"), 0.18))
-	material.set_shader_parameter("wave_streak_strength", 0.34)
-	material.set_shader_parameter("wave_streak_cutoff", 0.73)
+	material.set_shader_parameter("wave_streak_color", Color(Color("#cdefff"), 0.24))
+	material.set_shader_parameter("wave_streak_strength", 0.42)
+	material.set_shader_parameter("wave_streak_cutoff", 0.76)
+	material.set_shader_parameter("wave_streak_softness", 0.025)
 	material.set_shader_parameter("wave_streak_scale", Vector2(0.0014, 0.006))
 	material.set_shader_parameter("wave_streak_scroll", Vector2(0.018, 0.004))
 	material.set_shader_parameter("wave_patch_scale", 0.0028)
