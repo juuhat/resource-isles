@@ -5,7 +5,8 @@ code. This is direction, not implementation — but every story beat below is pi
 mechanic so the narrative and the game teach the same thing at the same time.
 
 See also: [First Island Progression](first-island-progression.md) for what island 1 teaches,
-[Island Unlocks](island-unlocks.md) for the rings/boat-tier/ship-repair loop, and
+[Second Island Progression](second-island-progression.md) for the iron/coal island and act-2
+reframe, [Island Unlocks](island-unlocks.md) for the rings/boat-tier/ship-repair loop, and
 [Player Unit and Manual Gathering](player-unit-and-manual-gathering.md) for the robot verbs.
 
 ## Logline

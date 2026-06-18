@@ -54,3 +54,30 @@ func set_current(coord: Vector2i) -> bool:
 # Reveal more rings on the world map — the hook a boat-tier unlock will call.
 func reveal_additional_rings(count: int = 1) -> void:
 	revealed_rings = maxi(0, revealed_rings + count)
+
+
+# --- Save/load ---
+# The whole discovered world: every island keyed by its world-map coord, plus which slot is
+# current and how many rings are revealed. `reference_time` is forwarded to each island so its
+# production/fuel timers can be rebased (see IslandData.to_dict). Islands are restored straight
+# into the dict (not via add_island) so their saved names are preserved verbatim.
+
+func to_dict(reference_time: float) -> Dictionary:
+	var serialized_islands := {}
+	for coord in islands:
+		serialized_islands[coord] = (islands[coord] as IslandData).to_dict(reference_time)
+	return {
+		current_coord = current_coord,
+		revealed_rings = revealed_rings,
+		islands = serialized_islands,
+	}
+
+
+static func from_dict(data: Dictionary, reference_time: float) -> WorldData:
+	var world := WorldData.new()
+	world.current_coord = data.get("current_coord", CENTER)
+	world.revealed_rings = int(data.get("revealed_rings", STARTING_REVEALED_RINGS))
+	var serialized_islands: Dictionary = data.get("islands", {})
+	for coord in serialized_islands:
+		world.islands[coord] = IslandData.from_dict(serialized_islands[coord], reference_time)
+	return world

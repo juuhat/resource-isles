@@ -18,6 +18,22 @@ func get_value(stat: int) -> int:
 	return _values.get(stat, 0)
 
 
+# --- Save/load ---
+# Lifetime totals are global progression, so they're saved alongside quest completion.
+# restore() sets them SILENTLY (no stat_changed) — re-emitting on load would re-run the
+# QuestManager completion cascade and re-fire one-shot reward side effects (toasts, ring
+# reveals). Quest completion is restored separately and explicitly. See QuestManager.
+
+func to_dict() -> Dictionary:
+	return _values.duplicate()
+
+
+func restore(values: Dictionary) -> void:
+	_values = {}
+	for stat in values:
+		_values[int(stat)] = int(values[stat])
+
+
 func add(stat: int, amount: int) -> void:
 	if amount <= 0:
 		return
@@ -34,6 +50,13 @@ func record_resource_gained(resource_type: int, amount: int) -> void:
 		add(stat, amount)
 
 
+# Lifetime total ever gathered of a resource (0 for resources without a gathered stat).
+# The resource bar uses this to reveal an icon once the player has gathered any.
+func lifetime_gathered(resource_type: int) -> int:
+	var stat := _resource_gathered_stat(resource_type)
+	return get_value(stat) if stat != -1 else 0
+
+
 func _resource_gathered_stat(resource_type: int) -> int:
 	match resource_type:
 		GameTypes.ResourceType.WOOD:
@@ -42,6 +65,10 @@ func _resource_gathered_stat(resource_type: int) -> int:
 			return GameTypes.Stat.STONE_GATHERED
 		GameTypes.ResourceType.PLANKS:
 			return GameTypes.Stat.PLANKS_GATHERED
+		GameTypes.ResourceType.IRON_ORE:
+			return GameTypes.Stat.IRON_ORE_GATHERED
+		GameTypes.ResourceType.COAL:
+			return GameTypes.Stat.COAL_GATHERED
 		_:
 			return -1
 

@@ -8,8 +8,9 @@ as such.
 See also: [Player Unit and Manual Gathering](player-unit-and-manual-gathering.md) for the
 robot and the "go there, do the thing" verb, [Power Sources](power-sources.md) for the
 generator catalog, [Progression, Build Restrictions, and Power](progression-and-power.md) for
-how the per-island economy is gated, and [Island Unlocks](island-unlocks.md) for the dock,
-boat tiers, and the win condition.
+how the per-island economy is gated, [Island Unlocks](island-unlocks.md) for the dock,
+boat tiers, and the win condition, and [Second Island Progression](second-island-progression.md)
+for where the automation / power / trade-route systems this doc defers actually land.
 
 ## The Core Question
 

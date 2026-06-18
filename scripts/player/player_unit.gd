@@ -3,14 +3,18 @@ extends Node3D
 
 # The player-controlled robot (3D, see docs/3d-models.md). Holds a current
 # hex cell and walks along a queued path of cells at a constant world-space speed on the
-# XZ ground plane. The robot is a 3D model (player_model.glb); a flat disc under it is the
-# selection/ground marker. Movement logic is unchanged from the 2D version — only the
+# XZ ground plane. The robot is a 3D model (player_model.glb). When selected it shows a
+# translucent hex cap on top of its tile, matching the placement-preview / hover highlight;
+# deselected it has no marker. Movement logic is unchanged from the 2D version — only the
 # coordinate type (Vector2 -> Vector3) differs.
 
 signal arrived(cell: Vector2i)
 signal entered_cell(cell: Vector2i)
 
+const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const PLAYER_MODEL := preload("res://assets/player/player_model.glb")
+# Translucent blue selection cap, matching the renderer's hover/placement highlight tint.
+const MARKER_COLOR := Color(0.35, 0.85, 1.0, 0.45)
 # The model's native height in glTF units (feet at y=0), from its mesh bounds — used to
 # scale it to the desired on-map size.
 const MODEL_NATIVE_HEIGHT := 1.2
@@ -48,16 +52,14 @@ func _ready() -> void:
 	_marker_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_marker_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_marker_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_marker_material.albedo_color = MARKER_COLOR
 
-	var disc := CylinderMesh.new()
-	disc.top_radius = renderer.cell_size.x * 0.3 if renderer != null else 38.0
-	disc.bottom_radius = disc.top_radius
-	disc.height = 1.0
-	disc.radial_segments = 24
 	_marker = MeshInstance3D.new()
-	_marker.mesh = disc
+	_marker.mesh = _build_hex_cap_mesh()
 	_marker.material_override = _marker_material
-	_marker.position.y = 1.0
+	# Float just above the tile top, like the placement-preview / hover-highlight caps.
+	_marker.position.y = 0.6
+	_marker.visible = false
 	add_child(_marker)
 
 	# Scale the model so its height matches the intended on-map size (visual_size_tiles in
@@ -69,7 +71,7 @@ func _ready() -> void:
 	_model.rotation.y = MODEL_YAW_OFFSET
 	add_child(_model)
 
-	_update_marker_color()
+	_update_marker()
 
 	_select_player = AudioStreamPlayer.new()
 	add_child(_select_player)
@@ -105,13 +107,28 @@ func set_selected(value: bool) -> void:
 	selected = value
 	if selected:
 		_play_select_sound()
-	_update_marker_color()
+	_update_marker()
 
 
-func _update_marker_color() -> void:
-	if _marker_material == null:
-		return
-	_marker_material.albedo_color = Color(0.35, 0.85, 1.0, 0.5) if selected else Color(0.0, 0.0, 0.0, 0.22)
+# The selection cap shows only while selected; deselected, the robot has no ground marker.
+func _update_marker() -> void:
+	if _marker != null:
+		_marker.visible = selected
+
+
+# A flat hex outline-fill matching the tile, for the selection highlight (mirrors the
+# renderer's _build_hex_cap_mesh).
+func _build_hex_cap_mesh() -> ArrayMesh:
+	var size := renderer.cell_size if renderer != null else Vector2(128.0, 128.0)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var ring := HexGridScript.hex_corners_3d(Vector3.ZERO, size)
+	st.set_normal(Vector3.UP)
+	for i in range(6):
+		st.add_vertex(Vector3.ZERO)
+		st.add_vertex(ring[i])
+		st.add_vertex(ring[(i + 1) % 6])
+	return st.commit()
 
 
 func _play_select_sound() -> void:

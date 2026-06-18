@@ -37,6 +37,34 @@ func _init() -> void:
 	stone.scavenge_amount = 3
 	_add_definition(stone)
 
+	# Island 2+ deposits. Reusing the stone texture/model as placeholder art for now
+	# (see docs/second-island-progression.md); give each its own model when authored.
+	var iron_ore := ResourceNodeDefinitionScript.new(
+		GameTypes.ResourceNodeType.IRON_ORE,
+		"Iron Deposit",
+		STONE_TEXTURE,
+		GameTypes.ResourceType.IRON_ORE,
+		Vector2i(1, 1),
+		Vector2(0.9, 0.9),
+		Vector2.ZERO
+	)
+	iron_ore.model = STONE_DEPOSIT_MODEL
+	iron_ore.scavenge_amount = 3
+	_add_definition(iron_ore)
+
+	var coal := ResourceNodeDefinitionScript.new(
+		GameTypes.ResourceNodeType.COAL,
+		"Coal Seam",
+		STONE_TEXTURE,
+		GameTypes.ResourceType.COAL,
+		Vector2i(1, 1),
+		Vector2(0.9, 0.9),
+		Vector2.ZERO
+	)
+	coal.model = STONE_DEPOSIT_MODEL
+	coal.scavenge_amount = 3
+	_add_definition(coal)
+
 
 func get_definition(resource_node_type: int) -> ResourceNodeDefinition:
 	return definitions.get(resource_node_type)

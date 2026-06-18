@@ -72,12 +72,16 @@ enum RobotUpgrade {
 enum ResourceNodeType {
 	TREE,
 	STONE,
+	IRON_ORE, # iron deposit, found on island 2+ (see docs/second-island-progression.md)
+	COAL,     # coal seam, found on island 2+
 }
 
 enum ResourceType {
 	WOOD,
 	STONE,
 	PLANKS,
+	IRON_ORE, # raw ore mined from an IRON_ORE node; smelted into iron later
+	COAL,      # raw coal mined from a COAL node; smelter reductant + power fuel
 }
 
 enum AdjacencyKind {
@@ -92,6 +96,8 @@ enum Stat {
 	WOOD_GATHERED,
 	STONE_GATHERED,
 	PLANKS_GATHERED,
+	IRON_ORE_GATHERED, # island 2+ (see docs/second-island-progression.md)
+	COAL_GATHERED,     # island 2+
 	BUILDINGS_BUILT, # total of every building placed, any type
 	# Per-building-type build counts (cumulative). Keep in sync with BuildingType; the
 	# StatTracker bumps both BUILDINGS_BUILT and the matching one of these on each placement.

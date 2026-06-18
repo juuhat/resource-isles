@@ -44,3 +44,20 @@ func spend(cost: Dictionary) -> bool:
 		add_amount(resource_type, -cost[resource_type])
 
 	return true
+
+
+# --- Save/load ---
+# Plain-data round-trip for the save system. Amounts are restored directly (no `changed`
+# signal) — loading is not gameplay, and the UI is refreshed wholesale once the island is
+# re-entered.
+
+func to_dict() -> Dictionary:
+	return {amounts = amounts.duplicate()}
+
+
+static func from_dict(data: Dictionary) -> Inventory:
+	var inventory := Inventory.new()
+	var saved_amounts: Dictionary = data.get("amounts", {})
+	for resource_type in saved_amounts:
+		inventory.amounts[int(resource_type)] = int(saved_amounts[resource_type])
+	return inventory

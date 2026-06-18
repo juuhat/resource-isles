@@ -194,6 +194,93 @@ func take_item(cell: Vector2i) -> int:
 	return item_type
 
 
+# --- Save/load ---
+# Serialize the full mutable island state to plain Variant-native data (ints, floats,
+# Strings, bools, Vector2i, and nested Dictionaries/Arrays) so SaveManager can write it with
+# FileAccess.store_var. Nothing here references the renderer or managers — views are rebuilt
+# from this data when the island is re-entered.
+#
+# `reference_time` is the gameplay clock (Time.get_ticks_msec()/1000.0) at save time. The
+# production/fuel "next fire" times are absolute ticks-since-engine-start, which reset to ~0
+# every launch, so they are stored RELATIVE to now (seconds remaining) and rebased onto the
+# fresh clock on load — otherwise every timer would be wildly overdue or far in the future.
+
+func to_dict(reference_time: float) -> Dictionary:
+	return {
+		island_name = island_name,
+		width = width,
+		height = height,
+		terrain = terrain.duplicate(),
+		resources = resources.duplicate(),
+		items = items.duplicate(),
+		scavenged_cells = scavenged_cells.duplicate(),
+		buildings = _buildings_to_dict(),
+		next_production_times = _to_relative_times(building_next_production_times, reference_time),
+		next_fuel_times = _to_relative_times(building_next_fuel_times, reference_time),
+		generator_running_states = generator_running_states.duplicate(),
+		consumer_powered_states = consumer_powered_states.duplicate(),
+		inventory = inventory.to_dict(),
+	}
+
+
+static func from_dict(data: Dictionary, reference_time: float) -> IslandData:
+	var island := IslandData.new(int(data.get("width", 0)), int(data.get("height", 0)))
+	island.island_name = data.get("island_name", "")
+	island.terrain = (data.get("terrain", {}) as Dictionary).duplicate()
+	island.resources = (data.get("resources", {}) as Dictionary).duplicate()
+	island.items = (data.get("items", {}) as Dictionary).duplicate()
+	island.scavenged_cells = (data.get("scavenged_cells", {}) as Dictionary).duplicate()
+	island.buildings = _buildings_from_dict(data.get("buildings", {}))
+	island.building_next_production_times = _to_absolute_times(
+		data.get("next_production_times", {}), reference_time
+	)
+	island.building_next_fuel_times = _to_absolute_times(
+		data.get("next_fuel_times", {}), reference_time
+	)
+	island.generator_running_states = (data.get("generator_running_states", {}) as Dictionary).duplicate()
+	island.consumer_powered_states = (data.get("consumer_powered_states", {}) as Dictionary).duplicate()
+	island.inventory = Inventory.from_dict(data.get("inventory", {}))
+	return island
+
+
+func _buildings_to_dict() -> Dictionary:
+	var result := {}
+	for anchor_cell in buildings:
+		var building: Dictionary = buildings[anchor_cell]
+		result[anchor_cell] = {
+			type = int(building.type),
+			cells = (building.cells as Array).duplicate(),
+		}
+	return result
+
+
+# Rebuild the `cells` footprint as a typed Array[Vector2i] — store_var round-trips it as an
+# untyped Array, but place_building/get_building_footprint_cells expect the typed form.
+static func _buildings_from_dict(saved_buildings: Dictionary) -> Dictionary:
+	var result := {}
+	for anchor_cell in saved_buildings:
+		var saved: Dictionary = saved_buildings[anchor_cell]
+		var cells: Array[Vector2i] = []
+		for cell in saved.get("cells", []):
+			cells.append(cell)
+		result[anchor_cell] = {type = int(saved.type), cells = cells}
+	return result
+
+
+static func _to_relative_times(times: Dictionary, reference_time: float) -> Dictionary:
+	var result := {}
+	for cell in times:
+		result[cell] = maxf(0.0, float(times[cell]) - reference_time)
+	return result
+
+
+static func _to_absolute_times(times: Dictionary, reference_time: float) -> Dictionary:
+	var result := {}
+	for cell in times:
+		result[cell] = reference_time + float(times[cell])
+	return result
+
+
 func _terrain_for_resource(resource_node_type: int) -> int:
 	match resource_node_type:
 		GameTypes.ResourceNodeType.STONE:

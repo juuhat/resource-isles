@@ -28,6 +28,9 @@ const NO_BUILDING := -1
 const HARVEST_INTERVAL := 3.0
 const HARVEST_YIELD := 1
 
+# Upper bound on how often the throttled crash-backstop autosave writes (see _process).
+const AUTOSAVE_INTERVAL_SECONDS := 60.0
+
 # Icons for the robot's command-bar actions.
 const PICKAXE_ICON := preload("res://assets/icons/pickaxe.png")
 const POWER_ICON := preload("res://assets/icons/power.png")
@@ -86,6 +89,13 @@ var _placement_player: AudioStreamPlayer
 var pending_action_cell := Vector2i(-1, -1)
 var harvestable_cell := Vector2i(-1, -1)
 
+# Throttled crash backstop: resource changes (harvesting, production, fuel) mark the game
+# dirty, and _process flushes a save at most once per AUTOSAVE_INTERVAL_SECONDS. The discrete
+# event saves (quest/building/island/quit) clear this, so the timer only ever covers progress
+# made between those events — bounding worst-case crash loss to one interval.
+var _autosave_dirty := false
+var _autosave_accum := 0.0
+
 var is_harvesting := false
 var harvest_cell := Vector2i(-1, -1)
 var harvest_resource_type := -1
@@ -137,12 +147,89 @@ func _ready() -> void:
 	_setup_camera_and_light()
 
 	world = WorldDataScript.new()
+	# A save, if present, replaces the fresh world plus the global progression (stats/quests)
+	# before the UI is built so world_map/building_menu wire up against the loaded state.
+	var loaded := _try_load_game()
 	_add_ui()
-	_enter_island(WorldData.CENTER)
+	# Persist on quit/suspend: intercept the close request so we can save before exiting, and
+	# react to the mobile pause notification in _notification (the OS can kill a backgrounded
+	# app without further warning).
+	get_tree().set_auto_accept_quit(false)
+	if loaded:
+		_switch_to_island(world.current_coord)
+	else:
+		_enter_island(WorldData.CENTER)
+
+
+# Save on the ways the game can end: a desktop window close, or a mobile app suspend (which
+# may be the last callback before the OS reclaims the process). auto_accept_quit is disabled
+# in _ready, so we must quit ourselves after saving on the close request.
+func _notification(what: int) -> void:
+	match what:
+		NOTIFICATION_WM_CLOSE_REQUEST:
+			_save_game()
+			get_tree().quit()
+		NOTIFICATION_APPLICATION_PAUSED:
+			_save_game()
+
+
+# Restore a saved game into the already-constructed managers, or return false to start fresh.
+# Stats and quest completion are restored directly (silently) so loading doesn't re-trigger
+# quest rewards; the world replaces the empty one built in _ready. Reference time rebases the
+# islands' production/fuel timers onto this session's clock (see IslandData.to_dict).
+#
+# NOTE: the robot is intentionally re-spawned fresh on load (see _spawn_player_unit) — its
+# tile, in-progress harvest/operate, and path are not persisted yet. Persist unit state here
+# once the planned general Units class lands (multiple units, per-island positions).
+func _try_load_game() -> bool:
+	if not SaveManager.has_save():
+		return false
+
+	var payload := SaveManager.read()
+	if payload.is_empty():
+		return false
+
+	var reference_time := Time.get_ticks_msec() / 1000.0
+	world = WorldData.from_dict(payload.get("world", {}), reference_time)
+	seed_value = int(payload.get("seed_value", seed_value))
+	stat_tracker.restore(payload.get("stats", {}))
+	quest_manager.restore_completed(payload.get("completed_quests", {}))
+	print("Loaded save: %d island(s)" % world.island_count())
+	return true
+
+
+func _save_game() -> void:
+	if world == null:
+		return
+
+	var reference_time := Time.get_ticks_msec() / 1000.0
+	var payload := SaveManager.build_payload(
+		world,
+		stat_tracker.to_dict(),
+		quest_manager.completed_to_dict(),
+		seed_value,
+		reference_time
+	)
+	SaveManager.write(payload)
+	# Any save (event or timer) satisfies the throttle: clear the flag and restart the window.
+	_autosave_dirty = false
+	_autosave_accum = 0.0
+
+
+# Flush the crash-backstop save once a dirty interval has elapsed. The accumulator only runs
+# while dirty, so a quiet game never writes and worst-case loss stays within one interval.
+func _update_autosave(delta: float) -> void:
+	if not _autosave_dirty:
+		return
+
+	_autosave_accum += delta
+	if _autosave_accum >= AUTOSAVE_INTERVAL_SECONDS:
+		_save_game()
 
 
 func _process(delta: float) -> void:
 	_update_camera_controls(delta)
+	_update_autosave(delta)
 
 	if current_island == null:
 		return
@@ -200,6 +287,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if key_event.keycode == KEY_P:
 		_debug_grant_resources()
 
+	# DEBUG (Delete): wipe the save and restart fresh. A plain delete wouldn't stick — quitting
+	# and most actions re-save — so this also reloads the scene, which boots into a new game
+	# because no save is present. Remove before shipping.
+	if key_event.keycode == KEY_DELETE:
+		_debug_reset_save()
+
 
 # DEBUG/TESTING ONLY — bound to the P key (see _unhandled_input). Adds 1000 of
 # every GameTypes.ResourceType to the current island's inventory so building costs
@@ -213,6 +306,14 @@ func _debug_grant_resources() -> void:
 		stat_tracker.record_resource_gained(resource_type, 1000)
 
 
+# DEBUG/TESTING ONLY — bound to the Delete key (see _unhandled_input). Deletes the save file
+# and reloads the scene; _ready then finds no save and starts a brand-new game. Not part of
+# normal gameplay; delete before release.
+func _debug_reset_save() -> void:
+	SaveManager.delete_save()
+	get_tree().reload_current_scene()
+
+
 func _on_quest_completed(quest_id: int) -> void:
 	var quest := quest_manager.get_quest(quest_id)
 	if quest == null:
@@ -222,6 +323,8 @@ func _on_quest_completed(quest_id: int) -> void:
 		_apply_reward(reward)
 	# A reward may have changed what the robot can do here (e.g. harvesting unlocked).
 	_refresh_action_bar()
+	# Completing a quest is a milestone the player would hate to lose to a crash — checkpoint it.
+	_save_game()
 
 
 # Building-unlock rewards need no action here — placement reads quest_manager state
@@ -707,6 +810,10 @@ func _try_place_selected_building() -> bool:
 	stat_tracker.record_building_built(selected_building_type)
 	if _placement_player != null:
 		_placement_player.play()
+	# Placing a building is a deliberate, resource-spending action — checkpoint it. (If it also
+	# completed a quest, record_building_built already saved via _on_quest_completed; the extra
+	# write is cheap and keeps placement a save point in its own right.)
+	_save_game()
 	return true
 
 
@@ -780,6 +887,10 @@ func _switch_to_island(coord: Vector2i) -> void:
 	world_map.refresh()
 	_apply_selected_building()
 	_center_camera(current_island)
+
+	# Autosave at each settled island state — the natural checkpoint, and it also writes the
+	# initial save for a brand-new game (the starter island is entered through here too).
+	_save_game()
 
 
 # Enter an island slot chosen on the world map, with a fade transition. Travels to
@@ -867,12 +978,14 @@ func _apply_selected_building() -> void:
 
 func _on_resource_changed(_resource_type: int, _amount: int) -> void:
 	_apply_selected_building()
+	# Resources moved (harvest, production, fuel, spend) — arm the throttled backstop save.
+	_autosave_dirty = true
 
 
 func _add_ui() -> void:
 	resource_bar = ResourceBarScript.new()
 	add_child(resource_bar)
-	resource_bar.setup(resource_manager, power_manager)
+	resource_bar.setup(resource_manager, power_manager, stat_tracker)
 
 	building_info_panel = BuildingInfoPanelScript.new()
 	building_info_panel.setup(building_manager)

@@ -111,6 +111,22 @@ func is_upgrade_active(robot_upgrade: int) -> bool:
 	return false
 
 
+# --- Save/load ---
+# Completion is persisted EXPLICITLY rather than re-derived from saved stats: re-deriving
+# would re-emit quest_completed for every already-finished quest, re-applying one-shot rewards
+# (revealing world rings again, popping toasts). restore_completed sets the set directly and
+# silently; the imperative reward effects (e.g. revealed_rings) are captured in WorldData.
+
+func completed_to_dict() -> Dictionary:
+	return _completed.duplicate()
+
+
+func restore_completed(completed: Dictionary) -> void:
+	_completed = {}
+	for quest_id in completed:
+		_completed[int(quest_id)] = true
+
+
 func _on_stat_changed(_stat: int, _value: int) -> void:
 	_complete_finished_quests()
 
