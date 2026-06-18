@@ -39,8 +39,8 @@ const WATER_SURFACE_COLOR := Color("#2d62a5")
 # Seabed ground tones (Minecraft-style): the floor under water is real ground, not blue —
 # the blue comes from the translucent surface plane above it. Coast is a sandy shelf, the
 # open-ocean floor is a darker, muddier sand.
-const SEABED_COAST_COLOR := Color("#8a7a52")
-const SEABED_OCEAN_COLOR := Color("#8a7a52")
+const SEABED_COAST_COLOR := Color("#2d62a5")
+const SEABED_OCEAN_COLOR := Color("#2d62a5")
 
 # Prism top heights per terrain (world units). Land sits above water for a layered
 # island silhouette; the differences are small so unit movement reads as gentle steps.
@@ -49,11 +49,12 @@ const SAND_TOP_Y := 14.0
 const GRASS_TOP_Y := 20.0
 const STONE_TOP_Y := 26.0
 
-# Water cells are real (dropped) seabed prisms below the translucent surface plane, so the
-# map reads as a 3D basin: a sandy coast shelf just under the water line, the open-ocean
-# floor deeper. WATER_FLOOR_Y is the shared bottom the seabed walls fall to.
-const COAST_SEABED_TOP_Y := 3.0
-const OCEAN_SEABED_TOP_Y := -2.0
+# Water cells are flat tiles at one level (no basin) just under the translucent surface
+# plane. They still drop to WATER_FLOOR_Y underneath so the map edges read as solid water
+# rather than a thin sheet. Coast and ocean share the level so all water is flush.
+const WATER_TILE_TOP_Y := WATER_TOP_Y - 1.0
+const COAST_SEABED_TOP_Y := WATER_TILE_TOP_Y
+const OCEAN_SEABED_TOP_Y := WATER_TILE_TOP_Y
 const WATER_FLOOR_Y := -8.0
 
 @export var cell_size := Vector2(128.0, 128.0)
