@@ -29,7 +29,7 @@ static func build_all() -> Array[Quest]:
 			+ "neighbouring island. Gather what you need to build a boat and rescue him.",
 		[_objective("Sail to a new island", GameTypes.Stat.ISLANDS_REACHED, 1)],
 		# No mechanical reward — the payoff is the story beat (and the dock itself is
-		# unlocked by the SET_SAIL milestone below, not here, to avoid a circular gate).
+		# unlocked by the REFINE milestone below, not here, to avoid a circular gate).
 		([] as Array[QuestReward])
 	))
 
@@ -79,16 +79,28 @@ static func build_all() -> Array[Quest]:
 	))
 
 	quests.append(QuestScript.new(
+		GameTypes.QuestId.REFINE,
+		GameTypes.QuestKind.MILESTONE,
+		"Refine",
+		"Raise a Sawmill and feed it your logs, milling a stack of planks sturdy enough "
+			+ "to build something that floats.",
+		[
+			_objective("Build a Sawmill", GameTypes.Stat.SAWMILLS_BUILT, 1),
+			_objective("Gather planks", GameTypes.Stat.PLANKS_GATHERED, 12),
+		],
+		[QuestReward.unlock_building(GameTypes.BuildingType.DOCK, "Unlocks the Dock")]
+	))
+
+	quests.append(QuestScript.new(
 		GameTypes.QuestId.SET_SAIL,
 		GameTypes.QuestKind.MILESTONE,
 		"Set Sail",
-		"Saw your logs into planks and settle the island, then build the dock that gets "
-			+ "you across the water.",
+		"Build the dock at the water's edge — your way off this island and out across "
+			+ "the open sea.",
 		[
-			_objective("Gather planks", GameTypes.Stat.PLANKS_GATHERED, 12),
-			_objective("Build buildings", GameTypes.Stat.BUILDINGS_BUILT, 3),
+			_objective("Build a Dock", GameTypes.Stat.DOCKS_BUILT, 1),
 		],
-		[QuestReward.unlock_building(GameTypes.BuildingType.DOCK, "Unlocks the Dock")]
+		[QuestReward.reveal_world_rings(1, "Reveals the first ring of islands")]
 	))
 
 	return quests

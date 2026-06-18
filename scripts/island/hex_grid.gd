@@ -70,7 +70,7 @@ static func point_in_polygon(point: Vector2, polygon: PackedVector2Array) -> boo
 	return inside
 
 
-# --- 3D coordinate mapping (see docs/3d-conversion.md, Phase 1) ---
+# --- 3D coordinate mapping (see docs/3d-models.md) ---
 # These are the dimension-bridge between the cell-based simulation and the planned
 # 3D renderer. They mirror the 2D layout used by IslandRenderer exactly (pointy-top,
 # odd-r offset: odd rows shift half a tile, rows pack at 0.75 spacing) but place cells

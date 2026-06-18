@@ -5,7 +5,7 @@ tools. The current game supports real 3D terrain and a 3D player model, while mo
 resource nodes, and boats are still `Sprite3D` billboards. Generated models should be made so
 they can replace those billboards one asset at a time.
 
-See also: [3d-conversion.md](3d-conversion.md).
+See also: [3d-models.md](3d-models.md).
 
 ## Best Workflow
 

@@ -46,7 +46,8 @@ enum QuestId {
 	HELLO_WORLD,    # recover the scattered tools
 	BREAK_GROUND,   # first wood + stone -> logging and mining
 	SCALE_UP,       # bigger wood + stone haul -> refining and power
-	SET_SAIL,       # planks + a settled base -> the dock (the boat to the dog)
+	REFINE,         # raise a sawmill and mill planks -> the dock
+	SET_SAIL,       # build the dock -> reveal the first ring of islands
 }
 
 # Loose pickups scattered on the ground that the robot collects by walking onto them.
@@ -58,8 +59,9 @@ enum ItemType {
 
 # What completing a quest grants.
 enum RewardKind {
-	UNLOCK_BUILDING, # makes a BuildingType placeable
-	ROBOT_UPGRADE,   # improves the robot itself (see RobotUpgrade)
+	UNLOCK_BUILDING,    # makes a BuildingType placeable
+	ROBOT_UPGRADE,      # improves the robot itself (see RobotUpgrade)
+	REVEAL_WORLD_RINGS, # reveals more rings of islands on the world map (see WorldData)
 }
 
 # Robot self-improvements granted as quest rewards; effects applied in main.gd.

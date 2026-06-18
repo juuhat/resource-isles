@@ -176,11 +176,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if key_event.keycode == KEY_T:
 		quest_log_view.toggle()
 
-	# Temporary stand-in for a boat-tier unlock: reveal one more ring on the map.
-	if key_event.keycode == KEY_EQUAL:
-		world.reveal_additional_rings(1)
-		world_map.refresh()
-
 	if key_event.keycode == KEY_SPACE:
 		renderer.set_show_grid(not renderer.show_grid)
 
@@ -230,14 +225,17 @@ func _on_quest_completed(quest_id: int) -> void:
 
 
 # Building-unlock rewards need no action here — placement reads quest_manager state
-# directly. Robot upgrades change the robot, so they're applied imperatively.
+# directly. Robot upgrades and world-map reveals change game state, so they're applied
+# imperatively.
 func _apply_reward(reward: QuestReward) -> void:
-	if reward.kind != GameTypes.RewardKind.ROBOT_UPGRADE:
-		return
-
-	match reward.robot_upgrade:
-		GameTypes.RobotUpgrade.HARVESTING:
-			pass # Capability gate read via quest_manager.is_upgrade_active(); no imperative change.
+	match reward.kind:
+		GameTypes.RewardKind.ROBOT_UPGRADE:
+			match reward.robot_upgrade:
+				GameTypes.RobotUpgrade.HARVESTING:
+					pass # Capability gate read via quest_manager.is_upgrade_active(); no imperative change.
+		GameTypes.RewardKind.REVEAL_WORLD_RINGS:
+			world.reveal_additional_rings(reward.ring_count)
+			world_map.refresh()
 
 
 func _input(event: InputEvent) -> void:

@@ -1,7 +1,7 @@
 class_name PlayerUnit
 extends Node3D
 
-# The player-controlled robot (3D, see docs/3d-conversion.md Phase 3). Holds a current
+# The player-controlled robot (3D, see docs/3d-models.md). Holds a current
 # hex cell and walks along a queued path of cells at a constant world-space speed on the
 # XZ ground plane. The robot is a 3D model (player_model.glb); a flat disc under it is the
 # selection/ground marker. Movement logic is unchanged from the 2D version — only the

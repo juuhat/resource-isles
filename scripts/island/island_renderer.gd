@@ -1,7 +1,7 @@
 class_name IslandRenderer
 extends Node3D
 
-# 3D island renderer (see docs/3d-conversion.md, Phase 2). Terrain is built from
+# 3D island renderer (see docs/3d-models.md). Terrain is built from
 # code-generated hex prisms (one shared mesh, one instance per cell, tinted by terrain
 # and raised by elevation). Buildings, resource nodes, ground items, and dock boats are
 # drawn as upright Sprite3D billboards reusing the existing 2D art (the 2.5D approach).

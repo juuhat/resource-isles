@@ -1,7 +1,7 @@
 class_name FloatingText
 extends Label3D
 
-# A world-anchored damage/gain popup (3D, see docs/3d-conversion.md Phase 5). Configure
+# A world-anchored damage/gain popup (3D, see docs/3d-models.md). Configure
 # `text`, `color`, `font_size`, and `position` (a Vector3 world point) before adding to
 # the tree. It rises and fades over `duration`, then frees itself. Billboarded so it
 # always faces the camera.
