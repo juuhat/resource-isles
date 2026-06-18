@@ -32,9 +32,10 @@ const GRASS_COLOR := Color("#9ea131")
 const STONE_COLOR := Color("#8e8791")
 const SHALLOW_WATER_COLOR := Color("#7abce5")
 const DEEP_WATER_COLOR := Color("#1979c6")
-const SHORE_FOAM_COLOR := Color("#ffffff0a")
+const SHORE_FOAM_COLOR := Color("#ffffff40")
 # Single flat translucent surface tint; depth comes from the seabed showing through.
 const WATER_SURFACE_COLOR := Color("#2d62a5")
+const WATER_SURFACE_ALPHA := 0.55
 
 # Seabed ground tones (Minecraft-style): the floor under water is real ground, not blue —
 # the blue comes from the translucent surface plane above it. Coast is a sandy shelf, the
@@ -411,10 +412,10 @@ func _make_toon_water_material() -> ShaderMaterial:
 	# One flat translucent tint — no shallow/deep gradient. Depth is read from the sandy
 	# seabed showing through: lighter coast shelf vs darker ocean floor. Alpha controls how
 	# much floor is visible (toward 1.0 hides it, lower reveals more).
-	material.set_shader_parameter("water_color", Color(WATER_SURFACE_COLOR, 1.0))
+	material.set_shader_parameter("water_color", Color(WATER_SURFACE_COLOR, WATER_SURFACE_ALPHA))
 	material.set_shader_parameter("foam_color", SHORE_FOAM_COLOR)
 	material.set_shader_parameter("foam_distance", 0.04)
-	material.set_shader_parameter("surface_noise_cutoff", 0.74)
+	material.set_shader_parameter("surface_noise_cutoff", 1.0)
 	material.set_shader_parameter("surface_distortion_amount", 0.18)
 	material.set_shader_parameter("surface_noise_scale", Vector2(0.012, 0.018))
 	material.set_shader_parameter("distort_noise_scale", 0.006)
