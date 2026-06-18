@@ -16,8 +16,8 @@ func _init() -> void:
 		FOREST_TEXTURE,
 		GameTypes.ResourceType.WOOD,
 		Vector2i(1, 1),
-		Vector2(1.0, 1.25),
-		Vector2(0.0, -0.25)
+		Vector2(0.9, 0.9),
+		Vector2.ZERO
 	)
 	forest.model = PINE_FOREST_MODEL
 	forest.scavenge_amount = 3

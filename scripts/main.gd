@@ -50,10 +50,10 @@ var camera: Camera3D
 var seed_value := 1
 var zoom_step := 1.1
 # Camera orbits a pivot at a fixed pitch; zoom changes the pivot-to-camera distance.
-var camera_distance := 1800.0
-var camera_pitch_degrees := 55.0
-var min_distance := 500.0
-var max_distance := 6000.0
+var camera_distance := 800.0
+var camera_pitch_degrees := 45.0
+var min_distance := 300.0
+var max_distance := 1200.0
 var is_panning := false
 var is_left_panning := false
 var left_button_down := false
@@ -828,7 +828,7 @@ func _find_crashed_spaceship_cell() -> Vector2i:
 
 func _center_camera(_island: IslandData) -> void:
 	camera_pivot.position = renderer.get_map_center()
-	_set_distance(renderer.get_map_radius() * 2.2)
+	#_set_distance(renderer.get_map_radius() * 2.2)
 
 
 func _select_no_building() -> void:
