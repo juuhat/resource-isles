@@ -283,7 +283,10 @@ static func _to_absolute_times(times: Dictionary, reference_time: float) -> Dict
 
 func _terrain_for_resource(resource_node_type: int) -> int:
 	match resource_node_type:
-		GameTypes.ResourceNodeType.STONE:
+		GameTypes.ResourceNodeType.STONE, \
+		GameTypes.ResourceNodeType.IRON_ORE, \
+		GameTypes.ResourceNodeType.COAL:
+			# Quarried/mined deposits sit on rock (the STONE biome, see docs/island-generation.md).
 			return GameTypes.Terrain.STONE
 		_:
 			return GameTypes.Terrain.GRASS

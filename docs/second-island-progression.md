@@ -5,17 +5,20 @@ starter rock (ring 1, rowboat range). This is direction, not implementation. Whe
 teaches *"you are the economy,"* island 2 teaches **automation, power pressure, and the first
 trade route** — the systems island 1 deliberately withheld.
 
-See also: [First Island Progression](first-island-progression.md) for what island 1 teaches and
-why automation is dead weight there, [Island Unlocks](island-unlocks.md) for the rings / boat
-tiers / trade-route bootstrap, [Intro Story](intro-story.md) for the iron-reframe story beat, and
+See also: [Island Generation, Biomes, and Resources](island-generation.md) for the profile /
+seeding / resource-class architecture this island is the first concrete instance of,
+[First Island Progression](first-island-progression.md) for what island 1 teaches and why
+automation is dead weight there, [Island Unlocks](island-unlocks.md) for the rings / boat tiers /
+trade-route bootstrap, [Intro Story](intro-story.md) for the iron-reframe story beat, and
 [Progression, Build Restrictions, and Power](progression-and-power.md) for the power pool.
 
-## The Core Idea: a treeless mining island
+## The Core Idea: an iron + coal mining colony
 
-Island 2 is a **stone / iron / coal island** — its interior is entirely `Terrain.STONE`, with
-**no forest**. It is the richer frontier the story promised (iron is "ship-grade"; see
-[Intro Story](intro-story.md), the motivation handoff), but it cannot feed itself: there is no
-wood, so it depends on the forested home island for organics.
+Island 2 is the first **frontier biome** — a ring-1 island whose resource set is **iron + coal**
+(see the per-ring pools in [Island Generation](island-generation.md)). It is the richer frontier
+the story promised (iron is "ship-grade"; see [Intro Story](intro-story.md), the motivation
+handoff), but it cannot feed itself: it has **no wood and no stone of its own** (the construction
+commodities live at ring 0), so it depends on the home island for the materials to build with.
 
 This is deliberate. It turns the **first trade route from an abstract logistics toy into a
 diegetic necessity.** [Island Unlocks](island-unlocks.md) already wrote the rule for exactly this
@@ -25,8 +28,14 @@ case:
 > dock comes first and enables a trade route, so scarcity is a logistics problem to solve, not a
 > wall.**
 
-An all-stone island is the purest version of that scenario — an Anno-style **specialist colony**
-where the frontier mines metal and the home island ships the planks that build the boat out.
+So island 2 is an Anno-style **specialist colony**: the frontier mines metal, the home island
+ships the construction commodities, and the route carries goods both ways.
+
+> **Note on terrain.** Island 2 *looks* rocky (its `primary_terrain` is stone), but terrain is
+> visual identity, **not** a placement gate — see [Island Generation](island-generation.md). You
+> can place any building on its land. The trade-route necessity comes from the **absence of wood
+> and stone resources**, not from a terrain rule. (This supersedes an earlier "all-stone terrain
+> blocks grass buildings" framing.)
 
 ## Why island 2 (and not island 1) is the automation tutorial
 
@@ -70,14 +79,15 @@ way to run anything unattended.
 
 ### New buildings (mirror the existing definitions)
 
-All sit on `Terrain.STONE` — there is no grass to place the island-1 grass buildings on.
+Placeable on any land tile (terrain does not gate — see [Island Generation](island-generation.md));
+the extractors still require adjacency to their resource node.
 
-| Building | Category | Sits on | Needs adjacent | Produces | Consumes | Power | Modeled on |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| **Iron Mine** | RESOURCES | stone | iron-ore node (+1 ea, −1 per mine) | iron ore | — | draws | Quarry |
-| **Coal Mine** | RESOURCES | stone | coal node (+1 ea, −1 per mine) | coal | — | draws | Quarry |
-| **Smelter** | PROCESSING | stone | — (pulls from stock) | iron ingot | iron ore + coal | draws | Sawmill |
-| **Coal Generator** | POWER | stone | — | — | coal (fuel) | generates > Burner | Burner Generator |
+| Building | Category | Needs adjacent | Produces | Consumes | Power | Modeled on |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Iron Mine** | RESOURCES | iron-ore node (+1 ea, −1 per mine) | iron ore | — | draws | Quarry |
+| **Coal Mine** | RESOURCES | coal node (+1 ea, −1 per mine) | coal | — | draws | Quarry |
+| **Smelter** | PROCESSING | — (pulls from stock) | iron ingot | iron ore + coal | draws | Sawmill |
+| **Coal Generator** | POWER | — | — | coal (fuel) | generates > Burner | Burner Generator |
 
 The one genuinely new mechanic is the **Smelter's two-input recipe** (iron ore *and* coal). The
 current Sawmill models only a single `input_resource_type` / `input_amount`. Two clean options:
@@ -89,42 +99,40 @@ current Sawmill models only a single `input_resource_type` / `input_amount`. Two
 
 Decide at implementation time; option 1 first if it works without rewiring fuel.
 
-## The Cascade (consequences of "all stone, no trees")
+## The Cascade (consequences of "no wood, no stone")
 
-These fall straight out of the treeless decision and are load-bearing — easy to miss, expensive
-to discover late.
+These fall straight out of the resource set and are load-bearing — easy to miss, expensive to
+discover late.
 
-1. **Half the island-1 buildings can't be placed here.** Sawmill, Burner Generator, and Logger's
-   Camp all require `Terrain.GRASS`. With no grass, none are buildable on island 2 — by design.
-   The consequence: **the player cannot mill planks locally** (no sawmill), so finished planks
-   must be imported.
-2. **The wood Burner is dead → the Coal Generator is the only local power.** No wood = no burner
+1. **No local construction commodities → the supply line is mandatory.** Island 2 has neither
+   wood nor stone resources, so *every* building's materials must be imported from ring 0 via a
+   trade route. This is the necessity, and it comes from resource absence — not from any terrain
+   placement rule (you can build anywhere; see [Island Generation](island-generation.md)).
+2. **No wood → the wood Burner is dead → the Coal Generator is local power.** No wood = no burner
    fuel. The robot's free Operate-power still bootstraps a single building, but running the
    mine + smelter chain unattended needs the Coal Generator burning local coal.
-3. **Keep the sand shoreline.** "All stone" means the *interior* is stone — the island still
-   needs its coastal sand ring, or the Dock (sand tile + adjacent coast) has nowhere to go and the
-   player soft-locks on arrival. Worldgen must not make the island literally 100% stone.
+3. **Keep the sand shoreline.** The island still needs its coastal sand ring, or the Dock (sand
+   tile + adjacent coast) has nowhere to go and the player soft-locks on arrival.
 4. **Trade routes become a hard prerequisite.** Island 2 is unplayable until the trade-route layer
    exists (step 6 in [Island Unlocks](island-unlocks.md)). This couples three things into one act-2
    feature — see "Build order" below.
 
-## Decision: the route carries planks, buildings cost stone
+## Decision: the route carries construction commodities
 
-Everything on island 2 costs something, and that something has to come from somewhere. Two models
-were considered:
+Building on island 2 costs wood and stone, and it has neither — so the trade route brings them in.
+This is the deliberate maximal-logistics version: the frontier is a pure extraction colony fed by
+the home breadbasket (the two-resource-class model in
+[Island Generation](island-generation.md) — *you trade stone exactly like wood*).
 
-| Model | Route carries | Feel |
-| --- | --- | --- |
-| A. Pervasive dependency | raw **wood**; buildings keep their wood costs | Every building waits on the import trickle. Maximum logistics pressure, but the early island-2 economy is hostage to a deliberately weak first route → risks feeling slow and grindy. |
-| **B. Gated progression (chosen)** | finished **planks**, for the boat | Island-2 buildings are **stone-costed** (built from local rock). The iron economy runs entirely on local stone / iron / coal — no import bottleneck on *operation*. The route's job is to deliver the planks for the **sailboat** that reaches ring 2. |
+The honest risk is a **cold-start grind**: a deliberately weak first route trickling in materials
+while the player waits to build anything. The fix is **generous bootstrap supplies** — a new
+island arrives with enough to build the Dock *and* the first essential building or two, so the
+route *scales* the colony rather than *starting* it. ([Island Unlocks](island-unlocks.md)'s
+bootstrap was "exactly the dock's materials"; bump it for this fuller dependency.)
 
-**Chosen: B.** It keeps "scarcity is a logistics problem, not a wall," makes the route the clear
-gate to the next ring, and avoids the trap where the intentionally weak first route makes the
-whole island feel like waiting. The first trade route teaches the mechanic by unblocking the
-**boat** (a satisfying payoff), not by drip-feeding the ability to function.
-
-Implication: re-cost the new island-2 buildings to be **stone-heavy** (little or no wood), so a
-treeless island can build its iron economy from what it has underfoot.
+Open lever: island 2's **third resource slot**. Leaving it at iron + coal keeps the colony fully
+import-dependent; adding **stone** makes it a gentler first colony (build locally, only import
+wood); adding **copper** makes it richer but a two-good import. See Open Questions.
 
 ## The Milestone Arc
 
@@ -135,7 +143,7 @@ completion state is global (see [`quest_manager.gd`](../scripts/quests/quest_man
 | # | Milestone | Do this | Unlocks |
 | --- | --- | --- | --- |
 | 1 | **Strike Iron** | Hand-mine ~5 iron ore (the discovery beat: walk up, mine by hand, mirroring the island-1 wood/stone intro) | Iron Mine, Coal Mine, Coal Generator — and fires the reframe line: *"This is ship-grade. The wreck back home — I could actually repair it."* |
-| 2 | **The Supply Line** | Build the Dock + establish your first **trade route** (home → island 2, carrying planks) | The trade-route tutorial, motivated diegetically by "this rock has no trees." |
+| 2 | **The Supply Line** | Build the Dock + establish your first **trade route** (home → island 2, carrying wood + stone) | The trade-route tutorial, motivated diegetically by "this rock has no trees and no quarry stone." |
 | 3 | **Light the Forge** | Build the iron + coal chain, forge N iron ingots | Smelter (proves the iron economy runs unattended on coal power) |
 | 4 | **Set Sail Again** | Build the **sailboat** (imported planks + local iron) | Reveals ring 2 |
 
@@ -161,8 +169,9 @@ This design couples three pieces into one act-2 feature, and they must land roug
 
 1. **Trade routes** — the unbuilt critical-path piece ([Island Unlocks](island-unlocks.md) step 6).
    Island 2 is unplayable without them.
-2. **Treeless-island worldgen** — an all-stone interior with a sand shoreline ring, plus iron-ore
-   and coal deposit nodes.
+2. **Island-2 biome profile + the generator refactor** — the profile-driven generator and the
+   STONE biome (iron + coal deposits, sand shoreline, no wood/stone resources) described in
+   [Island Generation](island-generation.md).
 3. **The iron/coal building set + milestones** — enum entries, four building definitions, the
    two-input smelter recipe, and the four-milestone arc above.
 
@@ -180,6 +189,8 @@ it just cannot be *reached* in normal play until (1) and (2) exist.
    cozy-mechanical (a stone kiln, not a smokestack tower).
 3. **How many iron ingots gate the sailboat?** Tune so the smelter is clearly worth building but
    island 2 stays a reasonable act-2 length, not a grind.
-4. **Does island 2 get a Quarry role?** Stone is abundant here, so the island-1 Quarry finally has
-   room to operate. Worth confirming stone is a *local building material* (decision B) rather than
-   an export, at least until later islands need it.
+4. **Island 2's third resource slot** — leave it at iron + coal (fully import-dependent), add
+   **stone** (gentler first colony: build locally, import only wood), or add **copper** (richer,
+   but import both wood and stone)? This sets how heavy the supply line is. *Undecided.*
+5. **Bootstrap generosity** — exactly how much a new island arrives with, so the cold-start isn't
+   a grind but the route still matters (see "Decision: the route carries construction commodities").

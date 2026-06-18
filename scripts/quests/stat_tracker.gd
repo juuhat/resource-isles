@@ -58,19 +58,8 @@ func lifetime_gathered(resource_type: int) -> int:
 
 
 func _resource_gathered_stat(resource_type: int) -> int:
-	match resource_type:
-		GameTypes.ResourceType.WOOD:
-			return GameTypes.Stat.WOOD_GATHERED
-		GameTypes.ResourceType.STONE:
-			return GameTypes.Stat.STONE_GATHERED
-		GameTypes.ResourceType.PLANKS:
-			return GameTypes.Stat.PLANKS_GATHERED
-		GameTypes.ResourceType.IRON_ORE:
-			return GameTypes.Stat.IRON_ORE_GATHERED
-		GameTypes.ResourceType.COAL:
-			return GameTypes.Stat.COAL_GATHERED
-		_:
-			return -1
+	var definition := ResourceDatabase.get_definition(resource_type)
+	return definition.gathered_stat if definition != null else -1
 
 
 # Records a building placement against the generic BUILDINGS_BUILT total and its

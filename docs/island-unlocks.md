@@ -4,9 +4,11 @@ Design notes for how the player discovers, reaches, and unlocks new islands in R
 Isles. This is direction, not implementation.
 
 See also: [Player Unit and Manual Gathering](player-unit-and-manual-gathering.md) for the
-robot and the "go there, do the thing" verb, and
+robot and the "go there, do the thing" verb,
 [Progression, Build Restrictions, and Power](progression-and-power.md) for how per-island
-economy is gated (space, adjacency, power).
+economy is gated (space, adjacency, power), and
+[Island Generation, Biomes, and Resources](island-generation.md) for how each island's terrain
+and resources are generated.
 
 ## The Core Question
 

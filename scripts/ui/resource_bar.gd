@@ -7,10 +7,6 @@ extends CanvasLayer
 # automatically — give them an icon below; the display name is derived from the enum key.
 
 const ResourceManagerScript := preload("res://scripts/resources/resource_manager.gd")
-const WOOD_ICON := preload("res://assets/icons/wood_log.png")
-const STONE_ICON := preload("res://assets/icons/stone.png")
-const PLANKS_ICON := preload("res://assets/icons/wood_plank.png")
-const COAL_ICON := preload("res://assets/icons/coal_ore.png")
 const POWER_ICON := preload("res://assets/icons/power.png")
 # Shown for any resource type without a dedicated icon yet (a dev nudge, not a final look).
 const FALLBACK_ICON := preload("res://assets/icons/building.png")
@@ -47,22 +43,13 @@ func _ready() -> void:
 	_refresh_all()
 
 
-# Icon per resource type. Types missing here still appear, with FALLBACK_ICON.
+# Icon per resource type, from the central ResourceDatabase. Types with no icon there
+# (or not in the catalog at all) still appear, with FALLBACK_ICON.
 func _resource_icon(resource_type: int) -> Texture2D:
-	match resource_type:
-		GameTypes.ResourceType.WOOD:
-			return WOOD_ICON
-		GameTypes.ResourceType.STONE:
-			return STONE_ICON
-		GameTypes.ResourceType.PLANKS:
-			return PLANKS_ICON
-		GameTypes.ResourceType.COAL:
-			return COAL_ICON
-		GameTypes.ResourceType.IRON_ORE:
-			# Placeholder: reuses the stone icon until iron art exists.
-			return STONE_ICON
-		_:
-			return FALLBACK_ICON
+	var definition := ResourceDatabase.get_definition(resource_type)
+	if definition == null or definition.icon == null:
+		return FALLBACK_ICON
+	return definition.icon
 
 
 func _build_ui() -> void:

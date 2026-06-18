@@ -50,6 +50,9 @@ var generator := IslandGeneratorScript.new()
 var renderer: IslandRenderer
 var camera_pivot: Node3D
 var camera: Camera3D
+# The world seed. Default 1 => every player gets the identical archipelago. Each island's own
+# seed is derived from this and its hex coord (see _island_seed), so a slot's layout is stable
+# across runs. Randomize this per-run later for varied worlds. See docs/island-generation.md.
 var seed_value := 1
 var zoom_step := 1.1
 # Camera orbits a pivot; zoom changes the pivot-to-camera distance and, with it, the pitch:
@@ -707,60 +710,71 @@ func _update_harvest(delta: float) -> void:
 		_harvest_accum -= HARVEST_INTERVAL
 		resource_manager.add_amount(harvest_resource_type, HARVEST_YIELD)
 		stat_tracker.record_resource_gained(harvest_resource_type, HARVEST_YIELD)
-		_spawn_floating_text(
+		_spawn_resource_floating_text(
 			renderer.get_cell_center(harvest_cell),
-			"+%d %s" % [HARVEST_YIELD, ResourceManager.get_display_name_for_type(harvest_resource_type)],
-			_resource_color(harvest_resource_type)
+			harvest_resource_type,
+			"+%d" % HARVEST_YIELD
 		)
 
 
 func _on_building_produced(anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
 	stat_tracker.record_resource_gained(resource_type, amount)
-	_spawn_floating_text(
+	_spawn_resource_floating_text(
 		renderer.get_cell_center(anchor_cell),
-		"+%d %s" % [amount, ResourceManager.get_display_name_for_type(resource_type)],
-		_resource_color(resource_type),
+		resource_type,
+		"+%d" % amount,
 		16
 	)
 
 
 func _on_fuel_consumed(anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
-	_spawn_floating_text(
+	_spawn_resource_floating_text(
 		renderer.get_cell_center(anchor_cell),
-		"-%d %s" % [amount, ResourceManager.get_display_name_for_type(resource_type)],
-		_resource_color(resource_type),
+		resource_type,
+		"-%d" % amount,
 		16
 	)
 
 
 func _on_input_consumed(anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
-	_spawn_floating_text(
+	_spawn_resource_floating_text(
 		renderer.get_cell_center(anchor_cell),
-		"-%d %s" % [amount, ResourceManager.get_display_name_for_type(resource_type)],
-		_resource_color(resource_type),
+		resource_type,
+		"-%d" % amount,
 		16
 	)
 
 
-func _spawn_floating_text(world_position: Vector3, text: String, color: Color, font_size := 22) -> void:
+func _spawn_floating_text(
+	world_position: Vector3,
+	text: String,
+	color: Color,
+	font_size := 22,
+	icon: Texture2D = null
+) -> void:
 	var floating := FloatingTextScript.new()
 	floating.text = text
 	floating.color = color
 	floating.font_size = font_size
+	floating.icon = icon
 	floating.position = world_position
 	add_child(floating)
 
 
+# Floating popup for a resource gain/loss: shows the resource icon next to a signed amount
+# (e.g. icon + "+3"), coloured per the central ResourceDatabase, instead of spelling out
+# the resource name.
+func _spawn_resource_floating_text(
+	world_position: Vector3, resource_type: int, signed_text: String, font_size := 22
+) -> void:
+	var definition := ResourceDatabase.get_definition(resource_type)
+	var icon: Texture2D = definition.icon if definition != null else null
+	_spawn_floating_text(world_position, signed_text, _resource_color(resource_type), font_size, icon)
+
+
 func _resource_color(resource_type: int) -> Color:
-	match resource_type:
-		GameTypes.ResourceType.WOOD:
-			return Color("#d79a4f")
-		GameTypes.ResourceType.STONE:
-			return Color("#cfcfd6")
-		GameTypes.ResourceType.PLANKS:
-			return Color("#e8c07a")
-		_:
-			return Color.WHITE
+	var definition := ResourceDatabase.get_definition(resource_type)
+	return definition.color if definition != null else Color.WHITE
 
 
 func _try_select_unit() -> bool:
@@ -832,19 +846,26 @@ func _enter_island(coord: Vector2i) -> void:
 
 
 func _generate_island_at(coord: Vector2i) -> void:
-	# The center slot (World 1) is the crash site with the starting wreck. It begins
-	# with no resources — the opening loop is scavenging the first wood by hand (see
-	# docs/progression-and-power.md). Other slots arrive with just enough to establish
-	# their first dock.
+	# The center slot (World 1) is the crash site with the starting wreck (STARTER biome). It
+	# begins with no resources — the opening loop is scavenging the first wood by hand (see
+	# docs/progression-and-power.md). Other slots are frontier biomes (currently STONE) and arrive
+	# with just enough to establish their first dock. The biome and per-island seed are both
+	# derived from the coord, so a slot's layout is intrinsic to where it is.
 	var is_starter := coord == WorldData.CENTER
-	var island := generator.generate_starter_island(seed_value, building_manager, is_starter)
-	seed_value += 1
+	var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord))
+	var island := generator.generate(profile, _island_seed(coord), building_manager)
 	if not is_starter:
 		_stock_bootstrap_supplies(island)
 		# Discovering any island beyond the starter is the "Rescue the Dog" beat — sailing
 		# out to a new island is what reunites the robot with its pet (see QuestCatalog).
 		stat_tracker.add(GameTypes.Stat.ISLANDS_REACHED, 1)
 	world.add_island(coord, island)
+
+
+# Per-slot seed: combines the world seed with the hex coord so each island is distinct yet
+# stable across runs (docs/island-generation.md).
+func _island_seed(coord: Vector2i) -> int:
+	return hash(Vector3i(coord.x, coord.y, seed_value))
 
 
 # A newly reached island arrives with exactly enough to build its first dock, which

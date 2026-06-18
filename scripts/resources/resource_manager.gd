@@ -51,12 +51,5 @@ func _on_inventory_changed(resource_type: int, amount: int) -> void:
 
 
 static func get_display_name_for_type(resource_type: int) -> String:
-	match resource_type:
-		GameTypes.ResourceType.WOOD:
-			return "Wood"
-		GameTypes.ResourceType.STONE:
-			return "Stone"
-		GameTypes.ResourceType.PLANKS:
-			return "Planks"
-		_:
-			return "Unknown"
+	var definition := ResourceDatabase.get_definition(resource_type)
+	return definition.display_name if definition != null else "Unknown"
