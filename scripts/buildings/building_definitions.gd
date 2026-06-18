@@ -7,6 +7,7 @@ extends RefCounted
 
 const BuildingDefinitionScript := preload("res://scripts/buildings/building_definition.gd")
 const CRASHED_SPACESHIP_TEXTURE := preload("res://assets/buildings/crashed_spaceship.png")
+const CRASHED_SPACESHIP_MODEL := preload("res://assets/models/buildings/crashed_spaceship.glb")
 const LOGGER_CAMP_TEXTURE := preload("res://assets/buildings/logger_camp.png")
 const QUARRY_TEXTURE := preload("res://assets/buildings/quarry.png")
 const BURNER_GENERATOR_TEXTURE := preload("res://assets/buildings/burner_generator.png")
@@ -28,9 +29,14 @@ static func build_all() -> Array[BuildingDefinition]:
 			GameTypes.ResourceType.WOOD: 8,
 			GameTypes.ResourceType.STONE: 4,
 		},
-		GameTypes.Terrain.GRASS
+		GameTypes.Terrain.GRASS,
+		Vector2i(1, 1),
+		Vector2(1.6, 1.6),
+		Vector2.ZERO
 	)
 	crashed_spaceship.player_buildable = false
+	crashed_spaceship.model = CRASHED_SPACESHIP_MODEL
+	crashed_spaceship.visual_rotation_y = 35.0
 	definitions.append(crashed_spaceship)
 
 	var logger_camp := BuildingDefinitionScript.new(

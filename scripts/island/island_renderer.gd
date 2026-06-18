@@ -300,6 +300,10 @@ func _rebuild_terrain() -> void:
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
 			var terrain_type := island.get_terrain(cell)
+			# Deep ocean needs no seabed prism — the translucent water surface plane covers
+			# it. Only the shallow coast shelf and land are built as tiles.
+			if terrain_type == GameTypes.Terrain.WATER:
+				continue
 			var is_water := GameTypes.is_water(terrain_type)
 
 			var tile := MeshInstance3D.new()
@@ -570,7 +574,7 @@ func _spawn_resource(cell: Vector2i, resource_node_type: int) -> void:
 		return
 
 	if definition.model != null:
-		_spawn_model(definition.model, [cell], definition.visual_size_tiles, definition.visual_offset_tiles)
+		_spawn_model(definition.model, [cell], definition.visual_size_tiles, definition.visual_offset_tiles, definition.visual_rotation_y)
 		return
 
 	if definition.texture == null:
@@ -582,15 +586,17 @@ func _spawn_resource(cell: Vector2i, resource_node_type: int) -> void:
 	_objects_root.add_child(sprite)
 
 
-# Instances a 3D model on a (multi-cell) footprint: auto-scaled so its width spans
-# size_tiles, and lifted so its lowest point rests on the ground.
-func _spawn_model(scene: PackedScene, cells: Array, size_tiles: Vector2, offset_tiles: Vector2) -> void:
+# Instances a 3D model on a (multi-cell) footprint: rotated to its heading, auto-scaled so
+# its width spans size_tiles, and lifted so its lowest point rests on the ground.
+func _spawn_model(scene: PackedScene, cells: Array, size_tiles: Vector2, offset_tiles: Vector2, rotation_y_degrees: float = 0.0) -> void:
 	var model := scene.instantiate() as Node3D
 	if model == null:
 		return
 
-	# Added at origin first so its untransformed bounds read as native model space.
+	# Added at origin first so its untransformed bounds read as native model space. Rotate
+	# before measuring so the auto-scale fits the rotated footprint.
 	_objects_root.add_child(model)
+	model.rotation.y = deg_to_rad(rotation_y_degrees)
 	var bounds := _instance_aabb(model)
 	var native_width := maxf(bounds.size.x, bounds.size.z)
 	if native_width <= 0.0:
@@ -636,12 +642,19 @@ func _spawn_item(cell: Vector2i, item_type: int) -> void:
 
 func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 	var definition := building_manager.get_definition(building_type)
-	if definition == null or definition.texture == null:
+	if definition == null:
 		return
 
 	var footprint := island.get_building_footprint_cells(anchor_cell)
 	if footprint.is_empty():
 		footprint = [anchor_cell]
+
+	if definition.model != null:
+		_spawn_model(definition.model, footprint, definition.visual_size_tiles, definition.visual_offset_tiles, definition.visual_rotation_y)
+		return
+
+	if definition.texture == null:
+		return
 
 	var sprite := _make_billboard(definition.texture, definition.visual_size_tiles, definition.visual_offset_tiles)
 	sprite.position = _ground_anchor(footprint) + _offset_xz(definition.visual_offset_tiles)

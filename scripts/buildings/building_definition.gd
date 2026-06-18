@@ -5,10 +5,14 @@ var id: int
 var display_name: String
 var category: int
 var texture: Texture2D
+# Optional 3D model. When set, the renderer instances this instead of the flat texture.
+var model: PackedScene = null
 var cost: Dictionary
 var footprint_size: Vector2i
 var visual_size_tiles: Vector2
 var visual_offset_tiles: Vector2
+# Heading (degrees) applied around the Y axis when instancing a 3D model.
+var visual_rotation_y: float = 0.0
 
 # Whether the player can place this from the build menu. False for buildings that only
 # exist via worldgen or story (e.g. the crashed spaceship) — you don't build those.

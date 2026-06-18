@@ -49,11 +49,15 @@ var camera_pivot: Node3D
 var camera: Camera3D
 var seed_value := 1
 var zoom_step := 1.1
-# Camera orbits a pivot at a fixed pitch; zoom changes the pivot-to-camera distance.
+# Camera orbits a pivot; zoom changes the pivot-to-camera distance and, with it, the pitch:
+# close in we get a low 45° hero angle, zoomed out we tilt up toward a top-down strategic view.
 var camera_distance := 800.0
 var camera_pitch_degrees := 45.0
 var min_distance := 300.0
 var max_distance := 1200.0
+# Pitch tied to zoom: min_pitch at closest zoom, max_pitch at farthest (strategic) zoom.
+var min_pitch_degrees := 45.0
+var max_pitch_degrees := 65.0
 var is_panning := false
 var is_left_panning := false
 var left_button_down := false
@@ -299,7 +303,7 @@ func _setup_camera_and_light() -> void:
 	camera.far = 20000.0
 	camera.current = true
 	camera_pivot.add_child(camera)
-	_update_camera()
+	_set_distance(camera_distance)
 
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
@@ -327,8 +331,18 @@ func _update_camera() -> void:
 	camera.rotation = Vector3(-pitch, 0.0, 0.0)
 
 
+# Pitch as a function of zoom: 0 at min_distance (closest) → 1 at max_distance (farthest),
+# lerped between min_pitch and max_pitch so zooming out eases into the top-down strategic view.
+func _pitch_for_distance(distance: float) -> float:
+	var t := 0.0 if max_distance <= min_distance else clampf(
+		(distance - min_distance) / (max_distance - min_distance), 0.0, 1.0
+	)
+	return lerpf(min_pitch_degrees, max_pitch_degrees, t)
+
+
 func _set_distance(new_distance: float) -> void:
 	camera_distance = clampf(new_distance, min_distance, max_distance)
+	camera_pitch_degrees = _pitch_for_distance(camera_distance)
 	_update_camera()
 
 

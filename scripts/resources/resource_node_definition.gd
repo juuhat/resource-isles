@@ -9,6 +9,8 @@ var model: PackedScene = null
 var footprint_size: Vector2i
 var visual_size_tiles: Vector2
 var visual_offset_tiles: Vector2
+# Heading (degrees) applied around the Y axis when instancing a 3D model.
+var visual_rotation_y: float = 0.0
 var extracted_resource_type: int
 # One-time yield when the player manually scavenges this node.
 var scavenge_amount: int = 1
