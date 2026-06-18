@@ -50,13 +50,13 @@ var camera: Camera3D
 var seed_value := 1
 var zoom_step := 1.1
 # Camera orbits a pivot; zoom changes the pivot-to-camera distance and, with it, the pitch:
-# close in we get a low 45° hero angle, zoomed out we tilt up toward a top-down strategic view.
+# close in we get a low 50° hero angle, zoomed out we tilt up toward a top-down strategic view.
 var camera_distance := 800.0
-var camera_pitch_degrees := 45.0
+var camera_pitch_degrees := 50.0
 var min_distance := 300.0
 var max_distance := 1200.0
 # Pitch tied to zoom: min_pitch at closest zoom, max_pitch at farthest (strategic) zoom.
-var min_pitch_degrees := 45.0
+var min_pitch_degrees := 50.0
 var max_pitch_degrees := 65.0
 var is_panning := false
 var is_left_panning := false

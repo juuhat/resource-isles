@@ -9,6 +9,9 @@ extends Label3D
 var color := Color.WHITE
 var duration := 0.9
 var rise := 80.0
+# World units per font pixel. Label3D defaults to 0.005, which is microscopic at this
+# scene's scale (a hex tile is ~128 units wide), so the popup needs a far larger value.
+var pixel_world_size := 1.5
 
 var _elapsed := 0.0
 var _start_y := 0.0
@@ -16,6 +19,7 @@ var _start_y := 0.0
 
 func _ready() -> void:
 	_start_y = position.y
+	pixel_size = pixel_world_size
 	billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	no_depth_test = true
 	modulate = color
