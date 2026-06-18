@@ -30,9 +30,17 @@ const BOAT_SIZE_TILES := Vector2(0.8, 0.8)
 const SAND_COLOR := Color("#e3bc83")
 const GRASS_COLOR := Color("#9ea131")
 const STONE_COLOR := Color("#8e8791")
-const SHALLOW_WATER_COLOR := Color("#14ada3")
-const DEEP_WATER_COLOR := Color("#064c56")
+const SHALLOW_WATER_COLOR := Color("#7abce5")
+const DEEP_WATER_COLOR := Color("#1979c6")
 const SHORE_FOAM_COLOR := Color("#ffffff0a")
+# Single flat translucent surface tint; depth comes from the seabed showing through.
+const WATER_SURFACE_COLOR := Color("#2d62a5")
+
+# Seabed ground tones (Minecraft-style): the floor under water is real ground, not blue —
+# the blue comes from the translucent surface plane above it. Coast is a sandy shelf, the
+# open-ocean floor is a darker, muddier sand.
+const SEABED_COAST_COLOR := Color("#8a7a52")
+const SEABED_OCEAN_COLOR := Color("#8a7a52")
 
 # Prism top heights per terrain (world units). Land sits above water for a layered
 # island silhouette; the differences are small so unit movement reads as gentle steps.
@@ -40,6 +48,13 @@ const WATER_TOP_Y := 6.0
 const SAND_TOP_Y := 14.0
 const GRASS_TOP_Y := 20.0
 const STONE_TOP_Y := 26.0
+
+# Water cells are real (dropped) seabed prisms below the translucent surface plane, so the
+# map reads as a 3D basin: a sandy coast shelf just under the water line, the open-ocean
+# floor deeper. WATER_FLOOR_Y is the shared bottom the seabed walls fall to.
+const COAST_SEABED_TOP_Y := 3.0
+const OCEAN_SEABED_TOP_Y := -2.0
+const WATER_FLOOR_Y := -8.0
 
 @export var cell_size := Vector2(128.0, 128.0)
 @export var show_grid := true
@@ -61,6 +76,7 @@ var _water_material: ShaderMaterial
 var _prism_mesh: ArrayMesh
 var _cap_mesh: ArrayMesh
 var _terrain_materials := {}
+var _seabed_materials := {}
 var _highlight_materials := {}
 # cell -> the terrain MeshInstance3D for that cell, so hover can recolor it in place.
 var _tiles := {}
@@ -282,22 +298,32 @@ func _rebuild_terrain() -> void:
 		for x in range(island.width):
 			var cell := Vector2i(x, y)
 			var terrain_type := island.get_terrain(cell)
-			if GameTypes.is_water(terrain_type):
-				continue
+			var is_water := GameTypes.is_water(terrain_type)
+
 			var tile := MeshInstance3D.new()
 			tile.mesh = _prism_mesh
-			tile.material_override = _tile_material(terrain_type)
+			# Land caps use their terrain colour; the submerged seabed uses sandy ground so
+			# the blue reads as the translucent water above it, not painted-on floor.
+			tile.material_override = _seabed_material(terrain_type) if is_water else _tile_material(terrain_type)
 			# The prism mesh is centered on its origin, so place it at the cell center (not
 			# the top-left anchor) to line up with units, objects, and mouse picking.
 			var center := HexGridScript.cell_center_3d(cell, cell_size)
-			tile.position = Vector3(center.x, 0.0, center.z)
-			tile.scale = Vector3(1.0, _terrain_top_y(terrain_type), 1.0)
+			if is_water:
+				# Seabed prism: top dropped below the water surface, walls falling to the
+				# shared floor — visible through the translucent surface plane as depth.
+				var seabed_top := _water_seabed_top_y(terrain_type)
+				tile.position = Vector3(center.x, WATER_FLOOR_Y, center.z)
+				tile.scale = Vector3(1.0, seabed_top - WATER_FLOOR_Y, 1.0)
+			else:
+				tile.position = Vector3(center.x, 0.0, center.z)
+				tile.scale = Vector3(1.0, _terrain_top_y(terrain_type), 1.0)
 			_terrain_root.add_child(tile)
-			_tiles[cell] = tile
+			# Only land tiles are hover targets; the seabed is purely visual.
+			if not is_water:
+				_tiles[cell] = tile
 
 
-# Material for a land tile. Water cells are represented by the animated ocean plane instead
-# of opaque hex prisms, which keeps the surface continuous and avoids shader z-fighting.
+# Flat colour for a land cap (grass/sand/stone). The submerged seabed uses _seabed_material.
 func _tile_material(terrain_type: int) -> Material:
 	return _terrain_material(terrain_type)
 
@@ -313,6 +339,20 @@ func _terrain_material(terrain_type: int) -> StandardMaterial3D:
 	# code-generated prism, cheap for opaque terrain.
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_terrain_materials[terrain_type] = material
+	return material
+
+
+# Sandy ground for a submerged water cell. Coast is a lighter shelf, open ocean a darker
+# floor; the blue tint comes from the translucent surface plane drawn above, not from here.
+func _seabed_material(terrain_type: int) -> StandardMaterial3D:
+	if _seabed_materials.has(terrain_type):
+		return _seabed_materials[terrain_type]
+
+	var material := StandardMaterial3D.new()
+	material.albedo_color = SEABED_COAST_COLOR if terrain_type == GameTypes.Terrain.COAST else SEABED_OCEAN_COLOR
+	material.roughness = 1.0
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_seabed_materials[terrain_type] = material
 	return material
 
 
@@ -344,19 +384,20 @@ func _rebuild_water() -> void:
 	_water_instance.visible = true
 
 
-# The Roystan toon water material: scrolling, distorted foam and a shallow/deep gradient,
-# tuned to the island's turquoise palette. Foam and gradient are driven by the baked
-# shore-distance field (set per-island in _rebuild_water), not the depth buffer.
+# The Roystan toon water material: one flat translucent tint plus scrolling, distorted
+# shoreline foam. The foam still uses the baked shore-distance field (set per-island in
+# _rebuild_water); depth perception comes from the seabed beneath, not a color gradient.
 func _make_toon_water_material() -> ShaderMaterial:
 	var material := ShaderMaterial.new()
 	material.shader = WATER_TOON_SHADER
 	material.set_shader_parameter("surfaceNoise", WATER_SURFACE_NOISE)
 	material.set_shader_parameter("distortNoise", WATER_DISTORT_NOISE)
-	material.set_shader_parameter("depth_gradient_shallow", SHALLOW_WATER_COLOR)
-	material.set_shader_parameter("depth_gradient_deep", DEEP_WATER_COLOR)
+	# One flat translucent tint — no shallow/deep gradient. Depth is read from the sandy
+	# seabed showing through: lighter coast shelf vs darker ocean floor. Alpha controls how
+	# much floor is visible (toward 1.0 hides it, lower reveals more).
+	material.set_shader_parameter("water_color", Color(WATER_SURFACE_COLOR, 1.0))
 	material.set_shader_parameter("foam_color", SHORE_FOAM_COLOR)
-	material.set_shader_parameter("deep_start", 0.7)
-	material.set_shader_parameter("foam_distance", 0.12)
+	material.set_shader_parameter("foam_distance", 0.03)
 	material.set_shader_parameter("surface_noise_cutoff", 0.777)
 	material.set_shader_parameter("surface_distortion_amount", 0.27)
 	material.set_shader_parameter("surface_noise_scale", Vector2(0.01, 0.04))
@@ -764,6 +805,12 @@ func _terrain_top_y(terrain_type: int) -> float:
 			return STONE_TOP_Y
 		_:
 			return WATER_TOP_Y
+
+
+# Top height of a water cell's seabed prism: coast sits just under the surface, open ocean
+# drops deeper, so the basin gets shallower toward the shore.
+func _water_seabed_top_y(terrain_type: int) -> float:
+	return COAST_SEABED_TOP_Y if terrain_type == GameTypes.Terrain.COAST else OCEAN_SEABED_TOP_Y
 
 
 func _color_for_terrain(terrain_type: int) -> Color:

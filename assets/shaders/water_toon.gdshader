@@ -20,11 +20,12 @@ uniform sampler2D shore_distance : filter_linear;
 uniform vec2 grid_min;
 uniform vec2 grid_size;
 
-uniform vec4 depth_gradient_shallow : source_color = vec4(0.325, 0.807, 0.971, 1.0);
-uniform vec4 depth_gradient_deep : source_color = vec4(0.086, 0.407, 0.6, 1.0);
+// A single flat surface tint. There is no shallow/deep gradient — the sense of depth comes
+// entirely from the sandy seabed (lighter coast shelf, darker ocean floor) showing through
+// this translucent color. Keep alpha < 1 so the floor is visible.
+uniform vec4 water_color : source_color = vec4(0.48, 0.74, 0.90, 0.6);
 uniform vec4 foam_color : source_color = vec4(1.0);
 
-uniform float deep_start : hint_range(0.0, 1.0) = 0.7;     // shore value that reads as fully deep
 uniform float foam_distance : hint_range(0.0, 1.0) = 0.12; // how far from shore foam reaches
 uniform float surface_noise_cutoff : hint_range(0.0, 1.0) = 0.777;
 uniform float surface_distortion_amount : hint_range(0.0, 1.0) = 0.27;
@@ -74,8 +75,7 @@ void fragment() {
 		surfaceNoiseSample
 	);
 
-	float waterDepth = smoothstep(0.0, deep_start, shore);
-	vec4 waterColor = mix(depth_gradient_shallow, depth_gradient_deep, waterDepth);
+	vec4 waterColor = water_color;
 
 	vec4 surfaceNoiseColor = foam_color;
 	surfaceNoiseColor.a *= surfaceNoiseAmount;
