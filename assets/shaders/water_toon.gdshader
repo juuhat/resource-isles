@@ -30,10 +30,11 @@ uniform float surface_noise_cutoff : hint_range(0.0, 1.0) = 0.777;
 uniform float surface_distortion_amount : hint_range(0.0, 1.0) = 0.27;
 
 // Noise is sampled in world space (the plane is far larger than a UV tile), so these are
-// world-space frequencies rather than the original's per-mesh UV tiling.
-uniform vec2 surface_noise_scale = vec2(0.01, 0.04);
-uniform float distort_noise_scale = 0.01;
-uniform vec2 surface_noise_scroll = vec2(0.03, 0.03);
+// world-space frequencies rather than the original's per-mesh UV tiling. Keep the scale well
+// below 1/tile_size (~1/128) and roughly isotropic, or the foam repeats per hex tile.
+uniform vec2 surface_noise_scale = vec2(0.0028, 0.0034);
+uniform float distort_noise_scale = 0.0035;
+uniform vec2 surface_noise_scroll = vec2(0.012, 0.009);
 
 varying vec3 world_pos;
 
