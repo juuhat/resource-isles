@@ -28,6 +28,20 @@ same-island wiring puzzle.
 
 ## Recommended Progression
 
+Current chosen ladder:
+
+```text
+Ring 0: Robot hand-power + Wood Burner
+Ring 1: Coastal Windmill
+Ring 2: Coal Generator
+Ring 3: Oil
+Late:   Nuclear
+```
+
+The intent is to keep power tied to the island/resource-node progression without turning
+same-island power into a wiring puzzle. Power remains an island-wide capacity budget, while each
+new source adds a different placement, fuel, or logistics pressure.
+
 ### Tier 0: Starter Power
 
 Small, crude, and local.
@@ -50,7 +64,7 @@ Small, crude, and local.
     [first-island-progression.md](first-island-progression.md).
 
 - **Burner Generator (implemented)**
-  - Consumes Wood or Charcoal.
+  - Consumes Wood.
   - Reliable starter power; the first *automatic* generator — the upgrade from the manual wheel.
   - Teaches that buildings need MW.
 
@@ -59,55 +73,82 @@ Small, crude, and local.
   - Tiny output, cheap cost.
   - Largely redundant now that the robot itself is the ultra-soft opening power step.
 
-### Tier 1: Cozy Mechanical Renewables
+### Tier 1: Coastal Mechanical Renewables
 
 Low output, low maintenance, strong fit for the island mood.
 
-- **Windmill**
+- **Coastal Windmill (chosen for ring 1)**
   - No fuel.
-  - Better on coast, hills, exposed grass, or tiles with few adjacent blockers.
-  - Can be steady for simplicity, or variable later.
+  - Requires a land tile adjacent to Coast.
+  - Makes shoreline matter before the game has many water buildings beyond the Dock.
+  - Generates modest, steady baseline power so treeless islands are not forced immediately into
+    fuel power.
+
+- **Inland Windmill**
+  - Alternative if later biomes need non-coastal wind.
+  - Better on hills, exposed grass, or tiles with few adjacent blockers.
+  - Held as a variant; the coastal version is the current fit for small islands.
 
 - **Waterwheel**
   - Requires water adjacency.
   - Reliable low power.
   - Strong cozy identity and good placement puzzle.
+  - Deprioritized for now: it reads more river/valley than small-island.
 
 - **Small Solar Panel**
   - No fuel.
   - Needs open land.
   - Best when paired with batteries if day/night or weather exists.
+  - Good candidate to revisit, but not currently on the main ladder; it risks competing with the
+    cleaner early identity of coastal wind.
 
-### Tier 2: Storage And Reliable Fuel
+### Tier 2: Reliable Fuel
 
 This tier creates a clean-vs-compact tradeoff.
 
-- **Battery Bank**
-  - Stores surplus renewable power.
-  - Smooths wind/solar if variability is implemented.
-  - Consumes space but no fuel.
-
-- **Coal Plant**
+- **Coal Generator (chosen for ring 2)**
   - High reliable output.
   - Requires Coal logistics.
-  - More industrial; use sparingly if the cozy tone matters.
-
-- **Oil Generator**
-  - Compact and strong.
-  - Requires Oil or Refined Fuel.
-  - Good for inter-island trade pressure.
+  - Coal should arrive after the first coastal renewable, so it feels like a stronger but dirtier
+    throughput answer rather than the first non-wood solution.
+  - Best when coal competes with another use, such as smelting, so fuel power has an opportunity
+    cost.
 
 - **Steam Plant**
   - Burns Wood, Coal, Oil, or Fuel depending on tech tier.
   - May require water adjacency.
   - Flexible bridge from early to midgame power.
+  - Alternative wrapper for coal power if the building fantasy wants boilers instead of a direct
+    generator.
+
+- **Battery Bank**
+  - Stores surplus renewable power.
+  - Smooths wind/solar if variability is implemented.
+  - Consumes space but no fuel.
+  - Documented as an option, but not currently on the main ladder. Add when variable generation
+    exists; otherwise it is UI/system weight without much payoff.
+
+### Tier 3: Dense Fuel And Special Island Power
+
+- **Oil Generator / Gas Turbine (chosen for ring 3)**
+  - Compact and strong.
+  - Requires Oil or Refined Fuel.
+  - Good for inter-island trade pressure and boat/vehicle fuel.
+  - Should not just be "coal but later"; tie it to mobility and refined-fuel logistics.
+
+- **Oil Seep / Offshore Oil Well**
+  - Best node/feature form for small islands.
+  - A land Oil Seep is the simple version; Offshore Oil makes the coastline/water layer matter
+    more once the player has the infrastructure for it.
 
 - **Biomass Plant**
   - Consumes Wood, crops, or organic waste.
   - Renewable but logistics-heavy.
   - Fits the cozy/sustainable lane better than coal.
+  - Alternative to coal/oil if a future island adds `KELP`, `ALGAE`, `PEAT`, or other organic
+    nodes. Not on the current main ladder.
 
-### Tier 3: Special Island Power
+### Other Special Island Power
 
 Terrain-gated sources that make exploration valuable.
 
@@ -120,6 +161,8 @@ Terrain-gated sources that make exploration valuable.
   - Requires coast.
   - Reliable or rhythmic output.
   - Good island-themed alternative to fossil power.
+  - Strong future candidate because it uses the same shoreline economy as docks and coastal
+    windmills. Held back for now so ring 1 stays readable.
 
 - **Wave Generator**
   - Requires coast or offshore placement.
@@ -135,7 +178,7 @@ Terrain-gated sources that make exploration valuable.
   - High daytime output.
   - Large footprint makes it a serious space decision.
 
-### Tier 4: Late Game Dense Power
+### Late Game Dense Power
 
 Expensive, compact, and supply-chain-heavy.
 
@@ -144,7 +187,7 @@ Expensive, compact, and supply-chain-heavy.
   - Consumes Refined Fuel or Natural Gas.
   - Strong backup for renewable-heavy islands.
 
-- **Nuclear Reactor**
+- **Nuclear Reactor (chosen for late game)**
   - Huge output.
   - Requires Uranium, Water, and advanced materials.
   - Optional waste/heat management if the game wants more friction.
@@ -215,11 +258,22 @@ Expensive, compact, and supply-chain-heavy.
 The strongest fit is:
 
 ```text
-Robot (hand-power) -> Burner Generator -> Windmill -> Waterwheel -> Solar + Battery -> Biomass/Fuel -> Geothermal/Tidal -> Nuclear/Fusion
+Robot hand-power -> Wood Burner -> Coastal Windmill -> Coal Generator -> Oil -> Nuclear
 ```
 
-This path keeps the early game cozy and readable, makes midgame logistics matter, and gives
-new islands a reason to exist beyond more space.
+This path keeps the early game cozy and readable, makes the shoreline useful early, saves fossil
+fuels for later resource-node progression, and gives late islands a reason to exist beyond more
+space.
+
+Alternatives intentionally kept on the shelf:
+
+- **Solar + Battery**: good small-island fit, but better once day/night, weather, or variable
+  generation exists.
+- **Waterwheel**: cozy, but less island-flavored than coastal wind.
+- **Biomass**: good if future islands add organic coastal/wetland nodes such as kelp, algae, or
+  peat.
+- **Tidal / Wave / Geothermal**: excellent special-island power, but not part of the current main
+  spine.
 
 ## First Implementation Slice
 

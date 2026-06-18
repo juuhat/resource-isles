@@ -7,7 +7,9 @@ the world. This is direction; parts propose a refactor of the current
 
 See also: [Island Unlocks](island-unlocks.md) for the rings / boat tiers / trade-route bootstrap,
 [Second Island Progression](second-island-progression.md) for the first concrete frontier biome,
-and [Progression, Build Restrictions, and Power](progression-and-power.md) for placement gating.
+[Progression, Build Restrictions, and Power](progression-and-power.md) for placement gating, and
+[Island Visual Variety](island-visual-variety.md) for making islands look distinct without large
+amounts of bespoke art.
 
 ## The Core Principle: contract vs. expression
 
@@ -74,6 +76,20 @@ network, and it only exists because **nothing is guaranteed on every island.**
 
 > `sand` is on every beach, so "sand → glass" could be a *universal* secondary the player can
 > always set up, rather than a ring-locked deposit. Held in reserve.
+
+Current intended power/resource-node ladder:
+
+| Ring | New resources / features this tier | Power beat | Notes |
+| --- | --- | --- | --- |
+| 0 | wood, stone | Robot hand-power + Wood Burner | Home breadbasket - the construction commodities, at their source. |
+| 1 | iron, copper? + coast as a build feature | Coastal Windmill | First frontier tier. Shoreline becomes useful beyond the Dock without introducing fuel logistics yet. |
+| 2 | coal | Coal Generator | Reliable fuel power arrives after coastal wind; coal should compete with smelting/industry so power has an opportunity cost. |
+| 3 | oil / oil seep / offshore oil | Oil Generator or Gas Turbine | Dense, logistics-heavy power; also a natural boat/vehicle fuel tier. |
+| Late | uranium / reactor core / rare advanced material | Nuclear Reactor | Compact endgame power tied to rare nodes and advanced materials. |
+
+The live first frontier profile currently uses `IRON_ORE + COAL + STONE` as a practical early test
+biome; if the chosen ladder sticks, coal moves out to ring 2 and the ring-1 frontier becomes more
+about iron/copper plus coastal wind.
 
 ### Three resources per island (small islands, tight identity)
 
@@ -175,5 +191,5 @@ never enough to break a critical-path resource.
    terrain purely cosmetic for now?
 3. **`world_seed` storage:** confirm it is saved per-world so the later per-run-random toggle is a
    clean drop-in.
-4. **Ring 1 third resource:** `copper` (classic iron/coal/copper trio) vs. holding ring 1 to
-   iron/coal until a second production line is designed.
+4. **Ring 1 third resource:** `copper` vs. stone vs. no third specialty. Coal is now penciled in
+   for ring 2 if the chosen power ladder holds.

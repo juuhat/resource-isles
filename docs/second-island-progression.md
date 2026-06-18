@@ -1,5 +1,11 @@
 # Second Island Progression
 
+> **Current power-ladder note:** This document predates the newer chosen power spine:
+> `Ring 0 Robot + Wood Burner -> Ring 1 Coastal Windmill -> Ring 2 Coal Generator -> Ring 3 Oil -> Late Nuclear`.
+> It still describes the older ring-1 iron+coal colony. Treat the coal-specific parts below as
+> the ring-2 fuel-power plan unless/until the second-island arc is rewritten around coastal
+> wind and non-coal frontier resources.
+
 Design notes for the player's **second** island in Resource Isles — the first stop off the
 starter rock (ring 1, rowboat range). This is direction, not implementation. Where island 1
 teaches *"you are the economy,"* island 2 teaches **automation, power pressure, and the first

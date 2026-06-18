@@ -213,6 +213,7 @@ Potential systems for the game:
 - Power progression through windmills, solar, coal or oil generators, and possible late-game nuclear power
 - Inter-island transport with ships, pipes, power cables, or other logistics networks
 - Simple economy, upgrades, or progression goals
+- Postgame "one more turn" optimization and leaderboard-style records (see `docs/postgame-leaderboards.md`)
 - UI for inventory, building selection, and island management
 
 ## Development Notes
