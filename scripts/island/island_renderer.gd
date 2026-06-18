@@ -12,15 +12,12 @@ extends Node3D
 # try_place_hovered_building(), get_hovered_building_type(), hovered_cell, cell_size.
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
-const WATER_SHADER := preload("res://assets/shaders/water.gdshader")
-const WATER_DEPTH_SHADER := preload("res://assets/shaders/water_depth.gdshader")
-const WATER_LOWPOLY_SHADER := preload("res://assets/shaders/water_lowpoly.gdshader")
+# Roystan toon water (see assets/shaders/water_toon.gdshader): a transparent animated
+# plane that derives shallow tint and shoreline foam from the scene depth buffer.
+const WATER_TOON_SHADER := preload("res://assets/shaders/water_toon.gdshader")
+const WATER_SURFACE_NOISE := preload("res://assets/shaders/water_toon/PerlinNoise.png")
+const WATER_DISTORT_NOISE := preload("res://assets/shaders/water_toon/WaterDistortion.png")
 const ROWBOAT_TEXTURE := preload("res://assets/vehicles/rowboat.png")
-
-# Two interchangeable water looks. STYLIZED_RING is the default mobile-map water: an opaque
-# animated plane plus generated shoreline foam. DEPTH_FRESNEL is kept for comparison, but
-# can be fragile on mobile because it depends on transparent depth-buffer reads.
-enum WaterStyle { STYLIZED_RING, DEPTH_FRESNEL }
 
 const ITEM_TEXTURES := {
 	GameTypes.ItemType.AXE: preload("res://assets/icons/axe.png"),
@@ -34,7 +31,6 @@ const SAND_COLOR := Color("#e3bc83")
 const GRASS_COLOR := Color("#9ea131")
 const STONE_COLOR := Color("#8e8791")
 const SHALLOW_WATER_COLOR := Color("#14ada3")
-const MID_WATER_COLOR := Color("#0d7f85")
 const DEEP_WATER_COLOR := Color("#064c56")
 const SHORE_FOAM_COLOR := Color("#ecefcf")
 
@@ -47,7 +43,6 @@ const STONE_TOP_Y := 26.0
 
 @export var cell_size := Vector2(128.0, 128.0)
 @export var show_grid := true
-@export var water_style: WaterStyle = WaterStyle.STYLIZED_RING
 
 var island: IslandData
 var resource_node_database: ResourceNodeDatabase
@@ -66,7 +61,6 @@ var _water_material: ShaderMaterial
 var _prism_mesh: ArrayMesh
 var _cap_mesh: ArrayMesh
 var _terrain_materials := {}
-var _water_tile_materials := {}
 var _highlight_materials := {}
 # cell -> the terrain MeshInstance3D for that cell, so hover can recolor it in place.
 var _tiles := {}
@@ -97,8 +91,9 @@ func _ready() -> void:
 	_water_instance = MeshInstance3D.new()
 	_water_instance.name = "Water"
 	_water_instance.visible = false
+	_water_material = _make_toon_water_material()
+	_water_instance.material_override = _water_material
 	add_child(_water_instance)
-	_apply_water_style()
 
 
 func setup(new_resource_node_database: ResourceNodeDatabase, new_building_manager: BuildingManager) -> void:
@@ -321,39 +316,11 @@ func _terrain_material(terrain_type: int) -> StandardMaterial3D:
 	return material
 
 
-# Shared low-poly water material per water type — coast gets the shallow tint and calmer
-# waves, ocean the deep tint. Surface height tells the shader which verts are the surface.
-func _water_tile_material(terrain_type: int) -> ShaderMaterial:
-	if _water_tile_materials.has(terrain_type):
-		return _water_tile_materials[terrain_type]
-
-	var is_coast := terrain_type == GameTypes.Terrain.COAST
-	var material := ShaderMaterial.new()
-	material.shader = WATER_LOWPOLY_SHADER
-	material.set_shader_parameter("base_color", SHALLOW_WATER_COLOR if is_coast else DEEP_WATER_COLOR)
-	material.set_shader_parameter("surface_y", WATER_TOP_Y)
-	material.set_shader_parameter("wave_height", 0.8 if is_coast else 1.5)
-	_water_tile_materials[terrain_type] = material
-	return material
-
-
 # --- Water ---
 
-# Swap the water look at runtime (STYLIZED_RING <-> DEPTH_FRESNEL), rebuilding the material
-# and the plane (the depth shader needs a subdivided plane for its vertex ripple).
-func set_water_style(style: WaterStyle) -> void:
-	water_style = style
-	_apply_water_style()
-	_rebuild_water()
-
-
-func _apply_water_style() -> void:
-	_water_material = _make_depth_water_material() if water_style == WaterStyle.DEPTH_FRESNEL else _make_stylized_water_material()
-	if _water_instance != null:
-		_water_instance.material_override = _water_material
-
-
-# A single horizontal plane covering the map (plus open-ocean margin) at water height.
+# A single horizontal plane covering the map (plus open-ocean margin) at water height. The
+# shader reads a baked shore-distance field (mobile-safe — no depth-buffer reads) for the
+# shallow tint and shoreline foam, so the plane itself needs no subdivision.
 func _rebuild_water() -> void:
 	if _water_instance == null:
 		return
@@ -366,68 +333,41 @@ func _rebuild_water() -> void:
 	var extent: float = maxf(bake["size"].x, bake["size"].y)
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(extent, extent) * 2.5
-	if water_style == WaterStyle.DEPTH_FRESNEL:
-		# Subdivide so the shader's per-vertex wind ripple has vertices to displace.
-		plane.subdivide_width = 64
-		plane.subdivide_depth = 64
 	_water_instance.mesh = plane
 
-	# STYLIZED_RING reads a baked shore-distance field; DEPTH_FRESNEL derives the shoreline
-	# from the depth buffer at runtime, so it needs no baked texture.
-	if water_style == WaterStyle.STYLIZED_RING:
-		_water_material.set_shader_parameter("shore_distance", bake["texture"])
-		_water_material.set_shader_parameter("grid_min", bake["min"])
-		_water_material.set_shader_parameter("grid_size", bake["size"])
+	_water_material.set_shader_parameter("shore_distance", bake["texture"])
+	_water_material.set_shader_parameter("grid_min", bake["min"])
+	_water_material.set_shader_parameter("grid_size", bake["size"])
 
 	var center := get_map_center()
 	_water_instance.position = Vector3(center.x, WATER_TOP_Y, center.z)
 	_water_instance.visible = true
 
 
-func _make_stylized_water_material() -> ShaderMaterial:
+# The Roystan toon water material: scrolling, distorted foam and a shallow/deep gradient,
+# tuned to the island's turquoise palette. Foam and gradient are driven by the baked
+# shore-distance field (set per-island in _rebuild_water), not the depth buffer.
+func _make_toon_water_material() -> ShaderMaterial:
 	var material := ShaderMaterial.new()
-	material.shader = WATER_SHADER
-	material.set_shader_parameter("shallow_color", SHALLOW_WATER_COLOR)
-	material.set_shader_parameter("mid_color", MID_WATER_COLOR)
-	material.set_shader_parameter("deep_color", DEEP_WATER_COLOR)
+	material.shader = WATER_TOON_SHADER
+	material.set_shader_parameter("surfaceNoise", WATER_SURFACE_NOISE)
+	material.set_shader_parameter("distortNoise", WATER_DISTORT_NOISE)
+	material.set_shader_parameter("depth_gradient_shallow", SHALLOW_WATER_COLOR)
+	material.set_shader_parameter("depth_gradient_deep", DEEP_WATER_COLOR)
 	material.set_shader_parameter("foam_color", SHORE_FOAM_COLOR)
+	material.set_shader_parameter("deep_start", 0.7)
+	material.set_shader_parameter("foam_distance", 0.12)
+	material.set_shader_parameter("surface_noise_cutoff", 0.777)
+	material.set_shader_parameter("surface_distortion_amount", 0.27)
+	material.set_shader_parameter("surface_noise_scale", Vector2(0.01, 0.04))
+	material.set_shader_parameter("distort_noise_scale", 0.01)
+	material.set_shader_parameter("surface_noise_scroll", Vector2(0.03, 0.03))
 	return material
-
-
-func _make_depth_water_material() -> ShaderMaterial:
-	var material := ShaderMaterial.new()
-	material.shader = WATER_DEPTH_SHADER
-	# Procedural noise fills the textures the shader expects — normal-map noise for the two
-	# scrolling ripple layers, plain noise for the foam edge break-up.
-	material.set_shader_parameter("norRand1", _make_water_noise(true, 0.03, 1))
-	material.set_shader_parameter("norRand2", _make_water_noise(true, 0.05, 2))
-	material.set_shader_parameter("edgeNoise", _make_water_noise(false, 0.04, 3))
-	material.set_shader_parameter("baseCol", SHALLOW_WATER_COLOR)
-	material.set_shader_parameter("deepCol", DEEP_WATER_COLOR)
-	material.set_shader_parameter("fresnelColor", Color(0.75, 0.95, 1.0))
-	material.set_shader_parameter("edgeColor", Color(1.0, 1.0, 1.0))
-	material.set_shader_parameter("alpha", 0.85)
-	material.set_shader_parameter("noiseScaler", 0.0015)
-	return material
-
-
-func _make_water_noise(as_normal: bool, frequency: float, noise_seed: int) -> NoiseTexture2D:
-	var noise := FastNoiseLite.new()
-	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	noise.frequency = frequency
-	noise.seed = noise_seed
-	var texture := NoiseTexture2D.new()
-	texture.width = 256
-	texture.height = 256
-	texture.seamless = true
-	texture.as_normal_map = as_normal
-	texture.noise = noise
-	return texture
 
 
 # Bakes a grayscale field over the map's world bounds: each texel is the normalized distance
-# from that world point to the nearest land cell (0 at the shore, 1 in open water). Ported
-# from the 2D renderer's water gradient; the shader reads it for shallow/deep and foam.
+# from that world point to the nearest land cell (0 at the shore, 1 in open water). The water
+# shader reads it for the shallow/deep tint and the shoreline foam band.
 func _build_shore_distance_texture() -> Dictionary:
 	var min_xz := Vector2(INF, INF)
 	var max_xz := Vector2(-INF, -INF)
