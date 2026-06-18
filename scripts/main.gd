@@ -15,6 +15,7 @@ const ActionBarScript := preload("res://scripts/ui/action_bar.gd")
 const PlayerUnitScript := preload("res://scripts/player/player_unit.gd")
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
+const CameraRigScript := preload("res://scripts/camera_rig.gd")
 const WorldDataScript := preload("res://scripts/world/world_data.gd")
 const WorldMapScript := preload("res://scripts/ui/world_map.gd")
 const ScreenFadeScript := preload("res://scripts/ui/screen_fade.gd")
@@ -48,22 +49,11 @@ const DRAG_THRESHOLD := 6.0
 
 var generator := IslandGeneratorScript.new()
 var renderer: IslandRenderer
-var camera_pivot: Node3D
-var camera: Camera3D
+var camera_rig: CameraRig
 # The world seed. Default 1 => every player gets the identical archipelago. Each island's own
 # seed is derived from this and its hex coord (see _island_seed), so a slot's layout is stable
 # across runs. Randomize this per-run later for varied worlds. See docs/island-generation.md.
 var seed_value := 1
-var zoom_step := 1.1
-# Camera orbits a pivot; zoom changes the pivot-to-camera distance and, with it, the pitch:
-# close in we get a low 50° hero angle, zoomed out we tilt up toward a top-down strategic view.
-var camera_distance := 800.0
-var camera_pitch_degrees := 50.0
-var min_distance := 300.0
-var max_distance := 1200.0
-# Pitch tied to zoom: min_pitch at closest zoom, max_pitch at farthest (strategic) zoom.
-var min_pitch_degrees := 50.0
-var max_pitch_degrees := 65.0
 var is_panning := false
 var is_left_panning := false
 var left_button_down := false
@@ -147,7 +137,10 @@ func _ready() -> void:
 	player_unit.entered_cell.connect(_on_unit_entered_cell)
 	add_child(player_unit)
 
-	_setup_camera_and_light()
+	camera_rig = CameraRigScript.new()
+	camera_rig.name = "CameraRig"
+	add_child(camera_rig)
+	_setup_lighting()
 
 	world = WorldDataScript.new()
 	# A save, if present, replaces the fresh world plus the global progression (stats/quests)
@@ -231,7 +224,6 @@ func _update_autosave(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
-	_update_camera_controls(delta)
 	_update_autosave(delta)
 
 	if current_island == null:
@@ -269,12 +261,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if key_event.keycode == KEY_SPACE:
 		renderer.set_show_grid(not renderer.show_grid)
 
-	# Print the current camera framing so a good test angle can be recorded.
-	if key_event.keycode == KEY_C and camera_pivot != null:
-		print("Camera: pitch=%.1f  yaw=%.1f  distance=%.0f" % [
-			camera_pitch_degrees, rad_to_deg(camera_pivot.rotation.y), camera_distance
-		])
-
 	if key_event.keycode == KEY_ESCAPE:
 		if quest_log_view.is_open():
 			quest_log_view.close()
@@ -284,34 +270,37 @@ func _unhandled_input(event: InputEvent) -> void:
 			building_menu.clear_selection_and_close()
 			_deselect_unit()
 
-	# DEBUG CHEAT (P): grant 1000 of every resource to the current island for
-	# testing. Resources are per-island, so this fills the active island's
-	# inventory only. Remove this block before shipping.
-	if key_event.keycode == KEY_P:
+	# Debug cheats are confined to debug builds so they can't fire in a shipped game.
+	if OS.is_debug_build():
+		_handle_debug_key(key_event.keycode)
+
+
+# DEBUG BUILD ONLY: testing cheats dispatched from _unhandled_input. P grants resources,
+# Delete wipes the save and restarts; both are gated by OS.is_debug_build() at the call site.
+func _handle_debug_key(keycode: int) -> void:
+	# P: grant 1000 of every resource to the current island (per-island inventory) so building
+	# costs can be exercised without grinding.
+	if keycode == KEY_P:
 		_debug_grant_resources()
 
-	# DEBUG (Delete): wipe the save and restart fresh. A plain delete wouldn't stick — quitting
-	# and most actions re-save — so this also reloads the scene, which boots into a new game
-	# because no save is present. Remove before shipping.
-	if key_event.keycode == KEY_DELETE:
+	# Delete: wipe the save and reload the scene — _ready then finds no save and starts fresh.
+	# (A plain delete wouldn't stick, since quitting and most actions re-save.)
+	if keycode == KEY_DELETE:
 		_debug_reset_save()
 
 
-# DEBUG/TESTING ONLY — bound to the P key (see _unhandled_input). Adds 1000 of
-# every GameTypes.ResourceType to the current island's inventory so building costs
-# can be exercised without grinding, and records the same amount as gathered so the
-# milestone quests trip and the quest log can be tested instantly. Iterates the
-# enum so new resource types are covered automatically. Not part of normal gameplay;
-# delete before release.
+# DEBUG BUILD ONLY (P key, via _handle_debug_key). Adds 1000 of every GameTypes.ResourceType
+# to the current island's inventory so building costs can be exercised without grinding, and
+# records the same amount as gathered so the milestone quests trip and the quest log can be
+# tested instantly. Iterates the enum so new resource types are covered automatically.
 func _debug_grant_resources() -> void:
 	for resource_type in GameTypes.ResourceType.values():
 		resource_manager.add_amount(resource_type, 1000)
 		stat_tracker.record_resource_gained(resource_type, 1000)
 
 
-# DEBUG/TESTING ONLY — bound to the Delete key (see _unhandled_input). Deletes the save file
-# and reloads the scene; _ready then finds no save and starts a brand-new game. Not part of
-# normal gameplay; delete before release.
+# DEBUG BUILD ONLY (Delete key, via _handle_debug_key). Deletes the save file and reloads the
+# scene; _ready then finds no save and starts a brand-new game.
 func _debug_reset_save() -> void:
 	SaveManager.delete_save()
 	get_tree().reload_current_scene()
@@ -349,9 +338,9 @@ func _input(event: InputEvent) -> void:
 		var is_over_ui := get_viewport().gui_get_hovered_control() != null
 
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
-			_set_distance(camera_distance / zoom_step)
+			camera_rig.zoom_in()
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
-			_set_distance(camera_distance * zoom_step)
+			camera_rig.zoom_out()
 		elif event.button_index == MOUSE_BUTTON_MIDDLE:
 			is_panning = event.pressed
 		elif event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed and not is_over_ui:
@@ -376,8 +365,9 @@ func _input(event: InputEvent) -> void:
 			is_left_panning = true
 
 		if is_panning or is_left_panning:
-			_pan_camera(event.relative)
+			camera_rig.pan(event.relative)
 
+		var camera := camera_rig.get_camera()
 		if camera != null:
 			renderer.set_hovered_from_ray(
 				camera.project_ray_origin(event.position),
@@ -397,18 +387,7 @@ func _handle_left_click() -> void:
 	_try_select_building()
 
 
-func _setup_camera_and_light() -> void:
-	camera_pivot = Node3D.new()
-	camera_pivot.name = "CameraPivot"
-	add_child(camera_pivot)
-
-	camera = Camera3D.new()
-	camera.name = "Camera3D"
-	camera.far = 20000.0
-	camera.current = true
-	camera_pivot.add_child(camera)
-	_set_distance(camera_distance)
-
+func _setup_lighting() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation = Vector3(deg_to_rad(-55.0), deg_to_rad(-40.0), 0.0)
@@ -424,60 +403,6 @@ func _setup_camera_and_light() -> void:
 	world_environment.name = "WorldEnvironment"
 	world_environment.environment = environment
 	add_child(world_environment)
-
-
-# Position the camera at the current distance/pitch behind the pivot and look at it.
-func _update_camera() -> void:
-	if camera == null:
-		return
-	var pitch := deg_to_rad(camera_pitch_degrees)
-	camera.position = Vector3(0.0, sin(pitch) * camera_distance, cos(pitch) * camera_distance)
-	camera.rotation = Vector3(-pitch, 0.0, 0.0)
-
-
-# Pitch as a function of zoom: 0 at min_distance (closest) → 1 at max_distance (farthest),
-# lerped between min_pitch and max_pitch so zooming out eases into the top-down strategic view.
-func _pitch_for_distance(distance: float) -> float:
-	var t := 0.0 if max_distance <= min_distance else clampf(
-		(distance - min_distance) / (max_distance - min_distance), 0.0, 1.0
-	)
-	return lerpf(min_pitch_degrees, max_pitch_degrees, t)
-
-
-func _set_distance(new_distance: float) -> void:
-	camera_distance = clampf(new_distance, min_distance, max_distance)
-	camera_pitch_degrees = _pitch_for_distance(camera_distance)
-	_update_camera()
-
-
-func _set_pitch(degrees: float) -> void:
-	camera_pitch_degrees = clampf(degrees, 10.0, 89.0)
-	_update_camera()
-
-
-# Live camera controls for testing angles: Q/E orbit (yaw), R/F tilt (pitch). Wheel zooms
-# and drag pans as before; press C to print the current pitch/yaw/distance.
-func _update_camera_controls(delta: float) -> void:
-	if camera_pivot == null:
-		return
-	var yaw_speed := 1.5
-	var pitch_speed := 40.0
-	if Input.is_key_pressed(KEY_Q):
-		camera_pivot.rotation.y -= yaw_speed * delta
-	if Input.is_key_pressed(KEY_E):
-		camera_pivot.rotation.y += yaw_speed * delta
-	if Input.is_key_pressed(KEY_R):
-		_set_pitch(camera_pitch_degrees + pitch_speed * delta)
-	if Input.is_key_pressed(KEY_F):
-		_set_pitch(camera_pitch_degrees - pitch_speed * delta)
-
-
-# Drag-pan: slide the pivot across the ground, relative to the current yaw so it tracks the
-# cursor whatever direction the camera faces. Scaled by distance so it keeps pace with zoom.
-func _pan_camera(screen_delta: Vector2) -> void:
-	var pan_scale := camera_distance * 0.0016
-	var local_delta := Vector3(-screen_delta.x, 0.0, -screen_delta.y) * pan_scale
-	camera_pivot.position += camera_pivot.basis * local_delta
 
 
 func _command_unit_to_hovered() -> bool:
@@ -907,7 +832,7 @@ func _switch_to_island(coord: Vector2i) -> void:
 	resource_bar.refresh()
 	world_map.refresh()
 	_apply_selected_building()
-	_center_camera(current_island)
+	camera_rig.center_on(renderer.get_map_center())
 
 	# Autosave at each settled island state — the natural checkpoint, and it also writes the
 	# initial save for a brand-new game (the starter island is entered through here too).
@@ -968,11 +893,6 @@ func _find_crashed_spaceship_cell() -> Vector2i:
 			return cell
 
 	return Vector2i(-1, -1)
-
-
-func _center_camera(_island: IslandData) -> void:
-	camera_pivot.position = renderer.get_map_center()
-	#_set_distance(renderer.get_map_radius() * 2.2)
 
 
 func _select_no_building() -> void:
