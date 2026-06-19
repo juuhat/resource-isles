@@ -13,6 +13,7 @@ const PowerManagerScript := preload("res://scripts/buildings/power_manager.gd")
 const FloatingTextScript := preload("res://scripts/ui/floating_text.gd")
 const ActionBarScript := preload("res://scripts/ui/action_bar.gd")
 const PlayerUnitScript := preload("res://scripts/player/player_unit.gd")
+const DogScript := preload("res://scripts/units/dog.gd")
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
 const CameraRigScript := preload("res://scripts/camera_rig.gd")
@@ -73,6 +74,7 @@ var action_bar: ActionBar
 var world_map: WorldMap
 var screen_fade: ScreenFade
 var player_unit: PlayerUnit
+var dog: Dog
 var stat_tracker: StatTracker
 var quest_manager: QuestManager
 var quest_log_view: QuestLogView
@@ -136,6 +138,12 @@ func _ready() -> void:
 	player_unit.arrived.connect(_on_unit_arrived)
 	player_unit.entered_cell.connect(_on_unit_entered_cell)
 	add_child(player_unit)
+
+	# Ambient dog companion that wanders the starter island on its own (testing).
+	dog = DogScript.new()
+	dog.name = "Dog"
+	dog.setup(renderer)
+	add_child(dog)
 
 	camera_rig = CameraRigScript.new()
 	camera_rig.name = "CameraRig"
@@ -829,6 +837,7 @@ func _switch_to_island(coord: Vector2i) -> void:
 	building_info_panel.hide_info()
 	renderer.render(current_island)
 	_spawn_player_unit()
+	_spawn_dog()
 	resource_bar.refresh()
 	world_map.refresh()
 	_apply_selected_building()
@@ -860,6 +869,18 @@ func _spawn_player_unit() -> void:
 	operable_cell = Vector2i(-1, -1)
 	player_unit.place_at(_find_unit_spawn_cell())
 	_refresh_action_bar()
+
+
+# The dog is a testing-only ambient wanderer confined to the starter island; it sits idle
+# (hidden) on every other island for now.
+func _spawn_dog() -> void:
+	if dog == null:
+		return
+
+	if world.current_coord == WorldData.CENTER:
+		dog.begin(current_island)
+	else:
+		dog.halt()
 
 
 func _find_unit_spawn_cell() -> Vector2i:
