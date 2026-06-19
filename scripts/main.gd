@@ -399,6 +399,18 @@ func _setup_lighting() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation = Vector3(deg_to_rad(-55.0), deg_to_rad(-40.0), 0.0)
+	# Sun-cast shadows. The world is large (128-unit cells, camera 300-1200 units out), so the
+	# shadow range is pushed well past the default 100 to cover the visible island. Biases are
+	# kept low — large values peter-pan the shadow inside the caster at this geometry scale.
+	sun.shadow_enabled = true
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+	sun.directional_shadow_max_distance = 4000.0
+	sun.directional_shadow_split_1 = 0.08
+	sun.directional_shadow_split_2 = 0.2
+	sun.directional_shadow_split_3 = 0.5
+	sun.directional_shadow_blend_splits = true
+	sun.shadow_bias = 0.1
+	sun.shadow_normal_bias = 1.0
 	add_child(sun)
 
 	var environment := Environment.new()

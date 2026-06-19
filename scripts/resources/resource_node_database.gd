@@ -34,6 +34,7 @@ func _init() -> void:
 		Vector2.ZERO
 	)
 	stone.model = STONE_DEPOSIT_MODEL
+	stone.model_tint = Color("#8e8791")  # bluish grey rock
 	stone.scavenge_amount = 3
 	_add_definition(stone)
 
@@ -49,6 +50,7 @@ func _init() -> void:
 		Vector2.ZERO
 	)
 	iron_ore.model = STONE_DEPOSIT_MODEL
+	iron_ore.model_tint = Color("#a8623c")  # rusty orange-brown
 	iron_ore.scavenge_amount = 3
 	_add_definition(iron_ore)
 
@@ -62,6 +64,7 @@ func _init() -> void:
 		Vector2.ZERO
 	)
 	coal.model = STONE_DEPOSIT_MODEL
+	coal.model_tint = Color("#2b2b33")  # near-black coal
 	coal.scavenge_amount = 3
 	_add_definition(coal)
 

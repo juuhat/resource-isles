@@ -28,6 +28,14 @@ const ITEM_TEXTURES := {
 
 const BOAT_SIZE_TILES := Vector2(0.8, 0.8)
 
+# Cartoon outline for tinted models: an inverted-hull pass grows the mesh along its normals,
+# culls the front faces and paints the remaining back faces, leaving a rim around the
+# silhouette. The rim is a darkened shade of the model's own tint (softer than pure black, and
+# cohesive per resource). Grow is in model-local units (multiplied by the instance scale), so
+# all stone-deposit variants share one consistent outline thickness.
+const MODEL_OUTLINE_DARKEN := 0.25
+const MODEL_OUTLINE_GROW := 0.024
+
 const SAND_COLOR := Color("#e3bc83")
 const GRASS_COLOR := Color("#9ea131")
 const STONE_COLOR := Color("#8e8791")
@@ -79,6 +87,9 @@ var _cap_mesh: ArrayMesh
 var _terrain_materials := {}
 var _seabed_materials := {}
 var _highlight_materials := {}
+# Flat material per model tint colour, shared across every recolored instance (the per-colour
+# inverted-hull outline rides along as each material's next_pass).
+var _flat_model_materials := {}
 # cell -> the terrain MeshInstance3D for that cell, so hover can recolor it in place.
 var _tiles := {}
 var _highlighted_cell := Vector2i(-1, -1)
@@ -573,7 +584,7 @@ func _spawn_resource(cell: Vector2i, resource_node_type: int) -> void:
 		return
 
 	if definition.model != null:
-		_spawn_model(definition.model, [cell], definition.visual_size_tiles, definition.visual_offset_tiles, definition.visual_rotation_y)
+		_spawn_model(definition.model, [cell], definition.visual_size_tiles, definition.visual_offset_tiles, definition.visual_rotation_y, definition.model_tint)
 		return
 
 	if definition.texture == null:
@@ -586,8 +597,10 @@ func _spawn_resource(cell: Vector2i, resource_node_type: int) -> void:
 
 
 # Instances a 3D model on a (multi-cell) footprint: rotated to its heading, auto-scaled so
-# its width spans size_tiles, and lifted so its lowest point rests on the ground.
-func _spawn_model(scene: PackedScene, cells: Array, size_tiles: Vector2, offset_tiles: Vector2, rotation_y_degrees: float = 0.0) -> void:
+# its width spans size_tiles, and lifted so its lowest point rests on the ground. When tint
+# has alpha > 0 the model's own materials are replaced by one flat colour (texture-free
+# low-poly look), so a single shared mesh can stand in for several recolored variants.
+func _spawn_model(scene: PackedScene, cells: Array, size_tiles: Vector2, offset_tiles: Vector2, rotation_y_degrees: float = 0.0, tint: Color = Color(0.0, 0.0, 0.0, 0.0)) -> void:
 	var model := scene.instantiate() as Node3D
 	if model == null:
 		return
@@ -596,6 +609,8 @@ func _spawn_model(scene: PackedScene, cells: Array, size_tiles: Vector2, offset_
 	# before measuring so the auto-scale fits the rotated footprint.
 	_objects_root.add_child(model)
 	model.rotation.y = deg_to_rad(rotation_y_degrees)
+	if tint.a > 0.0:
+		_paint_flat(model, tint)
 	var bounds := _instance_aabb(model)
 	var native_width := maxf(bounds.size.x, bounds.size.z)
 	if native_width <= 0.0:
@@ -607,6 +622,49 @@ func _spawn_model(scene: PackedScene, cells: Array, size_tiles: Vector2, offset_
 	var ground := _ground_anchor(cells) + _offset_xz(offset_tiles)
 	# Lift so the model's lowest point (bounds.position.y, scaled) sits on the tile.
 	model.position = Vector3(ground.x, ground.y - bounds.position.y * model_scale, ground.z)
+
+
+# Replaces every mesh surface's material with one flat, fully-lit colour, discarding the
+# model's own textures/materials. The material is shared per colour, so all stone deposits
+# (and all coal seams, etc.) reuse a single material regardless of instance count.
+func _paint_flat(root: Node3D, color: Color) -> void:
+	var material := _flat_model_material(color)
+	var stack: Array = [root]
+	while stack.size() > 0:
+		var node = stack.pop_back()
+		for child in node.get_children():
+			stack.append(child)
+		if node is MeshInstance3D:
+			# material_override beats every surface material on the mesh in one shot.
+			node.material_override = material
+
+
+func _flat_model_material(color: Color) -> StandardMaterial3D:
+	if _flat_model_materials.has(color):
+		return _flat_model_materials[color]
+
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.roughness = 1.0
+	# Banded toon lighting (a hard light/shadow step instead of a smooth gradient) for the
+	# cartoon look; the inverted-hull pass below draws the black outline.
+	material.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+	material.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	material.next_pass = _outline_material(color)
+	_flat_model_materials[color] = material
+	return material
+
+
+# Inverted-hull outline pass for a given tint: unshaded back faces in a darkened shade of the
+# tint, grown along the normals so they peek out behind the model as a silhouette rim.
+func _outline_material(color: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = color.darkened(MODEL_OUTLINE_DARKEN)
+	material.cull_mode = BaseMaterial3D.CULL_FRONT
+	material.grow = true
+	material.grow_amount = MODEL_OUTLINE_GROW
+	return material
 
 
 # Native bounds of a freshly-instanced model (added at origin), merged over its meshes.
