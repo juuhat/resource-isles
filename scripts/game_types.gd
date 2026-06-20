@@ -10,6 +10,11 @@ enum Terrain {
 }
 
 
+# Every solid-ground terrain (everything that isn't water). Hand this to a building's
+# required_terrains when it can sit on any land rather than one specific terrain.
+const LAND_TERRAINS: Array[int] = [Terrain.SAND, Terrain.GRASS, Terrain.STONE]
+
+
 # True for any water tile (deep ocean or shallow coast). Use this for "is this water"
 # checks rather than comparing to a single terrain value.
 static func is_water(terrain_type: int) -> bool:

@@ -258,11 +258,11 @@ func _place_required_crashed_spaceship(island: IslandData, building_manager: Bui
 	var best_cell := Vector2i(-1, -1)
 	var best_distance := INF
 	var crashed_spaceship_definition := building_manager.get_definition(GameTypes.BuildingType.CRASHED_SPACESHIP) if building_manager else null
-	var required_terrain: int = crashed_spaceship_definition.required_terrain if crashed_spaceship_definition != null else GameTypes.Terrain.GRASS
+	var required_terrains: Array[int] = crashed_spaceship_definition.required_terrains if crashed_spaceship_definition != null else [GameTypes.Terrain.GRASS] as Array[int]
 
 	for cell in island.terrain.keys():
 		var footprint := building_manager.get_footprint_cells(cell, GameTypes.BuildingType.CRASHED_SPACESHIP) if building_manager else [cell] as Array[Vector2i]
-		if not island.can_place_building(cell, footprint, required_terrain):
+		if not island.can_place_building(cell, footprint, required_terrains):
 			continue
 
 		var distance := Vector2(float(cell.x), float(cell.y)).distance_squared_to(center)
@@ -272,16 +272,18 @@ func _place_required_crashed_spaceship(island: IslandData, building_manager: Bui
 
 	if best_cell != Vector2i(-1, -1):
 		var footprint := building_manager.get_footprint_cells(best_cell, GameTypes.BuildingType.CRASHED_SPACESHIP) if building_manager else [best_cell] as Array[Vector2i]
-		island.place_building(best_cell, GameTypes.BuildingType.CRASHED_SPACESHIP, footprint, required_terrain)
+		island.place_building(best_cell, GameTypes.BuildingType.CRASHED_SPACESHIP, footprint, required_terrains)
 		return
 
+	# Last resort: force a central cell to a terrain the wreck accepts, then stamp it there.
+	var fallback_terrain: int = required_terrains[0] if not required_terrains.is_empty() else GameTypes.Terrain.GRASS
 	var fallback_cell := Vector2i(
 		clampi(roundi(center.x), 0, island.width - 1),
 		clampi(roundi(center.y), 0, island.height - 1)
 	)
-	island.set_terrain(fallback_cell, required_terrain)
+	island.set_terrain(fallback_cell, fallback_terrain)
 	var fallback_footprint := building_manager.get_footprint_cells(fallback_cell, GameTypes.BuildingType.CRASHED_SPACESHIP) if building_manager else [fallback_cell] as Array[Vector2i]
-	island.place_building(fallback_cell, GameTypes.BuildingType.CRASHED_SPACESHIP, fallback_footprint, required_terrain)
+	island.place_building(fallback_cell, GameTypes.BuildingType.CRASHED_SPACESHIP, fallback_footprint, required_terrains)
 
 
 # Stamps `count` hex patches of `feature_terrain` onto cells currently of `base_terrain`.

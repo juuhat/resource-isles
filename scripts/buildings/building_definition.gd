@@ -8,9 +8,9 @@ var texture: Texture2D
 # Optional 3D model. When set, the renderer instances this instead of the flat texture.
 var model: PackedScene = null
 var cost: Dictionary
-var footprint_size: Vector2i
-var visual_size_tiles: Vector2
-var visual_offset_tiles: Vector2
+var footprint_size: Vector2i = Vector2i.ONE
+var visual_size_tiles: Vector2 = Vector2.ONE
+var visual_offset_tiles: Vector2 = Vector2.ZERO
 # Heading (degrees) applied around the Y axis when instancing a 3D model.
 var visual_rotation_y: float = 0.0
 
@@ -18,8 +18,9 @@ var visual_rotation_y: float = 0.0
 # exist via worldgen or story (e.g. the crashed spaceship) — you don't build those.
 var player_buildable: bool = true
 
-# Footprint cells must sit on this terrain.
-var required_terrain: int
+# Footprint cells must sit on one of these terrains. List a single type for a strict
+# requirement, several for a choice, or GameTypes.LAND_TERRAINS for any solid ground.
+var required_terrains: Array[int] = []
 # Each entry { kind, type } must have at least one matching neighbor for placement to be legal.
 var required_adjacent: Array[Dictionary] = []
 # Placement is blocked if any neighbor matches any { kind, type } entry here.
@@ -50,23 +51,5 @@ var fuel_amount: int = 0
 var fuel_interval_seconds: float = 0.0
 
 
-func _init(
-	new_id: int,
-	new_display_name: String,
-	new_category: int,
-	new_texture: Texture2D,
-	new_cost: Dictionary,
-	new_required_terrain: int,
-	new_footprint_size: Vector2i = Vector2i.ONE,
-	new_visual_size_tiles: Vector2 = Vector2.ONE,
-	new_visual_offset_tiles: Vector2 = Vector2.ZERO
-) -> void:
-	id = new_id
-	display_name = new_display_name
-	category = new_category
-	texture = new_texture
-	cost = new_cost
-	required_terrain = new_required_terrain
-	footprint_size = new_footprint_size
-	visual_size_tiles = new_visual_size_tiles
-	visual_offset_tiles = new_visual_offset_tiles
+# Constructed with no arguments; every field is set by name at the call site (see
+# building_definitions.gd) so each line reads as "this property = this value".

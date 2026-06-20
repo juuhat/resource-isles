@@ -27,7 +27,7 @@ func can_place(anchor_cell: Vector2i, building_type: int, island: IslandData) ->
 		return false
 
 	var footprint := get_footprint_cells(anchor_cell, building_type)
-	if not island.can_place_building(anchor_cell, footprint, definition.required_terrain):
+	if not island.can_place_building(anchor_cell, footprint, definition.required_terrains):
 		return false
 
 	var neighbors := _footprint_neighbors(footprint)
@@ -49,7 +49,7 @@ func try_place(anchor_cell: Vector2i, building_type: int, island: IslandData) ->
 
 	var definition := get_definition(building_type)
 	var footprint := get_footprint_cells(anchor_cell, building_type)
-	return island.place_building(anchor_cell, building_type, footprint, definition.required_terrain)
+	return island.place_building(anchor_cell, building_type, footprint, definition.required_terrains)
 
 
 # Returns { total: int, breakdown: Array[{ label, count, amount }] }.
@@ -77,6 +77,31 @@ func get_adjacency_yield(anchor_cell: Vector2i, building_type: int, island: Isla
 			count = count,
 			amount = amount,
 		})
+
+	return result
+
+
+# Neighbor cells that change this building's output at anchor_cell, split by sign.
+# Drives the placement-preview yield highlight: positive = deposits it would tap,
+# negative = crowding penalties (e.g. an adjacent same-type extractor).
+func get_yield_cells(anchor_cell: Vector2i, building_type: int, island: IslandData) -> Dictionary:
+	var result := {positive = [] as Array[Vector2i], negative = [] as Array[Vector2i]}
+	var definition := get_definition(building_type)
+	if definition == null or definition.adjacency_yields.is_empty():
+		return result
+
+	var neighbors := _footprint_neighbors(get_footprint_cells(anchor_cell, building_type))
+
+	for rule in definition.adjacency_yields:
+		var amount := int(rule.amount)
+		if amount == 0:
+			continue
+		for neighbor in neighbors:
+			if _cell_matches(neighbor, rule, island):
+				if amount > 0:
+					result.positive.append(neighbor)
+				else:
+					result.negative.append(neighbor)
 
 	return result
 

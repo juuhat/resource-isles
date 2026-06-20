@@ -20,35 +20,29 @@ static func build_all() -> Array[BuildingDefinition]:
 
 	# The wreck is placed by worldgen as the starting landmark / win-condition ship, never
 	# by the player — so it stays out of the build menu.
-	var crashed_spaceship := BuildingDefinitionScript.new(
-		GameTypes.BuildingType.CRASHED_SPACESHIP,
-		"Crashed Spaceship",
-		GameTypes.BuildingCategory.UTILITY,
-		CRASHED_SPACESHIP_TEXTURE,
-		{
-			GameTypes.ResourceType.WOOD: 8,
-			GameTypes.ResourceType.STONE: 4,
-		},
-		GameTypes.Terrain.GRASS,
-		Vector2i(1, 1),
-		Vector2(1.6, 1.6),
-		Vector2.ZERO
-	)
+	var crashed_spaceship := BuildingDefinitionScript.new()
+	crashed_spaceship.id = GameTypes.BuildingType.CRASHED_SPACESHIP
+	crashed_spaceship.display_name = "Crashed Spaceship"
+	crashed_spaceship.category = GameTypes.BuildingCategory.UTILITY
+	crashed_spaceship.texture = CRASHED_SPACESHIP_TEXTURE
+	crashed_spaceship.cost = {
+		GameTypes.ResourceType.WOOD: 8,
+		GameTypes.ResourceType.STONE: 4,
+	}
+	crashed_spaceship.required_terrains = [GameTypes.Terrain.GRASS]
+	crashed_spaceship.visual_size_tiles = Vector2(1.6, 1.6)
 	crashed_spaceship.player_buildable = false
 	crashed_spaceship.model = CRASHED_SPACESHIP_MODEL
 	crashed_spaceship.visual_rotation_y = 35.0
 	definitions.append(crashed_spaceship)
 
-	var logger_camp := BuildingDefinitionScript.new(
-		GameTypes.BuildingType.LOGGER_CAMP,
-		"Logger's Camp",
-		GameTypes.BuildingCategory.RESOURCES,
-		LOGGER_CAMP_TEXTURE,
-		{
-			GameTypes.ResourceType.WOOD: 6,
-		},
-		GameTypes.Terrain.GRASS
-	)
+	var logger_camp := BuildingDefinitionScript.new()
+	logger_camp.id = GameTypes.BuildingType.LOGGER_CAMP
+	logger_camp.display_name = "Logger's Camp"
+	logger_camp.category = GameTypes.BuildingCategory.RESOURCES
+	logger_camp.texture = LOGGER_CAMP_TEXTURE
+	logger_camp.cost = {GameTypes.ResourceType.WOOD: 6}
+	logger_camp.required_terrains = [GameTypes.Terrain.GRASS]
 	# Must touch a forest, earns +1 per adjacent forest, but crowding other
 	# camps strips the surrounding woodland faster than it regrows: -1 each.
 	logger_camp.required_adjacent = [_resource_ref(GameTypes.ResourceNodeType.TREE)]
@@ -62,18 +56,16 @@ static func build_all() -> Array[BuildingDefinition]:
 	logger_camp.power_consumed = 2
 	definitions.append(logger_camp)
 
-	var quarry := BuildingDefinitionScript.new(
-		GameTypes.BuildingType.QUARRY,
-		"Quarry",
-		GameTypes.BuildingCategory.RESOURCES,
-		QUARRY_TEXTURE,
-		{
-			GameTypes.ResourceType.WOOD: 6,
-		},
-		GameTypes.Terrain.STONE
-	)
-	# Must touch stone, earns +1 per adjacent deposit, but neighboring
-	# quarries compete for the same workable rock face: -1 each.
+	var quarry := BuildingDefinitionScript.new()
+	quarry.id = GameTypes.BuildingType.QUARRY
+	quarry.display_name = "Quarry"
+	quarry.category = GameTypes.BuildingCategory.RESOURCES
+	quarry.texture = QUARRY_TEXTURE
+	quarry.cost = {GameTypes.ResourceType.WOOD: 6}
+	quarry.required_terrains = GameTypes.LAND_TERRAINS
+	# Same rule as the logger's camp, one terrain over: built on the grass rim of a
+	# rocky outcrop and reaching in. Must touch a stone deposit, earns +1 per adjacent
+	# deposit, but neighboring quarries compete for the same rock face: -1 each.
 	quarry.required_adjacent = [_resource_ref(GameTypes.ResourceNodeType.STONE)]
 	quarry.adjacency_yields = [
 		_yield_rule(GameTypes.AdjacencyKind.RESOURCE, GameTypes.ResourceNodeType.STONE, 1),
@@ -89,17 +81,16 @@ static func build_all() -> Array[BuildingDefinition]:
 	# tier-0 power source. Parking on any power-consuming building and using the Operate
 	# verb hand-powers it for free while the robot stays (see main.gd / power_manager.gd).
 	# The self-running burner generator is the upgrade that frees the robot from that.
-	var burner_generator := BuildingDefinitionScript.new(
-		GameTypes.BuildingType.BURNER_GENERATOR,
-		"Burner Generator",
-		GameTypes.BuildingCategory.POWER,
-		BURNER_GENERATOR_TEXTURE,
-		{
-			GameTypes.ResourceType.WOOD: 4,
-			GameTypes.ResourceType.STONE: 2,
-		},
-		GameTypes.Terrain.GRASS
-	)
+	var burner_generator := BuildingDefinitionScript.new()
+	burner_generator.id = GameTypes.BuildingType.BURNER_GENERATOR
+	burner_generator.display_name = "Burner Generator"
+	burner_generator.category = GameTypes.BuildingCategory.POWER
+	burner_generator.texture = BURNER_GENERATOR_TEXTURE
+	burner_generator.cost = {
+		GameTypes.ResourceType.WOOD: 4,
+		GameTypes.ResourceType.STONE: 2,
+	}
+	burner_generator.required_terrains = [GameTypes.Terrain.GRASS]
 	# Burns wood to hold a steady output. Stalls (0 MW) the moment wood runs out.
 	burner_generator.power_generated = 5
 	burner_generator.fuel_resource_type = GameTypes.ResourceType.WOOD
@@ -107,17 +98,16 @@ static func build_all() -> Array[BuildingDefinition]:
 	burner_generator.fuel_interval_seconds = 3.0
 	definitions.append(burner_generator)
 
-	var sawmill := BuildingDefinitionScript.new(
-		GameTypes.BuildingType.SAWMILL,
-		"Sawmill",
-		GameTypes.BuildingCategory.PROCESSING,
-		SAWMILL_TEXTURE,
-		{
-			GameTypes.ResourceType.WOOD: 8,
-			GameTypes.ResourceType.STONE: 4,
-		},
-		GameTypes.Terrain.GRASS
-	)
+	var sawmill := BuildingDefinitionScript.new()
+	sawmill.id = GameTypes.BuildingType.SAWMILL
+	sawmill.display_name = "Sawmill"
+	sawmill.category = GameTypes.BuildingCategory.PROCESSING
+	sawmill.texture = SAWMILL_TEXTURE
+	sawmill.cost = {
+		GameTypes.ResourceType.WOOD: 8,
+		GameTypes.ResourceType.STONE: 4,
+	}
+	sawmill.required_terrains = [GameTypes.Terrain.GRASS]
 	# Refines raw logs into planks. Placed anywhere on grass — it pulls wood from
 	# stock, not the map, so it needs no forest. Burns 2 wood to cut 1 plank, and
 	# its power draw competes with the burner generator that eats the same wood.
@@ -129,17 +119,16 @@ static func build_all() -> Array[BuildingDefinition]:
 	sawmill.power_consumed = 2
 	definitions.append(sawmill)
 
-	var dock := BuildingDefinitionScript.new(
-		GameTypes.BuildingType.DOCK,
-		"Dock",
-		GameTypes.BuildingCategory.LOGISTICS,
-		DOCK_TEXTURE,
-		{
-			GameTypes.ResourceType.WOOD: 10,
-			GameTypes.ResourceType.STONE: 5,
-		},
-		GameTypes.Terrain.SAND
-	)
+	var dock := BuildingDefinitionScript.new()
+	dock.id = GameTypes.BuildingType.DOCK
+	dock.display_name = "Dock"
+	dock.category = GameTypes.BuildingCategory.LOGISTICS
+	dock.texture = DOCK_TEXTURE
+	dock.cost = {
+		GameTypes.ResourceType.WOOD: 10,
+		GameTypes.ResourceType.STONE: 5,
+	}
+	dock.required_terrains = [GameTypes.Terrain.SAND]
 	# Built on the sandy shoreline and must touch open water — the future
 	# launch point for boats and inter-island travel. Placeable only for now;
 	# no transport behavior yet (see docs/island-unlocks.md, step 1).

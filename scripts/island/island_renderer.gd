@@ -759,6 +759,50 @@ func _rebuild_preview() -> void:
 		_lift_to_ground(ghost)
 		_preview_root.add_child(ghost)
 
+	# Yield highlight: only meaningful for a legal spot, so the player reads the value
+	# of a placement they can actually commit. Mark the neighbor cells that change output
+	# (blue = deposits tapped, orange = crowding penalty) and float the net per-cycle gain.
+	if can_place and definition != null and not definition.adjacency_yields.is_empty():
+		var yield_cells := building_manager.get_yield_cells(hovered_cell, placement_building_type, island)
+		for cell in yield_cells.positive:
+			_preview_root.add_child(_make_yield_marker(cell, Color(0.4, 0.85, 1.0, 0.5)))
+		for cell in yield_cells.negative:
+			_preview_root.add_child(_make_yield_marker(cell, Color(1.0, 0.55, 0.2, 0.5)))
+
+		var output := building_manager.get_production_amount(hovered_cell, placement_building_type, island)
+		_preview_root.add_child(_make_yield_label(footprint, output))
+
+
+# A flat hex cap tinted over a neighbor cell that contributes to placement yield.
+# Drawn on top (no depth test) so it stays visible over the tall stone-deposit models
+# sitting on the very cells it needs to highlight, rather than being buried at their base.
+func _make_yield_marker(cell: Vector2i, color: Color) -> MeshInstance3D:
+	var marker := MeshInstance3D.new()
+	marker.mesh = _cap_mesh
+	var material := _make_overlay_material(color)
+	material.no_depth_test = true
+	marker.material_override = material
+	var center := get_cell_center(cell)
+	marker.position = Vector3(center.x, center.y + 0.55, center.z)
+	return marker
+
+
+# Billboarded "+N" floating over the footprint, showing the building's per-cycle output
+# at this spot. Matches the FloatingText scale (font 22 @ pixel_size 1.5).
+func _make_yield_label(footprint: Array, output: int) -> Label3D:
+	var label := Label3D.new()
+	label.text = "+%d" % output
+	label.font_size = 28
+	label.pixel_size = 1.5
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.modulate = Color(0.6, 1.0, 0.65, 1.0)
+	label.outline_modulate = Color(0.0, 0.0, 0.0, 1.0)
+	label.outline_size = 8
+	var anchor := _ground_anchor(footprint)
+	label.position = Vector3(anchor.x, anchor.y + 5.0, anchor.z)
+	return label
+
 
 # --- Hover ---
 

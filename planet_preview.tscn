@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dj2gt0wslchcv"]
+
+[ext_resource type="Script" path="res://scripts/world/planet_preview.gd" id="1"]
+
+[node name="PlanetPreview" type="Node3D" unique_id=1331504418]
+script = ExtResource("1")
