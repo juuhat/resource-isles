@@ -27,6 +27,7 @@ enum BuildingType {
 	BURNER_GENERATOR,
 	SAWMILL,
 	DOCK,
+	WINDMILL,  # coastal power: more open water = more wind, crowding buildings = less
 }
 
 enum BuildingCategory {
@@ -93,6 +94,7 @@ enum AdjacencyKind {
 	TERRAIN,
 	RESOURCE,
 	BUILDING,
+	ANY_BUILDING,  # matches any neighboring building regardless of type (the rule's `type` is ignored)
 }
 
 # Cumulative lifetime play stats (totals that only ever go up, not current stock).

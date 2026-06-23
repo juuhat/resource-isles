@@ -14,6 +14,13 @@ var visual_offset_tiles: Vector2 = Vector2.ZERO
 # Heading (degrees) applied around the Y axis when instancing a 3D model.
 var visual_rotation_y: float = 0.0
 
+# Optional spinning sub-mesh of the 3D model (e.g. a windmill's blades, a separate object
+# in the .glb). When spin_node_name is set, the renderer finds that child and rotates it
+# around spin_axis (model-local) at spin_speed_degrees per second.
+var spin_node_name: String = ""
+var spin_axis: Vector3 = Vector3(0, 0, 1)
+var spin_speed_degrees: float = 45.0
+
 # Whether the player can place this from the build menu. False for buildings that only
 # exist via worldgen or story (e.g. the crashed spaceship) — you don't build those.
 var player_buildable: bool = true

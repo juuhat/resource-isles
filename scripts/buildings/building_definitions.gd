@@ -13,6 +13,7 @@ const QUARRY_TEXTURE := preload("res://assets/buildings/quarry.png")
 const BURNER_GENERATOR_TEXTURE := preload("res://assets/buildings/burner_generator.png")
 const SAWMILL_TEXTURE := preload("res://assets/buildings/sawmill.png")
 const DOCK_TEXTURE := preload("res://assets/buildings/dock.png")
+const WINDMILL_MODEL := preload("res://assets/models/buildings/windmill2.glb")
 
 
 static func build_all() -> Array[BuildingDefinition]:
@@ -97,6 +98,34 @@ static func build_all() -> Array[BuildingDefinition]:
 	burner_generator.fuel_amount = 1
 	burner_generator.fuel_interval_seconds = 3.0
 	definitions.append(burner_generator)
+
+	# Fuel-free coastal power: it always spins (no fuel), and its output is shaped entirely
+	# by where it sits. Built on the shore and must touch the coastal water ring; open water
+	# around it means more wind (+1 MW each), while crowding buildings block the airflow
+	# (-1 MW each). Model only — rendered from the .glb, no flat icon.
+	var windmill := BuildingDefinitionScript.new()
+	windmill.id = GameTypes.BuildingType.WINDMILL
+	windmill.display_name = "Windmill"
+	windmill.category = GameTypes.BuildingCategory.POWER
+	windmill.model = WINDMILL_MODEL
+	# The blades are a separate object in the .glb; spin them around the model-local axle.
+	windmill.spin_node_name = "Blades"
+	windmill.cost = {
+		GameTypes.ResourceType.WOOD: 6,
+		GameTypes.ResourceType.STONE: 2,
+	}
+	windmill.visual_size_tiles = Vector2(0.75, 0.75)
+	windmill.required_terrains = [GameTypes.Terrain.SAND, GameTypes.Terrain.GRASS]
+	windmill.required_adjacent = [_terrain_ref(GameTypes.Terrain.COAST)]
+	windmill.adjacency_yields = [
+		_yield_rule(GameTypes.AdjacencyKind.TERRAIN, GameTypes.Terrain.COAST, 1),
+		_yield_rule(GameTypes.AdjacencyKind.TERRAIN, GameTypes.Terrain.WATER, 1),
+		_yield_rule(GameTypes.AdjacencyKind.ANY_BUILDING, 0, -1),
+	]
+	# Base 1 MW marks it as a generator (the power loop skips base-0 buildings) and gives a
+	# shoreline windmill a floor; the coast it must touch then lifts it to at least 2 MW.
+	windmill.power_generated = 1
+	definitions.append(windmill)
 
 	var sawmill := BuildingDefinitionScript.new()
 	sawmill.id = GameTypes.BuildingType.SAWMILL

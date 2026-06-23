@@ -12,6 +12,7 @@ extends Node3D
 # try_place_hovered_building(), get_hovered_building_type(), hovered_cell, cell_size.
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
+const BladeSpinnerScript := preload("res://scripts/island/blade_spinner.gd")
 # Roystan toon water (see assets/shaders/water_toon.gdshader): a transparent animated
 # plane with a flat tint plus scrolling noise; the shoreline foam band comes from the baked
 # per-island shore-distance field (set in _rebuild_water), not the depth buffer.
@@ -600,7 +601,17 @@ func _spawn_resource(cell: Vector2i, resource_node_type: int) -> void:
 # its width spans size_tiles, and lifted so its lowest point rests on the ground. When tint
 # has alpha > 0 the model's own materials are replaced by one flat colour (texture-free
 # low-poly look), so a single shared mesh can stand in for several recolored variants.
-func _spawn_model(scene: PackedScene, cells: Array, size_tiles: Vector2, offset_tiles: Vector2, rotation_y_degrees: float = 0.0, tint: Color = Color(0.0, 0.0, 0.0, 0.0)) -> void:
+func _spawn_model(
+	scene: PackedScene,
+	cells: Array,
+	size_tiles: Vector2,
+	offset_tiles: Vector2,
+	rotation_y_degrees: float = 0.0,
+	tint: Color = Color(0.0, 0.0, 0.0, 0.0),
+	spin_node_name: String = "",
+	spin_axis: Vector3 = Vector3.ZERO,
+	spin_speed_degrees: float = 0.0
+) -> void:
 	var model := scene.instantiate() as Node3D
 	if model == null:
 		return
@@ -622,6 +633,17 @@ func _spawn_model(scene: PackedScene, cells: Array, size_tiles: Vector2, offset_
 	var ground := _ground_anchor(cells) + _offset_xz(offset_tiles)
 	# Lift so the model's lowest point (bounds.position.y, scaled) sits on the tile.
 	model.position = Vector3(ground.x, ground.y - bounds.position.y * model_scale, ground.z)
+
+	# Drive a spinning sub-mesh (e.g. windmill blades) if the model has one. owned=false so
+	# it's found among the instanced .glb's nodes regardless of scene ownership.
+	if spin_node_name != "":
+		var spin_target := model.find_child(spin_node_name, true, false) as Node3D
+		if spin_target != null:
+			var spinner := BladeSpinnerScript.new()
+			spinner.target = spin_target
+			spinner.axis = spin_axis
+			spinner.degrees_per_second = spin_speed_degrees
+			model.add_child(spinner)
 
 
 # Replaces every mesh surface's material with one flat, fully-lit colour, discarding the
@@ -707,7 +729,17 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 		footprint = [anchor_cell]
 
 	if definition.model != null:
-		_spawn_model(definition.model, footprint, definition.visual_size_tiles, definition.visual_offset_tiles, definition.visual_rotation_y)
+		_spawn_model(
+			definition.model,
+			footprint,
+			definition.visual_size_tiles,
+			definition.visual_offset_tiles,
+			definition.visual_rotation_y,
+			Color(0.0, 0.0, 0.0, 0.0),
+			definition.spin_node_name,
+			definition.spin_axis,
+			definition.spin_speed_degrees
+		)
 		return
 
 	if definition.texture == null:
@@ -769,8 +801,13 @@ func _rebuild_preview() -> void:
 		for cell in yield_cells.negative:
 			_preview_root.add_child(_make_yield_marker(cell, Color(1.0, 0.55, 0.2, 0.5)))
 
-		var output := building_manager.get_production_amount(hovered_cell, placement_building_type, island)
-		_preview_root.add_child(_make_yield_label(footprint, output))
+		# A generator's adjacency shapes its power; everything else shapes resource output.
+		if definition.category == GameTypes.BuildingCategory.POWER:
+			var power := building_manager.get_power_generated(hovered_cell, placement_building_type, island)
+			_preview_root.add_child(_make_yield_label(footprint, power, " MW"))
+		else:
+			var output := building_manager.get_production_amount(hovered_cell, placement_building_type, island)
+			_preview_root.add_child(_make_yield_label(footprint, output, ""))
 
 
 # A flat hex cap tinted over a neighbor cell that contributes to placement yield.
@@ -789,9 +826,9 @@ func _make_yield_marker(cell: Vector2i, color: Color) -> MeshInstance3D:
 
 # Billboarded "+N" floating over the footprint, showing the building's per-cycle output
 # at this spot. Matches the FloatingText scale (font 22 @ pixel_size 1.5).
-func _make_yield_label(footprint: Array, output: int) -> Label3D:
+func _make_yield_label(footprint: Array, output: int, unit: String) -> Label3D:
 	var label := Label3D.new()
-	label.text = "+%d" % output
+	label.text = "+%d%s" % [output, unit]
 	label.font_size = 28
 	label.pixel_size = 1.5
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED

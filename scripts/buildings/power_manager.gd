@@ -30,11 +30,14 @@ func update(
 
 	var generated := 0
 	for anchor_cell in island.buildings.keys():
-		var definition := building_manager.get_definition(island.buildings[anchor_cell].type)
+		var building_type: int = island.buildings[anchor_cell].type
+		var definition := building_manager.get_definition(building_type)
 		if definition == null or definition.power_generated <= 0:
 			continue
+		# Output can vary with neighbors (e.g. the windmill's wind/crowding), so read the
+		# adjacency-aware value rather than the flat base.
 		if _update_generator(anchor_cell, definition, island, current_time_seconds):
-			generated += definition.power_generated
+			generated += building_manager.get_power_generated(anchor_cell, building_type, island)
 
 	var consumed := _allocate_power(island, generated, operated_cell)
 

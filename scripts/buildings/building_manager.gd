@@ -116,6 +116,19 @@ func get_production_amount(anchor_cell: Vector2i, building_type: int, island: Is
 	return maxi(0, definition.production_base_amount + bonus)
 
 
+# Power a generator outputs at its cell: base plus its adjacency total, never below zero.
+# The power analog of get_production_amount — a building's adjacency_yields modify whichever
+# output it has (resource units for producers, MW for generators). Returns 0 for anything
+# that isn't a generator, so non-generators never accidentally earn power from adjacency.
+func get_power_generated(anchor_cell: Vector2i, building_type: int, island: IslandData) -> int:
+	var definition := get_definition(building_type)
+	if definition == null or definition.power_generated <= 0:
+		return 0
+
+	var bonus: int = get_adjacency_yield(anchor_cell, building_type, island).total
+	return maxi(0, definition.power_generated + bonus)
+
+
 func get_definition(building_type: int) -> BuildingDefinition:
 	return definitions.get(building_type)
 
@@ -198,6 +211,8 @@ func _cell_matches(cell: Vector2i, reference: Dictionary, island: IslandData) ->
 			return island.get_resource_node_type(cell) == int(reference.type)
 		GameTypes.AdjacencyKind.BUILDING:
 			return island.get_building_type(cell) == int(reference.type)
+		GameTypes.AdjacencyKind.ANY_BUILDING:
+			return island.has_building(cell)
 		_:
 			return false
 
@@ -214,6 +229,8 @@ func _ref_label(reference: Dictionary) -> String:
 			return "Resource"
 		GameTypes.AdjacencyKind.BUILDING:
 			return get_display_name(int(reference.type))
+		GameTypes.AdjacencyKind.ANY_BUILDING:
+			return "Building"
 		_:
 			return "Unknown"
 
