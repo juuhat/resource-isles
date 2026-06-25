@@ -60,6 +60,11 @@ var is_left_panning := false
 var left_button_down := false
 var left_press_position := Vector2.ZERO
 var selected_building_type := NO_BUILDING
+# Move mode: the player picked "Move" on a placed building. The original stays put until a
+# valid new spot is clicked, so an aborted move never loses the building. selected_building_type
+# carries the building's type meanwhile, driving the placement preview (free, no cost).
+var is_moving_building := false
+var moving_from_cell := Vector2i(-1, -1)
 var world: WorldData
 var current_island: IslandData
 var building_manager: BuildingManager
@@ -384,6 +389,10 @@ func _input(event: InputEvent) -> void:
 
 
 func _handle_left_click() -> void:
+	if is_moving_building:
+		_try_finish_move()
+		return
+
 	if selected_building_type != NO_BUILDING:
 		_try_place_selected_building()
 		return
@@ -929,13 +938,58 @@ func _find_crashed_spaceship_cell() -> Vector2i:
 
 
 func _select_no_building() -> void:
+	# Also the cancel path for an in-progress move (right-click / picking another tool routes
+	# here via the build menu); the original building was never removed, so it just stays.
+	is_moving_building = false
+	moving_from_cell = Vector2i(-1, -1)
 	selected_building_type = NO_BUILDING
 	_apply_selected_building()
 
 
 func _select_building(building_type: int) -> void:
+	# Choosing a building from the menu abandons any move in progress.
+	is_moving_building = false
+	moving_from_cell = Vector2i(-1, -1)
 	selected_building_type = building_type
 	_apply_selected_building()
+
+
+# Panel "Move": keep the building where it is and enter a free placement preview for its type.
+# The next valid left-click drops it at the new cell and removes the original (_try_finish_move).
+func _on_building_move_requested(building_type: int, anchor_cell: Vector2i, island: IslandData) -> void:
+	if island == null or island != current_island:
+		return
+
+	is_moving_building = true
+	moving_from_cell = anchor_cell
+	selected_building_type = building_type
+	_apply_selected_building()
+
+
+func _try_finish_move() -> void:
+	# Place at the hovered cell first; only on success do we remove the original, so an
+	# illegal target (occupied / wrong terrain) leaves the building untouched.
+	if not renderer.try_place_hovered_building(selected_building_type):
+		return
+
+	renderer.remove_building(moving_from_cell)
+	if _placement_player != null:
+		_placement_player.play()
+
+	is_moving_building = false
+	moving_from_cell = Vector2i(-1, -1)
+	building_menu.clear_selection()
+	_save_game()
+
+
+# Panel "Delete": scrap the building outright. The power/production managers recompute from the
+# remaining buildings on the next _process tick, so no manual refresh is needed here.
+func _on_building_delete_requested(anchor_cell: Vector2i, island: IslandData) -> void:
+	if island == null or island != current_island:
+		return
+
+	if renderer.remove_building(anchor_cell):
+		_save_game()
 
 
 func _apply_selected_building() -> void:
@@ -946,7 +1000,8 @@ func _apply_selected_building() -> void:
 	renderer.set_placement_preview(
 		true,
 		selected_building_type,
-		resource_manager.can_afford(_get_building_cost(selected_building_type))
+		# Moving is free — never show the moved building's preview as unaffordable.
+		is_moving_building or resource_manager.can_afford(_get_building_cost(selected_building_type))
 	)
 
 
@@ -963,6 +1018,8 @@ func _add_ui() -> void:
 
 	building_info_panel = BuildingInfoPanelScript.new()
 	building_info_panel.setup(building_manager)
+	building_info_panel.move_requested.connect(_on_building_move_requested)
+	building_info_panel.delete_requested.connect(_on_building_delete_requested)
 	add_child(building_info_panel)
 
 	building_menu = BuildingMenuScript.new()

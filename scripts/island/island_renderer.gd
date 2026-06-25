@@ -285,6 +285,17 @@ func try_place_hovered_building(building_type: int = GameTypes.BuildingType.LOGG
 	return placed
 
 
+func remove_building(anchor_cell: Vector2i) -> bool:
+	if island == null:
+		return false
+
+	var removed := building_manager.remove(anchor_cell, island)
+	if removed:
+		refresh()
+
+	return removed
+
+
 func get_hovered_building_type() -> int:
 	if island == null or hovered_cell == Vector2i(-1, -1):
 		return -1

@@ -66,6 +66,20 @@ func place_building(
 	return true
 
 
+func remove_building(anchor_cell: Vector2i) -> bool:
+	if not buildings.has(anchor_cell):
+		return false
+
+	buildings.erase(anchor_cell)
+	# Drop every per-building bit of state keyed on this anchor so a future building on
+	# the same cell starts fresh rather than inheriting stale timers / power flags.
+	building_next_production_times.erase(anchor_cell)
+	building_next_fuel_times.erase(anchor_cell)
+	generator_running_states.erase(anchor_cell)
+	consumer_powered_states.erase(anchor_cell)
+	return true
+
+
 func has_building(cell: Vector2i) -> bool:
 	return _has_building_on_cell(cell)
 

@@ -52,6 +52,12 @@ func try_place(anchor_cell: Vector2i, building_type: int, island: IslandData) ->
 	return island.place_building(anchor_cell, building_type, footprint, definition.required_terrains)
 
 
+func remove(anchor_cell: Vector2i, island: IslandData) -> bool:
+	if island == null:
+		return false
+	return island.remove_building(anchor_cell)
+
+
 # Returns { total: int, breakdown: Array[{ label, count, amount }] }.
 func get_adjacency_yield(anchor_cell: Vector2i, building_type: int, island: IslandData) -> Dictionary:
 	var result := {total = 0, breakdown = []}
