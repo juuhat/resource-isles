@@ -60,11 +60,15 @@ var is_left_panning := false
 var left_button_down := false
 var left_press_position := Vector2.ZERO
 var selected_building_type := NO_BUILDING
-# Move mode: the player picked "Move" on a placed building. The original stays put until a
-# valid new spot is clicked, so an aborted move never loses the building. selected_building_type
-# carries the building's type meanwhile, driving the placement preview (free, no cost).
+# Move mode: the player picked "Move" on a placed building. The building is lifted off the map
+# for the duration (removed from the island data) so the placement preview's adjacency reflects
+# only its NEW surroundings and it isn't drawn at the old spot. It is restored at moving_from_cell
+# if the move is cancelled, re-placed on confirm, and written back at the old spot by any save
+# that lands mid-move (so quitting/crashing mid-move leaves it where it started — never lost).
+# selected_building_type carries the type meanwhile, driving the (free) placement preview.
 var is_moving_building := false
 var moving_from_cell := Vector2i(-1, -1)
+var moving_building_type := NO_BUILDING
 var world: WorldData
 var current_island: IslandData
 var building_manager: BuildingManager
@@ -211,6 +215,18 @@ func _save_game() -> void:
 	if world == null:
 		return
 
+	# A move in progress has lifted the building off the map. Write it back at its original cell
+	# just for this save, so a quit/crash/autosave mid-move persists the building where it started
+	# rather than losing it. The live game keeps it lifted; we remove it again right after.
+	var restore_for_save := (
+		is_moving_building
+		and current_island != null
+		and moving_from_cell != Vector2i(-1, -1)
+		and not current_island.has_building(moving_from_cell)
+	)
+	if restore_for_save:
+		building_manager.try_place(moving_from_cell, moving_building_type, current_island)
+
 	var reference_time := Time.get_ticks_msec() / 1000.0
 	var payload := SaveManager.build_payload(
 		world,
@@ -220,6 +236,9 @@ func _save_game() -> void:
 		reference_time
 	)
 	SaveManager.write(payload)
+
+	if restore_for_save:
+		current_island.remove_building(moving_from_cell)
 	# Any save (event or timer) satisfies the throttle: clear the flag and restart the window.
 	_autosave_dirty = false
 	_autosave_accum = 0.0
@@ -846,6 +865,10 @@ func _switch_to_adjacent_island(direction: int) -> void:
 
 
 func _switch_to_island(coord: Vector2i) -> void:
+	# Restore any building mid-move onto the island we are leaving (still current here), so it
+	# isn't orphaned when current_island changes.
+	_cancel_building_move()
+
 	# Release the wheel on the island we are leaving, while it is still current,
 	# so its manual generator is not left flagged as running.
 	_stop_operating()
@@ -939,47 +962,67 @@ func _find_crashed_spaceship_cell() -> Vector2i:
 
 func _select_no_building() -> void:
 	# Also the cancel path for an in-progress move (right-click / picking another tool routes
-	# here via the build menu); the original building was never removed, so it just stays.
-	is_moving_building = false
-	moving_from_cell = Vector2i(-1, -1)
+	# here via the build menu): restore the lifted building to its original cell.
+	_cancel_building_move()
 	selected_building_type = NO_BUILDING
 	_apply_selected_building()
 
 
 func _select_building(building_type: int) -> void:
-	# Choosing a building from the menu abandons any move in progress.
-	is_moving_building = false
-	moving_from_cell = Vector2i(-1, -1)
+	# Choosing a building from the menu abandons any move in progress (restoring the building).
+	_cancel_building_move()
 	selected_building_type = building_type
 	_apply_selected_building()
 
 
-# Panel "Move": keep the building where it is and enter a free placement preview for its type.
-# The next valid left-click drops it at the new cell and removes the original (_try_finish_move).
+# Panel "Move": lift the building off the map and enter a free placement preview for its type.
+# The next valid left-click drops it at the new cell (_try_finish_move); cancelling restores it.
 func _on_building_move_requested(building_type: int, anchor_cell: Vector2i, island: IslandData) -> void:
 	if island == null or island != current_island:
 		return
 
 	is_moving_building = true
 	moving_from_cell = anchor_cell
+	moving_building_type = building_type
+	# Take it off the map now so its old footprint stops drawing and stops feeding adjacency
+	# (to itself in the preview, and to its neighbours) while the player picks a new spot.
+	renderer.remove_building(anchor_cell)
 	selected_building_type = building_type
 	_apply_selected_building()
 
 
 func _try_finish_move() -> void:
-	# Place at the hovered cell first; only on success do we remove the original, so an
-	# illegal target (occupied / wrong terrain) leaves the building untouched.
-	if not renderer.try_place_hovered_building(selected_building_type):
+	# The building is already lifted off the map, so just drop it at the hovered cell. On an
+	# illegal target (occupied / wrong terrain) placement fails and we stay in move mode.
+	if not renderer.try_place_hovered_building(moving_building_type):
 		return
 
-	renderer.remove_building(moving_from_cell)
 	if _placement_player != null:
 		_placement_player.play()
 
+	# Clear move state BEFORE clear_selection so its _select_no_building doesn't try to restore
+	# the building we just successfully placed.
 	is_moving_building = false
 	moving_from_cell = Vector2i(-1, -1)
+	moving_building_type = NO_BUILDING
 	building_menu.clear_selection()
 	_save_game()
+
+
+# Put the lifted building back at its original cell and leave move mode. A no-op when no move is
+# in progress, so it's safe to call from every cancel path.
+func _cancel_building_move() -> void:
+	if not is_moving_building:
+		return
+
+	is_moving_building = false
+	var from := moving_from_cell
+	var building_type := moving_building_type
+	moving_from_cell = Vector2i(-1, -1)
+	moving_building_type = NO_BUILDING
+
+	if current_island != null and from != Vector2i(-1, -1):
+		renderer.place_building_at(from, building_type)
 
 
 # Panel "Delete": scrap the building outright. The power/production managers recompute from the

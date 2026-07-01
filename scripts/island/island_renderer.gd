@@ -296,6 +296,19 @@ func remove_building(anchor_cell: Vector2i) -> bool:
 	return removed
 
 
+# Place a building at a specific (non-hovered) cell. Used to restore a building lifted for a
+# move back to its original cell when the move is cancelled.
+func place_building_at(anchor_cell: Vector2i, building_type: int) -> bool:
+	if island == null:
+		return false
+
+	var placed := building_manager.try_place(anchor_cell, building_type, island)
+	if placed:
+		refresh()
+
+	return placed
+
+
 func get_hovered_building_type() -> int:
 	if island == null or hovered_cell == Vector2i(-1, -1):
 		return -1
