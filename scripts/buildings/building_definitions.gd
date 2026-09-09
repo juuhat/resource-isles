@@ -9,6 +9,7 @@ const BuildingDefinitionScript := preload("res://scripts/buildings/building_defi
 const CRASHED_SPACESHIP_TEXTURE := preload("res://assets/buildings/crashed_spaceship.png")
 const CRASHED_SPACESHIP_MODEL := preload("res://assets/models/buildings/crashed_spaceship.glb")
 const LOGGER_CAMP_TEXTURE := preload("res://assets/buildings/logger_camp.png")
+const LOGGER_CAMP_MODEL := preload("res://assets/models/buildings/logger_camp.glb")
 const QUARRY_TEXTURE := preload("res://assets/buildings/quarry.png")
 const BURNER_GENERATOR_TEXTURE := preload("res://assets/buildings/burner_generator.png")
 const SAWMILL_TEXTURE := preload("res://assets/buildings/sawmill.png")
@@ -42,6 +43,8 @@ static func build_all() -> Array[BuildingDefinition]:
 	logger_camp.display_name = "Logger's Camp"
 	logger_camp.category = GameTypes.BuildingCategory.RESOURCES
 	logger_camp.texture = LOGGER_CAMP_TEXTURE
+	logger_camp.model = LOGGER_CAMP_MODEL
+	logger_camp.visual_size_tiles = Vector2(0.85, 0.85)
 	logger_camp.cost = {GameTypes.ResourceType.WOOD: 6}
 	logger_camp.required_terrains = [GameTypes.Terrain.GRASS]
 	# Must touch a forest, earns +1 per adjacent forest, but crowding other
