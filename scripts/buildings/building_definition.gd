@@ -3,6 +3,8 @@ extends RefCounted
 
 var id: int
 var display_name: String
+# One or two sentences on the building's role, shown in the build menu's details column.
+var description: String = ""
 var category: int
 var texture: Texture2D
 # Optional 3D model. When set, the renderer instances this instead of the flat texture.

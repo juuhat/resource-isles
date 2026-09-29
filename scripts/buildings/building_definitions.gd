@@ -42,6 +42,7 @@ static func build_all() -> Array[BuildingDefinition]:
 	var logger_camp := BuildingDefinitionScript.new()
 	logger_camp.id = GameTypes.BuildingType.LOGGER_CAMP
 	logger_camp.display_name = "Logger's Camp"
+	logger_camp.description = "Fells the surrounding forest for a steady supply of wood. Best where trees are thick and other camps are far."
 	logger_camp.category = GameTypes.BuildingCategory.RESOURCES
 	logger_camp.texture = LOGGER_CAMP_TEXTURE
 	logger_camp.model = LOGGER_CAMP_MODEL
@@ -64,6 +65,7 @@ static func build_all() -> Array[BuildingDefinition]:
 	var quarry := BuildingDefinitionScript.new()
 	quarry.id = GameTypes.BuildingType.QUARRY
 	quarry.display_name = "Quarry"
+	quarry.description = "Cuts stone from neighbouring rock deposits. Nearby quarries compete for the same rock face."
 	quarry.category = GameTypes.BuildingCategory.RESOURCES
 	quarry.texture = QUARRY_TEXTURE
 	quarry.cost = {GameTypes.ResourceType.WOOD: 6}
@@ -89,6 +91,7 @@ static func build_all() -> Array[BuildingDefinition]:
 	var burner_generator := BuildingDefinitionScript.new()
 	burner_generator.id = GameTypes.BuildingType.BURNER_GENERATOR
 	burner_generator.display_name = "Burner Generator"
+	burner_generator.description = "Burns wood to power the whole island, freeing the robot from hand-operating buildings. Stalls when the wood runs out."
 	burner_generator.category = GameTypes.BuildingCategory.POWER
 	burner_generator.texture = BURNER_GENERATOR_TEXTURE
 	burner_generator.cost = {
@@ -110,6 +113,7 @@ static func build_all() -> Array[BuildingDefinition]:
 	var windmill := BuildingDefinitionScript.new()
 	windmill.id = GameTypes.BuildingType.WINDMILL
 	windmill.display_name = "Windmill"
+	windmill.description = "Fuel-free shoreline power. Open water around it means more wind; nearby buildings block the airflow."
 	windmill.category = GameTypes.BuildingCategory.POWER
 	windmill.model = WINDMILL_MODEL
 	# The blades are a separate object in the .glb; spin them around the model-local axle.
@@ -134,6 +138,7 @@ static func build_all() -> Array[BuildingDefinition]:
 	var sawmill := BuildingDefinitionScript.new()
 	sawmill.id = GameTypes.BuildingType.SAWMILL
 	sawmill.display_name = "Sawmill"
+	sawmill.description = "Saws logs from stock into planks. Needs no forest, just a supply of wood and power."
 	sawmill.category = GameTypes.BuildingCategory.PROCESSING
 	sawmill.texture = SAWMILL_TEXTURE
 	sawmill.model = SAWMILL_MODEL
@@ -157,6 +162,7 @@ static func build_all() -> Array[BuildingDefinition]:
 	var dock := BuildingDefinitionScript.new()
 	dock.id = GameTypes.BuildingType.DOCK
 	dock.display_name = "Dock"
+	dock.description = "A landing on the sandy shore, and the future launch point for boats to other islands."
 	dock.category = GameTypes.BuildingCategory.LOGISTICS
 	dock.texture = DOCK_TEXTURE
 	dock.cost = {

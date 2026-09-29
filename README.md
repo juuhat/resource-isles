@@ -156,7 +156,7 @@ The project now includes a code-driven hex-tile starter island scaffold:
 - `scripts/buildings/production_manager.gd` runs the production tick, paying out each producing building's resource on its interval.
 - `scripts/ui/resource_bar.gd` owns the always-visible top resource bar.
 - `scripts/ui/action_bar.gd` owns the player robot's command bar (Civ 6 unit-command style): a persistent robot portrait button in the bottom-right corner (mirroring the building-menu button in the bottom-left) that selects the robot when clicked, with the actions the selected robot can take on its current tile (harvest, operate a manual generator) shown as icon buttons to its left. It is a pure view fed by `main._refresh_action_bar()`; it emits the pressed action's id (or a select request) back to `main`.
-- `scripts/ui/building_menu.gd` owns the bottom building menu UI and emits building selection events.
+- `scripts/ui/building_menu.gd` owns the construction menu (BUILD launcher, category tabs, building cards, details column) and the placement bar shown while a building is selected, and emits building selection events.
 - `scripts/ui/building_info_panel.gd` owns the building info UI shown when a placed building is clicked: live adjacency and production breakdown (with resource/power icons on the produced/consumed/fuel/power lines), plus Move and Delete buttons (hidden for worldgen-only buildings). It sizes itself to its content from the top-right corner, and emits `move_requested` / `delete_requested` back to `main`. Move lifts the building off the map (removed from the island data so the placement preview's adjacency reflects only the new surroundings, and it stops drawing at the old spot) and enters a free placement preview; the next valid click re-places it, while cancelling (right-click / picking another tool / switching islands) restores it to its original cell. A save landing mid-move writes the building back at its original cell just for that save, so quitting/crashing mid-move never loses it. Delete scraps the building (power/production recompute on the next `_process` tick).
 - `scripts/world/world_data.gd` holds every discovered island keyed by its world-map hex coordinate, plus the current coordinate, so islands persist (with their placed buildings) when the player switches between them. The starter sits at the center coordinate; other slots are generated on demand.
 - `scripts/ui/world_map.gd` is a CanvasLayer overlay (not a separate scene) that hosts the hex-grid map; selecting a slot asks `main` to enter that island (travel, or generate-then-travel).
@@ -189,8 +189,8 @@ Prototype controls:
 - **Left click**: place the selected building
 - **Left click on a building**: show building info
 - **Left click on a forest or stone**: scavenge it once for a one-time resource burst (shows a floating `+N` popup)
-- **Buildings button**: open or close the building menu
-- **Esc**: clear the selected building
+- **B** or the **BUILD** button: open or close the building menu. While it is open, **1-9** pick a card in the current tab. Cards show cost against current stock (red when short); locked buildings appear as silhouettes naming the quest that unlocks them.
+- **Esc** or **right click**: stop placing the selected building (also the placement bar's **Cancel**)
 - **M**: open or close the world map. Click a discovered island to travel there, or an unexplored slot (`?`) to generate and travel to a new island. Previously visited islands persist.
 - **[** and **]**: quick-cycle to the previous or next discovered island
 - **=**: (temporary) reveal one more ring on the world map — a stand-in for a boat-tier unlock until that system exists

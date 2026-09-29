@@ -290,6 +290,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if key_event.keycode == KEY_T:
 		quest_log_view.toggle()
 
+	if key_event.keycode == KEY_B:
+		building_menu.toggle_menu()
+
 	if key_event.keycode == KEY_SPACE:
 		renderer.set_show_grid(not renderer.show_grid)
 
@@ -1066,7 +1069,7 @@ func _add_ui() -> void:
 	add_child(building_info_panel)
 
 	building_menu = BuildingMenuScript.new()
-	building_menu.setup(building_manager, quest_manager)
+	building_menu.setup(building_manager, quest_manager, resource_manager)
 	building_menu.building_selected.connect(_select_building)
 	building_menu.selection_cleared.connect(_select_no_building)
 	add_child(building_menu)

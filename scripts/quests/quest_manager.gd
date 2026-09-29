@@ -94,12 +94,18 @@ func get_quests_in_state(state: int) -> Array[Quest]:
 # spaceship) is always buildable; one a quest unlocks requires that quest's completion.
 # Placement gating is not enforced yet — this is the hook for it.
 func is_building_unlocked(building_type: int) -> bool:
+	var quest := get_unlocking_quest(building_type)
+	return quest == null or is_completed(quest.id)
+
+
+# The quest whose reward unlocks building_type, or null if no quest gates it.
+func get_unlocking_quest(building_type: int) -> Quest:
 	for quest in quests:
 		for reward in quest.rewards:
 			if reward.kind == GameTypes.RewardKind.UNLOCK_BUILDING \
 					and reward.building_type == building_type:
-				return is_completed(quest.id)
-	return true
+				return quest
+	return null
 
 
 func is_upgrade_active(robot_upgrade: int) -> bool:

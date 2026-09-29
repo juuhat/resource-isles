@@ -79,7 +79,7 @@ func get_adjacency_yield(anchor_cell: Vector2i, building_type: int, island: Isla
 		var amount := count * int(rule.amount)
 		result.total += amount
 		result.breakdown.append({
-			label = _ref_label(rule),
+			label = get_reference_label(rule),
 			count = count,
 			amount = amount,
 		})
@@ -223,7 +223,8 @@ func _cell_matches(cell: Vector2i, reference: Dictionary, island: IslandData) ->
 			return false
 
 
-func _ref_label(reference: Dictionary) -> String:
+# Display name for a { kind, type } adjacency reference (e.g. "Tree", "Coast", "Sawmill").
+func get_reference_label(reference: Dictionary) -> String:
 	match int(reference.kind):
 		GameTypes.AdjacencyKind.TERRAIN:
 			return GameTypes.terrain_display_name(int(reference.type))
