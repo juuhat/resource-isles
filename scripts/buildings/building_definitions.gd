@@ -13,6 +13,7 @@ const LOGGER_CAMP_MODEL := preload("res://assets/models/buildings/logger_camp.gl
 const QUARRY_TEXTURE := preload("res://assets/buildings/quarry.png")
 const BURNER_GENERATOR_TEXTURE := preload("res://assets/buildings/burner_generator.png")
 const SAWMILL_TEXTURE := preload("res://assets/buildings/sawmill.png")
+const SAWMILL_MODEL := preload("res://assets/models/buildings/sawmill.glb")
 const DOCK_TEXTURE := preload("res://assets/buildings/dock.png")
 const WINDMILL_MODEL := preload("res://assets/models/buildings/windmill2.glb")
 
@@ -135,6 +136,8 @@ static func build_all() -> Array[BuildingDefinition]:
 	sawmill.display_name = "Sawmill"
 	sawmill.category = GameTypes.BuildingCategory.PROCESSING
 	sawmill.texture = SAWMILL_TEXTURE
+	sawmill.model = SAWMILL_MODEL
+	sawmill.visual_size_tiles = Vector2(0.85, 0.85)
 	sawmill.cost = {
 		GameTypes.ResourceType.WOOD: 8,
 		GameTypes.ResourceType.STONE: 4,
