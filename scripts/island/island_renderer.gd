@@ -13,9 +13,9 @@ extends Node3D
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const BladeSpinnerScript := preload("res://scripts/island/blade_spinner.gd")
-# Roystan toon water (see assets/shaders/water_toon.gdshader): a transparent animated
-# plane with a flat tint plus scrolling noise; the shoreline foam band comes from the baked
-# per-island shore-distance field (set in _rebuild_water), not the depth buffer.
+# Toon water (see assets/shaders/water_toon.gdshader): a transparent animated plane whose
+# depth bands, foam rim and swell lines all key off the distance to the nearest land hex —
+# exact near the shore (per-cell land mask), baked coarse further out (set in _rebuild_water).
 const WATER_TOON_SHADER := preload("res://assets/shaders/water_toon.gdshader")
 const WATER_SURFACE_NOISE := preload("res://assets/shaders/water_toon/PerlinNoise.png")
 const WATER_DISTORT_NOISE := preload("res://assets/shaders/water_toon/WaterDistortion.png")
@@ -40,15 +40,9 @@ const MODEL_OUTLINE_GROW := 0.024
 const SAND_COLOR := Color("#e3bc83")
 const GRASS_COLOR := Color("#9ea131")
 const STONE_COLOR := Color("#8e8791")
-const SHORE_FOAM_COLOR := Color("#ffffff40")
-# Single flat translucent surface tint; depth comes from the seabed showing through.
-const WATER_SURFACE_COLOR := Color("#2d62a5")
-const WATER_SURFACE_ALPHA := 0.55
-
-# Seabed ground tones (Minecraft-style): the floor under water is real ground, not blue —
-# the blue comes from the translucent surface plane above it. Coast is a sandy shelf, the
-# open-ocean floor is a darker, muddier sand.
-const SEABED_COAST_COLOR := Color("#19a5ff")
+# Seabed tones seen through the translucent water. The coast shelf is a pale aqua sand so the
+# shallows read turquoise over it; the water shader supplies the depth colours themselves.
+const SEABED_COAST_COLOR := Color("#7cc9c6")
 const SEABED_OCEAN_COLOR := Color("#1c8fe9")
 
 # Prism top heights per terrain (world units). Land sits above water for a layered
@@ -58,10 +52,10 @@ const SAND_TOP_Y := 14.0
 const GRASS_TOP_Y := 20.0
 const STONE_TOP_Y := 26.0
 
-# Water cells are flat tiles at one level (no basin) just under the translucent surface
-# plane. They still drop to WATER_FLOOR_Y underneath so the map edges read as solid water
-# rather than a thin sheet. Coast and ocean share the level so all water is flush.
-const WATER_TILE_TOP_Y := WATER_TOP_Y - 1.0
+# Water cells are flat tiles at one level (no basin) a few units under the translucent
+# surface plane, so the shelf and its drop-off read with a little parallax. They still drop to
+# WATER_FLOOR_Y underneath so the map edges read as solid water rather than a thin sheet.
+const WATER_TILE_TOP_Y := WATER_TOP_Y - 3.0
 const COAST_SEABED_TOP_Y := WATER_TILE_TOP_Y
 const OCEAN_SEABED_TOP_Y := WATER_TILE_TOP_Y
 const WATER_FLOOR_Y := -8.0
@@ -415,8 +409,9 @@ func _seabed_color(terrain_type: int) -> Color:
 # --- Water ---
 
 # A single horizontal plane covering the map (plus open-ocean margin) at water height. The
-# shader reads a baked shore-distance field (mobile-safe — no depth-buffer reads) for the
-# shallow tint and shoreline foam, so the plane itself needs no subdivision.
+# shader gets the island's per-cell land mask (exact hex distance near the shore) and a coarse
+# baked shore-distance field (the broad depth gradient) — mobile-safe, no depth-buffer reads,
+# so the plane itself needs no subdivision.
 func _rebuild_water() -> void:
 	if _water_instance == null:
 		return
@@ -431,47 +426,44 @@ func _rebuild_water() -> void:
 	plane.size = Vector2(extent, extent) * 2.5
 	_water_instance.mesh = plane
 
+	_water_material.set_shader_parameter("cell_mask", _build_land_mask_texture())
+	_water_material.set_shader_parameter("cell_count", Vector2i(island.width, island.height))
+	_water_material.set_shader_parameter("cell_size", cell_size)
 	_water_material.set_shader_parameter("shore_distance", bake["texture"])
 	_water_material.set_shader_parameter("grid_min", bake["min"])
 	_water_material.set_shader_parameter("grid_size", bake["size"])
+	_water_material.set_shader_parameter("far_distance", bake["far_distance"])
 
 	var center := get_map_center()
 	_water_instance.position = Vector3(center.x, WATER_TOP_Y, center.z)
 	_water_instance.visible = true
 
 
-# The Roystan toon water material: one flat translucent tint plus scrolling, distorted
-# shoreline foam. The foam still uses the baked shore-distance field (set per-island in
-# _rebuild_water); depth perception comes from the seabed beneath, not a color gradient.
+# The toon water material. Colours and animation are tuned in the shader's uniform defaults;
+# only the noise textures are bound here and the per-island data in _rebuild_water.
 func _make_toon_water_material() -> ShaderMaterial:
 	var material := ShaderMaterial.new()
 	material.shader = WATER_TOON_SHADER
-	material.set_shader_parameter("surfaceNoise", WATER_SURFACE_NOISE)
-	material.set_shader_parameter("distortNoise", WATER_DISTORT_NOISE)
-	# One flat translucent tint — no shallow/deep gradient. Depth is read from the sandy
-	# seabed showing through: lighter coast shelf vs darker ocean floor. Alpha controls how
-	# much floor is visible (toward 1.0 hides it, lower reveals more).
-	material.set_shader_parameter("water_color", Color(WATER_SURFACE_COLOR, WATER_SURFACE_ALPHA))
-	material.set_shader_parameter("foam_color", SHORE_FOAM_COLOR)
-	material.set_shader_parameter("foam_distance", 0.04)
-	material.set_shader_parameter("surface_noise_cutoff", 1.0)
-	material.set_shader_parameter("surface_distortion_amount", 0.18)
-	material.set_shader_parameter("surface_noise_scale", Vector2(0.012, 0.018))
-	material.set_shader_parameter("distort_noise_scale", 0.006)
-	material.set_shader_parameter("surface_noise_scroll", Vector2(0.018, 0.011))
-	material.set_shader_parameter("wave_streak_color", Color(Color("#cdefff"), 0.24))
-	material.set_shader_parameter("wave_streak_strength", 0.42)
-	material.set_shader_parameter("wave_streak_cutoff", 0.76)
-	material.set_shader_parameter("wave_streak_softness", 0.025)
-	material.set_shader_parameter("wave_streak_scale", Vector2(0.0014, 0.006))
-	material.set_shader_parameter("wave_streak_scroll", Vector2(0.018, 0.004))
-	material.set_shader_parameter("wave_patch_scale", 0.0028)
+	material.set_shader_parameter("surface_noise", WATER_SURFACE_NOISE)
+	material.set_shader_parameter("distort_noise", WATER_DISTORT_NOISE)
 	return material
 
 
-# Bakes a grayscale field over the map's world bounds: each texel is the normalized distance
-# from that world point to the nearest land cell (0 at the shore, 1 in open water). The water
-# shader reads it for the shallow/deep tint and the shoreline foam band.
+# One texel per cell, R = 1 for land. The shader tests the cells around each fragment against
+# this to get the exact distance to the hexagonal coastline.
+func _build_land_mask_texture() -> ImageTexture:
+	var image := Image.create(island.width, island.height, false, Image.FORMAT_R8)
+	for y in range(island.height):
+		for x in range(island.width):
+			var is_land := not GameTypes.is_water(island.get_terrain(Vector2i(x, y)))
+			image.set_pixel(x, y, Color(1.0 if is_land else 0.0, 0.0, 0.0))
+	return ImageTexture.create_from_image(image)
+
+
+# Bakes a coarse field over the map's world bounds: each texel is the distance from that world
+# point to the nearest land hex, normalized by far_distance. Hexes are treated as their
+# inscribed circle, which overestimates a little near corners — fine, since the shader takes
+# the exact per-cell distance near the shore and only relies on this further out.
 func _build_shore_distance_texture() -> Dictionary:
 	var min_xz := Vector2(INF, INF)
 	var max_xz := Vector2(-INF, -INF)
@@ -495,11 +487,13 @@ func _build_shore_distance_texture() -> Dictionary:
 	if size.y <= 0.0:
 		size.y = cell_size.y
 
-	var shore_buffer := cell_size.x * 0.5  # one half-tile out still reads as shore
-	var max_distance := cell_size.x * 6.0  # how far the shallow ring extends
+	# Inscribed radius of the pointy-top hex: the nearer of the side edge and the slanted edge.
+	var half := cell_size * 0.5
+	var inner_radius := minf(half.x, half.x * half.y / Vector2(half.x, half.y * 0.5).length())
+	var far_distance := cell_size.x * 6.0
 	var texture_width := 128
 	var texture_height := maxi(1, roundi(texture_width * size.y / size.x))
-	var image := Image.create(texture_width, texture_height, false, Image.FORMAT_RGBA8)
+	var image := Image.create(texture_width, texture_height, false, Image.FORMAT_R8)
 
 	for j in range(texture_height):
 		for i in range(texture_width):
@@ -509,16 +503,17 @@ func _build_shore_distance_texture() -> Dictionary:
 			)
 			var nearest := INF
 			for land in land_centers:
-				var d := point.distance_to(land)
-				if d < nearest:
-					nearest = d
-			var shore := 1.0 if land_centers.is_empty() else clampf((nearest - shore_buffer) / max_distance, 0.0, 1.0)
-			image.set_pixel(i, j, Color(shore, shore, shore, 1.0))
+				nearest = minf(nearest, point.distance_squared_to(land))
+			var shore := 1.0
+			if not land_centers.is_empty():
+				shore = clampf((sqrt(nearest) - inner_radius) / far_distance, 0.0, 1.0)
+			image.set_pixel(i, j, Color(shore, 0.0, 0.0))
 
 	return {
 		"texture": ImageTexture.create_from_image(image),
 		"min": min_xz,
 		"size": size,
+		"far_distance": far_distance,
 	}
 
 

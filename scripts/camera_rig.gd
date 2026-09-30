@@ -15,8 +15,15 @@ const MAX_DISTANCE := 1200.0
 # Pitch as a function of zoom: MIN_PITCH at closest zoom, MAX_PITCH at farthest.
 const MIN_PITCH_DEGREES := 50.0
 const MAX_PITCH_DEGREES := 65.0
+# Depth fog range as multiples of the camera distance: starts just past the pivot (so the
+# island in view stays clear) and is fully hazy toward the horizon. Zoomed out the view is
+# more top-down and sees less distant water, so the range tightens to keep the haze visible.
+const FOG_BEGIN_FACTOR := 1.1
+const FOG_END_FACTOR_NEAR := 4.0
+const FOG_END_FACTOR_FAR := 2.3
 
 var _camera: Camera3D
+var _fog_environment: Environment
 var _distance := 800.0
 var _pitch_degrees := MIN_PITCH_DEGREES
 
@@ -56,6 +63,12 @@ func center_on(world_position: Vector3) -> void:
 	position = world_position
 
 
+# The environment whose depth fog should track the zoom (see FOG_BEGIN_FACTOR).
+func set_fog_environment(environment: Environment) -> void:
+	_fog_environment = environment
+	_update_camera()
+
+
 func _set_distance(new_distance: float) -> void:
 	_distance = clampf(new_distance, MIN_DISTANCE, MAX_DISTANCE)
 	_pitch_degrees = _pitch_for_distance(_distance)
@@ -74,6 +87,10 @@ func _update_camera() -> void:
 	var pitch := deg_to_rad(_pitch_degrees)
 	_camera.position = Vector3(0.0, sin(pitch) * _distance, cos(pitch) * _distance)
 	_camera.rotation = Vector3(-pitch, 0.0, 0.0)
+	if _fog_environment != null:
+		_fog_environment.fog_depth_begin = _distance * FOG_BEGIN_FACTOR
+		var zoom_t := inverse_lerp(MIN_DISTANCE, MAX_DISTANCE, _distance)
+		_fog_environment.fog_depth_end = _distance * lerpf(FOG_END_FACTOR_NEAR, FOG_END_FACTOR_FAR, zoom_t)
 
 
 # 0 at MIN_DISTANCE (closest) → 1 at MAX_DISTANCE (farthest), lerped between the pitch bounds

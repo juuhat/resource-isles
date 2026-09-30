@@ -144,10 +144,13 @@ interface was kept stable so callers barely changed (mostly `Vector2` → `Vecto
 two methods were renamed — `set_hovered_world_position(Vector2)` → `set_hovered_from_ray(origin,
 direction)` (the camera passes a ray now) and the old `queue_redraw()` contract → `refresh()`.
 
-The water surface is a single translucent plane driven by the Roystan-style toon shader
+The water surface is a single translucent plane driven by a toon shader
 ([`water_toon.gdshader`](../assets/shaders/water_toon.gdshader)), built in `_rebuild_water` /
-`_make_toon_water_material`: a flat tint plus scrolling, distorted surface noise sampled against a
-baked per-island `shore_distance` field. Other deferred polish:
+`_make_toon_water_material`. Everything keys off the distance to the nearest land hex: exact near
+the shore (the shader tests the neighbouring cells against a per-cell land mask) and a coarse baked
+`shore_distance` field further out. From that it draws banded shallow/mid/deep colours, a foam rim
+tracing the hex coastline, swell lines rolling in toward the shore, and sparse offshore wave
+strokes. Colours and animation are tuned in the shader's uniform defaults. Other deferred polish:
 zoom-stable grid lines (3D `PRIMITIVE_LINES` are always 1px), terrain batching via
 `MultiMeshInstance3D` if islands grow, shadow/ambient lighting tuning, and camera yaw/orbit
 control.

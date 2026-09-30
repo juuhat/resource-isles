@@ -446,14 +446,23 @@ func _setup_lighting() -> void:
 
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.0901961, 0.435294, 0.658824)
+	# Matches the water shader's deep_color so the far ocean blends into the background.
+	environment.background_color = Color(0.14, 0.43, 0.53)
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color(0.6, 0.65, 0.75)
 	environment.ambient_light_energy = 0.5
+	# Islanders-style distance haze: depth fog fading the far ocean into a light cyan. The camera
+	# rig moves the fog start/end with zoom so the island itself always stays clear.
+	environment.fog_enabled = true
+	environment.fog_mode = Environment.FOG_MODE_DEPTH
+	environment.fog_light_color = Color(0.45, 0.8, 0.8)
+	environment.fog_density = 0.85
+	environment.fog_depth_curve = 1.4
 	var world_environment := WorldEnvironment.new()
 	world_environment.name = "WorldEnvironment"
 	world_environment.environment = environment
 	add_child(world_environment)
+	camera_rig.set_fog_environment(environment)
 
 
 func _command_unit_to_hovered() -> bool:
