@@ -343,12 +343,15 @@ func _style_labels() -> void:
 				label.text += "\nUncharted\n" + locked_island_hint(coord)
 		elif not island.visited:
 			label.text = "Unexplored"
+			# Until rescued, K9-DA's island is flagged on the map so the player knows where to sail.
+			if world.is_dog_stranded_on(coord):
+				label.text += "\nK9-DA's signal"
 			if coord == _hovered:
 				label.text += "\nClick to sail here"
-		elif is_current:
-			label.text = "▼ %s" % island.island_name
 		else:
-			label.text = island.island_name
+			label.text = ("▼ %s" if is_current else "%s") % island.island_name
+			if world.is_dog_stranded_on(coord):
+				label.text += "\nK9-DA is here"
 		var color := LABEL_COLOR if revealed else UNCHARTED_LABEL_COLOR
 		if is_current or coord == _hovered:
 			color = CURRENT_COLOR

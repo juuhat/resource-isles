@@ -125,6 +125,7 @@ enum Stat {
 	# Per-building-type build counts added after the first block (appended: stats save as ints).
 	IRON_MINES_BUILT,
 	COAL_MINES_BUILT,
+	DOG_RESCUED, # K9-DA picked up by the robot (the MAIN quest; 0 or 1)
 }
 
 
@@ -184,6 +185,8 @@ static func stat_display_name(stat: int) -> String:
 			return "Tools recovered"
 		Stat.ISLANDS_REACHED:
 			return "Islands reached"
+		Stat.DOG_RESCUED:
+			return "K9-DA rescued"
 		_:
 			return "Unknown"
 

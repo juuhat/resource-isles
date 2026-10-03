@@ -1,11 +1,20 @@
 class_name Dog
 extends Node3D
 
-# The dog companion (Companion Unit K9-DA), a 3D model that wanders the island on its own.
-# It picks a random nearby walkable cell, walks there along a hex path at a constant
-# world-space speed on the XZ ground plane, pauses, then picks another — purely ambient
-# for now (testing). Movement mirrors PlayerUnit, but the dog steers itself instead of
-# following commanded paths, and it has no selection marker or actions.
+# The dog companion (Companion Unit K9-DA), a 3D model that walks the hex grid on its own.
+# It has two modes, driven by main.gd from the rescue state in WorldData:
+#   STRANDED  — waiting at one cell on its ring-1 island until the robot walks up and rescues
+#               it (the MAIN quest). It stays put so the player can always find it.
+#   FOLLOWING — rescued: it trails the robot (the `leader`), walking to a cell beside it
+#               whenever it falls behind and pottering about nearby otherwise. main.gd moves
+#               it onto whichever island the robot travels to.
+# Movement mirrors PlayerUnit (hex path, constant world-space speed on the XZ plane), but the
+# dog steers itself instead of following commanded paths, and it has no selection or actions.
+
+enum Mode {
+	STRANDED,
+	FOLLOWING,
+}
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
@@ -17,29 +26,44 @@ const DOG_WALK_ANIM := preload("res://assets/models/units/dog_animation_walking.
 # scaled by its widest horizontal extent so a long, low body fits the tile naturally.
 @export var visual_size_tiles := 0.55
 @export var move_speed := 180.0
+# Speed used when it has fallen well behind the robot, so it keeps up with the faster robot.
+@export var catch_up_speed := 340.0
+# Path length (in steps) beyond which the dog switches to catch_up_speed.
+@export var catch_up_steps := 4
 # How quickly the model turns to face its travel direction (higher = snappier).
 @export var turn_speed := 10.0
 # Yaw offset (radians) so the model's modeled front points along its travel direction.
 # Tune if the dog walks sideways/backwards once you see it in-game.
 @export var model_yaw_offset := 0.0
-# How many cells out the dog may pick its next wander target.
-@export var wander_radius := 4
-# Idle pause between walks, seconds (randomized in this range).
-@export var pause_min := 0.8
-@export var pause_max := 3.0
+# While following: how many steps from the robot the dog may drift before it heads back.
+@export var follow_distance := 2
+# How many cells out the dog may pick an idle potter target while near the robot.
+@export var wander_radius := 1
+# Idle pause between potters, seconds (randomized in this range).
+@export var pause_min := 0.6
+@export var pause_max := 2.5
+# Pause before re-checking the robot's position after a walk, so it reacts promptly.
+@export var follow_check_seconds := 0.3
 
 var renderer: IslandRenderer
 var current_cell := Vector2i(-1, -1)
+var mode := Mode.STRANDED
+# The unit the dog follows in FOLLOWING mode (the player robot).
+var leader: PlayerUnit
 
 var _island: IslandData
 var _path: Array[Vector2i] = []
 var _target_world := Vector3.ZERO
 var _pending_cell := Vector2i(-1, -1)
 var _moving := false
+var _speed := 180.0
 var _pause_timer := 0.0
 var _model: Node3D
 var _anim_player: AnimationPlayer
 var _walk_anim := ""
+var _hop_tween: Tween
+# The model's resting height (set when it is fitted to the tile); hops return to it.
+var _model_base_y := 0.0
 
 
 func setup(new_renderer: IslandRenderer) -> void:
@@ -50,32 +74,63 @@ func _ready() -> void:
 	_model = DOG_MODEL.instantiate()
 	add_child(_model)
 	_scale_model_to_tile()
+	_model_base_y = _model.position.y
 	_setup_animation()
 	visible = false
 
 
-# Drop the dog onto the given island at a random walkable cell and start it wandering.
-func begin(island: IslandData) -> void:
-	_island = island
-	current_cell = _find_spawn_cell()
-	if current_cell == Vector2i(-1, -1):
-		visible = false
-		return
-
-	position = renderer.get_cell_center(current_cell)
-	_path.clear()
-	_moving = false
-	_pause_timer = randf_range(pause_min, pause_max)
-	visible = true
-	_stop_walk_anim()
+# Leave the dog waiting at `cell` on `island` (its stranded spot before the rescue).
+func strand(island: IslandData, cell: Vector2i) -> void:
+	mode = Mode.STRANDED
+	leader = null
+	_place(island, cell)
 
 
-# Park the dog (e.g. when leaving its island). It keeps its place but stops moving.
+# Start trailing `new_leader` around `island`, appearing at `cell` (beside the robot).
+func follow(island: IslandData, cell: Vector2i, new_leader: PlayerUnit) -> void:
+	mode = Mode.FOLLOWING
+	leader = new_leader
+	_place(island, cell)
+
+
+# Park the dog out of sight (e.g. its island hasn't been reached yet).
 func halt() -> void:
 	_island = null
 	_path.clear()
 	_moving = false
 	visible = false
+	_stop_walk_anim()
+
+
+# A little double hop — the "you found me" beat when the robot rescues the dog.
+func celebrate() -> void:
+	if not visible or _model == null:
+		return
+
+	_pause_timer = maxf(_pause_timer, 1.2)
+	if _hop_tween != null:
+		_hop_tween.kill()
+	var hop_height := (renderer.cell_size.y if renderer != null else 128.0) * 0.25
+	_hop_tween = create_tween()
+	for _hop in range(2):
+		_hop_tween.tween_property(_model, "position:y", _model_base_y + hop_height, 0.18) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		_hop_tween.tween_property(_model, "position:y", _model_base_y, 0.18) \
+			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
+
+func _place(island: IslandData, cell: Vector2i) -> void:
+	if island == null or renderer == null or cell == Vector2i(-1, -1):
+		halt()
+		return
+
+	_island = island
+	current_cell = cell
+	position = renderer.get_cell_center(current_cell)
+	_path.clear()
+	_moving = false
+	_pause_timer = follow_check_seconds
+	visible = true
 	_stop_walk_anim()
 
 
@@ -85,17 +140,17 @@ func _process(delta: float) -> void:
 
 	if _moving:
 		_advance_movement(delta)
-	else:
+	elif mode == Mode.FOLLOWING:
 		_pause_timer -= delta
 		if _pause_timer <= 0.0:
-			_start_next_wander()
+			_start_next_move()
 
 
 func _advance_movement(delta: float) -> void:
 	var to_target := _target_world - position
 	_face_direction(to_target, delta)
 	var distance := to_target.length()
-	var step := move_speed * delta
+	var step := _speed * delta
 
 	if distance <= step or distance == 0.0:
 		position = _target_world
@@ -108,7 +163,7 @@ func _advance_movement(delta: float) -> void:
 func _advance_to_next() -> void:
 	if _path.is_empty():
 		_moving = false
-		_pause_timer = randf_range(pause_min, pause_max)
+		_pause_timer = follow_check_seconds
 		_stop_walk_anim()
 		return
 
@@ -117,20 +172,44 @@ func _advance_to_next() -> void:
 	_moving = true
 
 
-# Pick a reachable nearby cell and walk to it; if none is found, wait and try again.
-func _start_next_wander() -> void:
-	var path := _pick_wander_path()
-	if path.is_empty():
-		_pause_timer = randf_range(pause_min, pause_max)
-		return
+# Head back to the robot if it has drifted too far; otherwise potter about near it now and then.
+func _start_next_move() -> void:
+	var path := _pick_follow_path()
+	if not path.is_empty():
+		_speed = catch_up_speed if path.size() > catch_up_steps else move_speed
+	else:
+		path = _pick_wander_path()
+		if path.is_empty():
+			_pause_timer = randf_range(pause_min, pause_max)
+			return
+		_speed = move_speed
 
 	_path = path
 	_play_walk_anim()
 	_advance_to_next()
 
 
+# The path to a cell beside the robot, or [] when the dog is already close enough (or the robot
+# is unreachable). Stops one step short so the dog sits next to the robot, not on it.
+func _pick_follow_path() -> Array[Vector2i]:
+	if leader == null or leader.current_cell == Vector2i(-1, -1):
+		return []
+
+	var path := HexPathfinderScript.find_path(_island, current_cell, leader.current_cell)
+	if path.size() <= follow_distance:
+		return []
+
+	path.resize(path.size() - 1)
+	return path
+
+
+# An occasional short potter to a nearby cell while the robot is close. Only fires some of the
+# time so the dog mostly sits by the robot rather than fidgeting constantly.
 func _pick_wander_path() -> Array[Vector2i]:
-	for _attempt in range(12):
+	if randf() > 0.35:
+		return []
+
+	for _attempt in range(8):
 		var offset := Vector2i(
 			randi_range(-wander_radius, wander_radius),
 			randi_range(-wander_radius, wander_radius)
@@ -138,26 +217,14 @@ func _pick_wander_path() -> Array[Vector2i]:
 		var cell := current_cell + offset
 		if cell == current_cell or not HexPathfinderScript.is_walkable(_island, cell):
 			continue
+		if leader != null and cell == leader.current_cell:
+			continue
 
 		var path := HexPathfinderScript.find_path(_island, current_cell, cell)
-		if not path.is_empty():
+		if not path.is_empty() and path.size() <= wander_radius + 1:
 			return path
 
 	return []
-
-
-func _find_spawn_cell() -> Vector2i:
-	var candidates: Array[Vector2i] = []
-	for y in range(_island.height):
-		for x in range(_island.width):
-			var cell := Vector2i(x, y)
-			if HexPathfinderScript.is_walkable(_island, cell) and not _island.has_building(cell):
-				candidates.append(cell)
-
-	if candidates.is_empty():
-		return Vector2i(-1, -1)
-
-	return candidates[randi() % candidates.size()]
 
 
 # Smoothly turn the model so its front faces the horizontal travel direction.

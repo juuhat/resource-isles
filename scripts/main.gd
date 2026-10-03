@@ -35,6 +35,7 @@ const AUTOSAVE_INTERVAL_SECONDS := 60.0
 # Icons for the robot's command-bar actions.
 const PICKAXE_ICON := preload("res://assets/icons/pickaxe.png")
 const POWER_ICON := preload("res://assets/icons/power.png")
+const PAW_ICON := preload("res://assets/icons/paw.png")
 
 const PLACEMENT_SOUND := preload("res://assets/audio/sfx/building_placement.wav")
 const StarfieldSkyShader := preload("res://assets/shaders/world_map/starfield_sky.gdshader")
@@ -43,6 +44,7 @@ const StarfieldSkyShader := preload("res://assets/shaders/world_map/starfield_sk
 enum UnitAction {
 	HARVEST,
 	OPERATE,
+	RESCUE,
 }
 # Pixels the cursor may travel between left press and release before it counts
 # as a drag (pan) rather than a click.
@@ -150,7 +152,8 @@ func _ready() -> void:
 	player_unit.entered_cell.connect(_on_unit_entered_cell)
 	add_child(player_unit)
 
-	# Ambient dog companion that wanders the starter island on its own (testing).
+	# K9-DA, the dog the MAIN quest rescues: stranded on a ring-1 island until the robot picks
+	# it up, then it follows the robot between islands (see _sync_dog).
 	dog = DogScript.new()
 	dog.name = "Dog"
 	add_child(dog)
@@ -167,11 +170,11 @@ func _ready() -> void:
 	# Every island on the disc exists from the start (unrevealed ones wait under the clouds).
 	# Also fills in slots an older save never generated.
 	_ensure_world_generated()
+	# Pick K9-DA's island and spot (or fill them in for an older save) before the map is drawn.
+	_ensure_dog_placed()
 	world_view.setup(world, resource_node_database, building_manager)
 	world_view.refresh()
 	camera_rig.set_overview(world_view.overview_pivot(), world_view.overview_distance())
-	dog.setup(world_view.renderer_for(WorldData.CENTER))
-	dog.begin(world.get_island(WorldData.CENTER))
 	# Built after loading so it runs the loaded world's routes.
 	trade_manager = TradeManagerScript.new()
 	trade_manager.setup(world, building_manager)
@@ -394,7 +397,10 @@ func _apply_reward(reward: QuestReward) -> void:
 # Lift the clouds off more rings. Revealing past the disc's edge grows the disc, so its new
 # islands are generated and the overview reframed.
 func _reveal_rings(count: int) -> void:
+	var dog_was_hidden := not world.is_revealed(world.dog_coord)
 	world.reveal_additional_rings(count)
+	if dog_was_hidden and world.is_revealed(world.dog_coord) and not world.dog_rescued:
+		toast.show_message("K9-DA's signal detected! Press M to see which island it's coming from.")
 	_ensure_world_generated()
 	world_view.refresh()
 	camera_rig.set_overview(world_view.overview_pivot(), world_view.overview_distance())
@@ -587,6 +593,9 @@ func _refresh_action_bar() -> void:
 		var operate := _operate_action()
 		if not operate.is_empty():
 			actions.append(operate)
+		var rescue := _rescue_action()
+		if not rescue.is_empty():
+			actions.append(rescue)
 
 	action_bar.set_actions(actions)
 	action_bar.set_selected(player_unit != null and player_unit.selected)
@@ -643,6 +652,22 @@ func _operate_action() -> Dictionary:
 	return {id = UnitAction.OPERATE, icon = POWER_ICON, label = label, active = is_operating}
 
 
+# Offered while the robot is parked on or right beside the stranded K9-DA.
+func _rescue_action() -> Dictionary:
+	if not _can_rescue_dog():
+		return {}
+
+	return {id = UnitAction.RESCUE, icon = PAW_ICON, label = "Rescue K9-DA", active = false}
+
+
+func _can_rescue_dog() -> bool:
+	if not world.is_dog_stranded_on(world.current_coord):
+		return false
+
+	var robot_cell := player_unit.current_cell
+	return robot_cell == world.dog_cell or HexGridScript.neighbors(world.dog_cell).has(robot_cell)
+
+
 # True when the cell holds a building that draws power, so the robot can hand-power it
 # with the Operate verb (the tier-0 power source — see is_operating / power_manager.gd).
 func _building_consumes_power(cell: Vector2i) -> bool:
@@ -660,6 +685,24 @@ func _on_action_pressed(action_id: int) -> void:
 			_on_harvest_pressed()
 		UnitAction.OPERATE:
 			_on_operate_pressed()
+		UnitAction.RESCUE:
+			_on_rescue_pressed()
+
+
+# Bring K9-DA aboard: it starts following the robot, and the DOG_RESCUED stat completes the MAIN
+# quest (whose completion toasts and saves). dog_rescued is set first so that save records it.
+func _on_rescue_pressed() -> void:
+	if not _can_rescue_dog():
+		return
+
+	world.dog_rescued = true
+	dog.follow(current_island, dog.current_cell, player_unit)
+	dog.celebrate()
+	_spawn_floating_text(dog.position, "K9-DA rescued!", Color(1.0, 0.85, 0.45), 26)
+	world_view.set_current_coord(world.current_coord)
+	stat_tracker.add(GameTypes.Stat.DOG_RESCUED, 1)
+	_refresh_action_bar()
+	_save_game()
 
 
 func _on_harvest_pressed() -> void:
@@ -989,18 +1032,20 @@ func _switch_to_island(coord: Vector2i, instant := false) -> void:
 		renderer.clear_interaction()
 	renderer = next_renderer
 	current_island = world.get_current()
-	# Landing on an island for the first time is the "Rescue the Dog" beat for any island beyond
-	# the starter — sailing out to a new island is what reunites the robot with its pet (see
-	# QuestCatalog).
+	# Landing on an island for the first time counts as discovering it. On K9-DA's island, point
+	# the player at the dog — the rescue itself is the robot's Rescue action beside it.
 	if not current_island.visited:
 		current_island.visited = true
 		if coord != WorldData.CENTER:
 			stat_tracker.add(GameTypes.Stat.ISLANDS_REACHED, 1)
+		if world.is_dog_stranded_on(coord):
+			toast.show_message("K9-DA is here! Walk the robot over to him and press Rescue.")
 	resource_manager.set_inventory(current_island.inventory)
 	building_menu.refresh_stock()
 	building_info_panel.hide_info()
 	player_unit.setup(renderer)
 	_spawn_player_unit()
+	_sync_dog()
 	resource_bar.refresh()
 	world_view.set_current_coord(coord)
 	_apply_selected_building()
@@ -1020,41 +1065,125 @@ func _spawn_player_unit() -> void:
 	pending_action_cell = Vector2i(-1, -1)
 	harvestable_cell = Vector2i(-1, -1)
 	operable_cell = Vector2i(-1, -1)
-	player_unit.place_at(_find_unit_spawn_cell())
+	player_unit.place_at(_find_unit_spawn_cell(current_island))
 	_refresh_action_bar()
 
 
-func _find_unit_spawn_cell() -> Vector2i:
-	var crashed_spaceship_cell := _find_crashed_spaceship_cell()
+func _find_unit_spawn_cell(island: IslandData) -> Vector2i:
+	var crashed_spaceship_cell := _find_crashed_spaceship_cell(island)
 	if crashed_spaceship_cell != Vector2i(-1, -1):
 		for neighbor in HexGridScript.neighbors(crashed_spaceship_cell):
 			if (
-				HexPathfinderScript.is_walkable(current_island, neighbor)
-				and not current_island.has_building(neighbor)
-				and not current_island.has_item(neighbor)
+				HexPathfinderScript.is_walkable(island, neighbor)
+				and not island.has_building(neighbor)
+				and not island.has_item(neighbor)
 			):
 				return neighbor
 
-	for y in range(current_island.height):
-		for x in range(current_island.width):
+	for y in range(island.height):
+		for x in range(island.width):
 			var cell := Vector2i(x, y)
-			if (
-				HexPathfinderScript.is_walkable(current_island, cell)
-				and not current_island.has_building(cell)
-				and not current_island.has_resource(cell)
-				and not current_island.has_item(cell)
-			):
+			if _is_open_ground(island, cell):
 				return cell
 
 	return Vector2i.ZERO
 
 
-func _find_crashed_spaceship_cell() -> Vector2i:
-	for cell in current_island.buildings.keys():
-		if current_island.buildings[cell].type == GameTypes.BuildingType.CRASHED_SPACESHIP:
+# Walkable land with nothing on it — somewhere a unit can stand without overlapping anything.
+func _is_open_ground(island: IslandData, cell: Vector2i) -> bool:
+	return (
+		HexPathfinderScript.is_walkable(island, cell)
+		and not island.has_building(cell)
+		and not island.has_resource(cell)
+		and not island.has_item(cell)
+	)
+
+
+func _find_crashed_spaceship_cell(island: IslandData) -> Vector2i:
+	for cell in island.buildings.keys():
+		if island.buildings[cell].type == GameTypes.BuildingType.CRASHED_SPACESHIP:
 			return cell
 
 	return Vector2i(-1, -1)
+
+
+# --- K9-DA ---
+
+# Give the world its stranded dog: a ring-1 island (from the seed) and a spot on it. Runs on every
+# start, so it also fills in saves from before the rescue existed — and if such a save already
+# completed the old "reach any island" rescue quest, K9-DA counts as rescued rather than undoing it.
+func _ensure_dog_placed() -> void:
+	if world.dog_coord == WorldData.NO_COORD or not world.has_island(world.dog_coord):
+		world.dog_coord = WorldData.dog_slot_for_seed(seed_value)
+		world.dog_cell = Vector2i(-1, -1)
+		world.dog_rescued = quest_manager.is_completed(GameTypes.QuestId.RESCUE_THE_DOG)
+
+	if world.dog_cell == Vector2i(-1, -1):
+		world.dog_cell = _choose_dog_cell(world.get_island(world.dog_coord), _island_seed(world.dog_coord))
+
+
+# A cell the robot can walk to from where it lands, a few steps in so the player sees the dog on
+# arrival and takes a short walk to reach it. Deterministic per island (seeded), so a world is
+# stable across runs.
+func _choose_dog_cell(island: IslandData, island_seed: int) -> Vector2i:
+	const MIN_STEPS := 3
+	const MAX_STEPS := 7
+	var start := _find_unit_spawn_cell(island)
+	# Breadth-first distances over walkable land from the robot's landing cell.
+	var steps := {start: 0}
+	var frontier: Array[Vector2i] = [start]
+	var head := 0
+	while head < frontier.size():
+		var cell := frontier[head]
+		head += 1
+		for neighbor in HexGridScript.neighbors(cell):
+			if not steps.has(neighbor) and HexPathfinderScript.is_walkable(island, neighbor):
+				steps[neighbor] = steps[cell] + 1
+				frontier.append(neighbor)
+
+	var preferred: Array[Vector2i] = []
+	var fallback: Array[Vector2i] = []
+	for cell in steps:
+		if cell == start or not _is_open_ground(island, cell):
+			continue
+		if steps[cell] >= MIN_STEPS and steps[cell] <= MAX_STEPS:
+			preferred.append(cell)
+		else:
+			fallback.append(cell)
+
+	var candidates := preferred if not preferred.is_empty() else fallback
+	if candidates.is_empty():
+		return start
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = island_seed
+	return candidates[rng.randi_range(0, candidates.size() - 1)]
+
+
+# Put K9-DA where the rescue state says: beside the robot once rescued; otherwise waiting at its
+# spot, but only once its island has been landed on (unexplored islands show no detail).
+func _sync_dog() -> void:
+	if world.dog_rescued:
+		dog.setup(renderer)
+		dog.follow(current_island, _find_dog_follow_cell(), player_unit)
+		return
+
+	var dog_island := world.get_island(world.dog_coord)
+	var dog_renderer := world_view.renderer_for(world.dog_coord)
+	if dog_island == null or dog_renderer == null or not dog_island.visited:
+		dog.halt()
+		return
+
+	dog.setup(dog_renderer)
+	dog.strand(dog_island, world.dog_cell)
+
+
+# Where the rescued dog appears when the robot lands: an open cell beside the robot.
+func _find_dog_follow_cell() -> Vector2i:
+	for neighbor in HexGridScript.neighbors(player_unit.current_cell):
+		if _is_open_ground(current_island, neighbor):
+			return neighbor
+	return player_unit.current_cell
 
 
 func _select_no_building() -> void:

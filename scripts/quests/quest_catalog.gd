@@ -20,14 +20,16 @@ static func build_all() -> Array[Quest]:
 	var quests: Array[Quest] = []
 
 	# The persistent main objective. Not part of the linear chain — always shown as the
-	# headline goal until the robot reaches a new island (builds the dock and sails out).
+	# headline goal until the robot finds K9-DA on his ring-1 island (WorldData.dog_coord) and
+	# picks him up with the Rescue action.
 	quests.append(QuestScript.new(
 		GameTypes.QuestId.RESCUE_THE_DOG,
 		GameTypes.QuestKind.MAIN,
 		"Rescue K9-DA",
 		"The crash threw Companion Unit K9-DA clear of the ship and onto a "
-			+ "neighbouring island. Gather what you need to build a boat and rescue him.",
-		[_objective("Sail to a new island", GameTypes.Stat.ISLANDS_REACHED, 1)],
+			+ "neighbouring island. Build a Dock, sail to the island where his signal is coming "
+			+ "from, then walk up to him and bring him aboard.",
+		[_objective("Rescue K9-DA", GameTypes.Stat.DOG_RESCUED, 1)],
 		# No mechanical reward — the payoff is the story beat (and the dock itself is
 		# unlocked by the REFINE milestone below, not here, to avoid a circular gate).
 		([] as Array[QuestReward])

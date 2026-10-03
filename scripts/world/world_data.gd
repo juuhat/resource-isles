@@ -24,6 +24,12 @@ var current_coord := CENTER
 var revealed_rings := STARTING_REVEALED_RINGS
 # Standing boat links between islands, run by TradeManager. Saved with the world.
 var trade_routes: Array[TradeRoute] = []
+# The K9-DA rescue (the MAIN quest): the ring-1 island the dog is stranded on, the cell it waits
+# at there, and whether the robot has picked it up. Until rescued it stays put on dog_coord; once
+# rescued it follows the robot between islands. NO_COORD / (-1, -1) until main assigns them.
+var dog_coord := NO_COORD
+var dog_cell := Vector2i(-1, -1)
+var dog_rescued := false
 
 
 func has_island(coord: Vector2i) -> bool:
@@ -131,6 +137,18 @@ static func ring_of(coord: Vector2i) -> int:
 	return int((absi(coord.x) + absi(coord.y) + absi(-coord.x - coord.y)) / 2)
 
 
+# The ring-1 slot K9-DA is stranded on, picked from the world seed so each world is stable
+# across runs. Ring 1 is what Set Sail reveals, so the rescue is always within first reach.
+static func dog_slot_for_seed(seed_value: int) -> Vector2i:
+	var ring_one := slots_within(1).slice(1)
+	return ring_one[posmod(seed_value, ring_one.size())]
+
+
+# True while K9-DA still waits on the island at `coord` for the robot to pick it up.
+func is_dog_stranded_on(coord: Vector2i) -> bool:
+	return not dog_rescued and dog_coord == coord
+
+
 # --- Save/load ---
 # The whole discovered world: every island keyed by its world-map coord, plus which slot is
 # current, how many rings are revealed, and the trade routes. `reference_time` is forwarded to
@@ -150,6 +168,9 @@ func to_dict(reference_time: float) -> Dictionary:
 		revealed_rings = revealed_rings,
 		islands = serialized_islands,
 		trade_routes = serialized_routes,
+		dog_coord = dog_coord,
+		dog_cell = dog_cell,
+		dog_rescued = dog_rescued,
 	}
 
 
@@ -165,4 +186,9 @@ static func from_dict(data: Dictionary, reference_time: float) -> WorldData:
 		# Drop a route whose island is gone (e.g. a hand-edited save) rather than crash on it.
 		if world.has_island(route.home_coord) and world.has_island(route.away_coord):
 			world.trade_routes.append(route)
+	# Saves from before the rescue have no dog data; main assigns a fresh spot (and treats an
+	# already-completed rescue quest as rescued) — see main._ensure_dog_placed.
+	world.dog_coord = data.get("dog_coord", NO_COORD)
+	world.dog_cell = data.get("dog_cell", Vector2i(-1, -1))
+	world.dog_rescued = bool(data.get("dog_rescued", false))
 	return world

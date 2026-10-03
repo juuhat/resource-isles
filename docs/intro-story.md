@@ -62,7 +62,7 @@ each milestone is a concrete step toward the boat that reaches the dog. A milest
 
 | Story beat | System (in code) | Teaches |
 | --- | --- | --- |
-| **Main objective:** rescue the dog | `RESCUE_THE_DOG` (MAIN) — completes on `Stat.ISLANDS_REACHED` ≥ 1 | The north-star goal: sail out and bring the dog home |
+| **Main objective:** rescue the dog | `RESCUE_THE_DOG` (MAIN) — completes on `Stat.DOG_RESCUED` ≥ 1, set by the robot's **Rescue** action beside K9-DA | The north-star goal: sail out and bring the dog home |
 | Wake by the wreck | `CRASHED_SPACESHIP` spawn landmark | Spawn point + future win target |
 | Tools flung loose in the crash | `ItemType.AXE` / `PICKAXE` / `HAMMER` pickups; milestone `HELLO_WORLD` | Walk-over collection; unlocks `RobotUpgrade.HARVESTING` |
 | Break ground | `BREAK_GROUND` (20 wood + 20 stone) → `LOGGER_CAMP` + `QUARRY` | Hand-gather wood *and* stone; first buildings |
@@ -71,8 +71,11 @@ each milestone is a concrete step toward the boat that reaches the dog. A milest
 
 So the entire island-1 chain *is* the rescue mission. The player isn't doing chores; every
 milestone is a step toward the boat, with `RESCUE_THE_DOG` floating above as the reason why.
-`SET_SAIL` unlocking the `DOCK` lets the robot sail out, and reaching the new island
-(`ISLANDS_REACHED`) completes the main objective — the narrative climax of act one.
+`SET_SAIL` unlocking the `DOCK` lets the robot sail out. K9-DA waits on one ring-1 island (picked
+from the world seed, `WorldData.dog_coord`), which the map labels "K9-DA's signal" once Set Sail
+reveals the ring. Landing there shows the dog; walking the robot beside him and pressing **Rescue**
+completes the main objective — the narrative climax of act one. The rescue state is saved with the
+world (`dog_coord`, `dog_cell`, `dog_rescued`).
 
 > Note: the tool-recovery scatter (`HELLO_WORLD`) is the diegetic reason the robot starts unable
 > to harvest — `HARVESTING` is gated behind picking the tools back up. The crash took your
@@ -122,7 +125,8 @@ The dog shouldn't vanish into a cutscene reward. Cheap, high-charm ways to keep 
 loop after rescue (all optional, none designed yet — flagged as direction):
 
 - **A companion that follows the robot** between islands — a warm presence on the boat and the
-  frontier, reinforcing "home" wherever you are.
+  frontier, reinforcing "home" wherever you are. **(Implemented:** once rescued, K9-DA trails the
+  robot and travels with it — see [`dog.gd`](../scripts/units/dog.gd).**)**
 - **A second pair of hands** much later (a light automation/scout helper) — but only on island
   2+, where the single-robot bottleneck actually bites
   ([First Island Progression](first-island-progression.md) is explicit that automation is dead
