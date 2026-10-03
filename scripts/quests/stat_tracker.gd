@@ -85,5 +85,9 @@ func _building_built_stat(building_type: int) -> int:
 			return GameTypes.Stat.SAWMILLS_BUILT
 		GameTypes.BuildingType.DOCK:
 			return GameTypes.Stat.DOCKS_BUILT
+		GameTypes.BuildingType.IRON_MINE:
+			return GameTypes.Stat.IRON_MINES_BUILT
+		GameTypes.BuildingType.COAL_MINE:
+			return GameTypes.Stat.COAL_MINES_BUILT
 		_:
 			return -1

@@ -5,25 +5,28 @@ extends RefCounted
 # capacity, producers draw it. This manager burns generator fuel on its interval,
 # tracks which generators are running, and reports the island's generation/demand.
 # Phase 1 only reports the balance; throttling consumers comes in Phase 2.
+#
+# main.gd calls update() for EVERY island each frame (islands run while the player is away), so
+# fuel is burned from that island's own inventory. Only the island on screen is reported: pass
+# report_totals for it, and total_generated / total_consumed / power_changed follow that island.
 
 signal power_changed(generated: int, consumed: int)
-signal fuel_consumed(anchor_cell: Vector2i, resource_type: int, amount: int)
+signal fuel_consumed(island: IslandData, anchor_cell: Vector2i, resource_type: int, amount: int)
 
 var building_manager: BuildingManager
-var resource_manager: ResourceManager
 var total_generated: int = 0
 var total_consumed: int = 0
 
 
-func setup(new_building_manager: BuildingManager, new_resource_manager: ResourceManager) -> void:
+func setup(new_building_manager: BuildingManager) -> void:
 	building_manager = new_building_manager
-	resource_manager = new_resource_manager
 
 
 func update(
 	island: IslandData,
 	current_time_seconds: float,
-	operated_cell: Vector2i = Vector2i(-1, -1)
+	operated_cell: Vector2i = Vector2i(-1, -1),
+	report_totals: bool = true
 ) -> void:
 	if island == null:
 		return
@@ -41,7 +44,7 @@ func update(
 
 	var consumed := _allocate_power(island, generated, operated_cell)
 
-	if generated != total_generated or consumed != total_consumed:
+	if report_totals and (generated != total_generated or consumed != total_consumed):
 		total_generated = generated
 		total_consumed = consumed
 		power_changed.emit(generated, consumed)
@@ -104,9 +107,9 @@ func _burn_and_schedule(
 	island: IslandData,
 	current_time_seconds: float
 ) -> bool:
-	var running := resource_manager.spend({definition.fuel_resource_type: definition.fuel_amount})
+	var running := island.inventory.spend({definition.fuel_resource_type: definition.fuel_amount})
 	island.set_generator_running(anchor_cell, running)
 	island.set_next_fuel_time(anchor_cell, current_time_seconds + definition.fuel_interval_seconds)
 	if running:
-		fuel_consumed.emit(anchor_cell, definition.fuel_resource_type, definition.fuel_amount)
+		fuel_consumed.emit(island, anchor_cell, definition.fuel_resource_type, definition.fuel_amount)
 	return running

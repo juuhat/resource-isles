@@ -25,6 +25,7 @@ const QuestManagerScript := preload("res://scripts/quests/quest_manager.gd")
 const QuestLogViewScript := preload("res://scripts/ui/quest_log_view.gd")
 const QuestTrackerViewScript := preload("res://scripts/ui/quest_tracker_view.gd")
 const ToastScript := preload("res://scripts/ui/toast.gd")
+const TradeManagerScript := preload("res://scripts/world/trade_manager.gd")
 
 const NO_BUILDING := -1
 const HARVEST_INTERVAL := 3.0
@@ -74,6 +75,7 @@ var current_island: IslandData
 var building_manager: BuildingManager
 var production_manager: ProductionManager
 var power_manager: PowerManager
+var trade_manager: TradeManager
 var resource_manager: ResourceManager
 var resource_node_database: ResourceNodeDatabase
 var resource_bar: ResourceBar
@@ -120,11 +122,11 @@ func _ready() -> void:
 	resource_node_database = ResourceNodeDatabaseScript.new()
 	building_manager.setup(resource_node_database)
 	production_manager = ProductionManagerScript.new()
-	production_manager.setup(building_manager, resource_manager)
+	production_manager.setup(building_manager)
 	production_manager.produced.connect(_on_building_produced)
 	production_manager.input_consumed.connect(_on_input_consumed)
 	power_manager = PowerManagerScript.new()
-	power_manager.setup(building_manager, resource_manager)
+	power_manager.setup(building_manager)
 	power_manager.fuel_consumed.connect(_on_fuel_consumed)
 	# Quests are the robot's own knowledge: one global log driven by cumulative lifetime
 	# stats, not reset on island switch (unlike per-island buildings/resources).
@@ -163,6 +165,12 @@ func _ready() -> void:
 	# A save, if present, replaces the fresh world plus the global progression (stats/quests)
 	# before the UI is built so world_map/building_menu wire up against the loaded state.
 	var loaded := _try_load_game()
+	# Built after loading so it runs the loaded world's routes.
+	trade_manager = TradeManagerScript.new()
+	trade_manager.setup(world, building_manager)
+	trade_manager.route_created.connect(_on_trade_route_created)
+	trade_manager.route_removed.connect(_on_trade_route_removed)
+	trade_manager.cargo_delivered.connect(_on_trade_cargo_delivered)
 	_add_ui()
 	# Persist on quit/suspend: intercept the close request so we can save before exiting, and
 	# react to the mobile pause notification in _notification (the OS can kill a backgrounded
@@ -261,10 +269,17 @@ func _process(delta: float) -> void:
 	if current_island == null:
 		return
 
+	# Every island runs, not just the one on screen, so a colony keeps producing (and trade routes
+	# keep hauling its goods) while the robot is elsewhere. Only the current island can be
+	# hand-powered by the robot, and only its power balance feeds the resource bar.
 	var current_time_seconds := Time.get_ticks_msec() / 1000.0
-	var operated_cell := operate_cell if is_operating else Vector2i(-1, -1)
-	power_manager.update(current_island, current_time_seconds, operated_cell)
-	production_manager.update(current_island, current_time_seconds)
+	for coord in world.islands:
+		var island: IslandData = world.islands[coord]
+		var is_current := island == current_island
+		var operated_cell := operate_cell if is_current and is_operating else Vector2i(-1, -1)
+		power_manager.update(island, current_time_seconds, operated_cell, is_current)
+		production_manager.update(island, current_time_seconds)
+	trade_manager.update(current_time_seconds)
 
 	if is_harvesting:
 		_update_harvest(delta)
@@ -369,6 +384,10 @@ func _apply_reward(reward: QuestReward) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# The world map owns the mouse while open (it orbits/zooms its own camera).
+	if world_map != null and world_map.is_open:
+		return
+
 	if event is InputEventMouseButton:
 		var is_over_ui := get_viewport().gui_get_hovered_control() != null
 
@@ -702,32 +721,48 @@ func _update_harvest(delta: float) -> void:
 		)
 
 
-func _on_building_produced(anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
+# Production counts toward lifetime stats on every island; the floating "+N" only shows for the
+# island on screen. Away islands don't touch the ResourceManager facade, so mark the autosave
+# dirty here too.
+func _on_building_produced(island: IslandData, anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
 	stat_tracker.record_resource_gained(resource_type, amount)
-	_spawn_resource_floating_text(
-		renderer.get_cell_center(anchor_cell),
-		resource_type,
-		"+%d" % amount,
-		16
-	)
+	_autosave_dirty = true
+	if island == current_island:
+		_spawn_resource_floating_text(renderer.get_cell_center(anchor_cell), resource_type, "+%d" % amount, 16)
 
 
-func _on_fuel_consumed(anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
-	_spawn_resource_floating_text(
-		renderer.get_cell_center(anchor_cell),
-		resource_type,
-		"-%d" % amount,
-		16
-	)
+func _on_fuel_consumed(island: IslandData, anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
+	if island == current_island:
+		_spawn_resource_floating_text(renderer.get_cell_center(anchor_cell), resource_type, "-%d" % amount, 16)
 
 
-func _on_input_consumed(anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
-	_spawn_resource_floating_text(
-		renderer.get_cell_center(anchor_cell),
-		resource_type,
-		"-%d" % amount,
-		16
-	)
+func _on_input_consumed(island: IslandData, anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
+	if island == current_island:
+		_spawn_resource_floating_text(renderer.get_cell_center(anchor_cell), resource_type, "-%d" % amount, 16)
+
+
+func _on_trade_route_created(_route: TradeRoute) -> void:
+	stat_tracker.add(GameTypes.Stat.TRADE_ROUTES_ESTABLISHED, 1)
+	world_map.refresh()
+	_save_game()
+
+
+func _on_trade_route_removed(_route: TradeRoute) -> void:
+	world_map.refresh()
+	_save_game()
+
+
+# A boat unloaded. Count it toward the shipping stat, and pop a "+N" over a dock when it's the
+# island on screen.
+func _on_trade_cargo_delivered(_route: TradeRoute, coord: Vector2i, resource_type: int, amount: int) -> void:
+	stat_tracker.add(GameTypes.Stat.GOODS_SHIPPED, amount)
+	_autosave_dirty = true
+	if coord != world.current_coord:
+		return
+	for anchor_cell in current_island.buildings:
+		if current_island.buildings[anchor_cell].type == GameTypes.BuildingType.DOCK:
+			_spawn_resource_floating_text(renderer.get_cell_center(anchor_cell), resource_type, "+%d" % amount, 18)
+			return
 
 
 func _spawn_floating_text(
@@ -1072,7 +1107,7 @@ func _add_ui() -> void:
 	resource_bar.setup(resource_manager, power_manager, stat_tracker)
 
 	building_info_panel = BuildingInfoPanelScript.new()
-	building_info_panel.setup(building_manager)
+	building_info_panel.setup(building_manager, trade_manager, world)
 	building_info_panel.move_requested.connect(_on_building_move_requested)
 	building_info_panel.delete_requested.connect(_on_building_delete_requested)
 	add_child(building_info_panel)

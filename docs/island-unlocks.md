@@ -116,8 +116,8 @@ Why fixed 3, not doubling or 3*k*:
   (water-island-water-island-water-island).
 
 If outer rings ever feel thin, bump to a gentle *linear* count (3, 4, 5) — never double.
-Implemented as `ISLANDS_PER_RING` in [`world_map.gd`](../scripts/ui/world_map.gd): index 0 is
-the center, then rings of 3 with the radius growing per ring.
+Implemented as `WorldData.island_slots()` ([`world_data.gd`](../scripts/world/world_data.gd),
+`SLOT_DIRECTIONS`): index 0 is the center, then rings of 3 with the radius growing per ring.
 
 ## The FTL Question: a branching choice map
 
@@ -176,8 +176,8 @@ keep a stable signal/API. The starter island begins with **no** resources (the o
 scavenge loop, see [progression-and-power.md](progression-and-power.md)); later islands arrive
 with **exactly the dock's cost** (derived from the dock's `BuildingDefinition`) — enough to
 establish the first dock and never soft-lock. This dock-materials start is the **permanent**
-design, not a placeholder. Still pending (the transfer half): **trade routes** that move goods
-between island inventories, plus simulating away islands' production into their own stock.
+design, not a placeholder. The transfer half is now in too: **trade routes** move goods between
+island inventories, and every island simulates in the background (see step 6 below).
 
 ### Trade routes move goods (no manual cargo)
 
@@ -242,29 +242,42 @@ Start tiny; do not build a sprawling tech UI up front.
    discovered `IslandData` plus a current-island pointer; `main.gd` renders/simulates the
    current island and switches between persistent islands (Enter generates a new island and
    travels to it; `[` / `]` cycle discovered islands, which keep their placed buildings).
-   Only the current island is simulated for now; background simulation of away islands is a
-   later step (matters once travel and per-island inventory exist).
+   **Every island now simulates each frame** (production, power, fuel against its own
+   inventory), not just the one on screen; see step 6.
 3. **Rowboat + one neighbor** — build a rowboat at the dock; reveal and travel to a single
    ring-1 island. View-swap with a short sailing transition. The robot travels; the starter
    island keeps producing.
-4. **World map DONE (hex grid + generate-on-click)** — [`world_map.gd`](../scripts/ui/world_map.gd)
-   hosts a flat-color, thick-outline hex grid ([`world_map_grid.gd`](../scripts/world/world_map_grid.gd)):
-   starter at the center, concentric rings of water with three island slots per ring. Toggled
+4. **World map DONE (flat-disc planet + generate-on-click)** — [`world_map.gd`](../scripts/ui/world_map.gd)
+   hosts a 3D view of the world as the flat-disc planet from the
+   [intro story](intro-story.md) ([`world_map_disc.gd`](../scripts/world/world_map_disc.gd)): an
+   ocean disc in an icy rim on a rocky underside, water spilling off the edge into space,
+   starter (and the wreck) at the dead center, three island slots per ring. The charted rings get
+   a navigator's grid and a gold frontier line; beyond it the sea is dimmer and clouds drift over
+   it. Generated islands are drawn as miniatures of their real terrain and buildings; unexplored
+   slots are a `?` in the mist. Drag to orbit, scroll to zoom, double-click to reset. Toggled
    with `M`. Clicking a generated island travels there; clicking an unexplored slot (`?`)
    **generates** the island at that hex coord and travels to it (the old `Enter`-to-spawn key is
    gone). Islands are keyed by hex coordinate in [`WorldData`](../scripts/world/world_data.gd).
    Travel uses a [`screen_fade.gd`](../scripts/ui/screen_fade.gd) transition. How many rings are
    revealed lives on [`WorldData`](../scripts/world/world_data.gd) (`revealed_rings`, starting at
    `STARTING_REVEALED_RINGS`) and grows via `reveal_additional_rings()` — currently driven by a
-   temporary `=` debug key. Still to add: a real boat-tier system to drive that reveal, and
-   per-island art on the hex tokens (now stylized placeholders).
+   temporary `=` debug key. Still to add: a real boat-tier system to drive that reveal.
 5. **Boat tiers + rare-resource gating** — sailboat/ship reach outer rings; higher tiers cost
    earlier islands' rare resources; fuse with ship-module repair toward the win condition.
 6. **Per-island inventory storage DONE** ([`inventory.gd`](../scripts/resources/inventory.gd)
    per island, `resource_manager.gd` facade over the current island; starter starts empty,
-   later islands start with the dock's materials). *(Later)* **trade routes** that move goods
+   later islands start with the dock's materials). **Trade routes DONE (first cut)** move goods
    between island inventories at a throughput, weak at first and improving with boat tiers —
-   the logistics layer. No manual cargo.
+   the logistics layer. No manual cargo. Implemented in
+   [`trade_route.gd`](../scripts/world/trade_route.gd) (data, saved in `WorldData`) and
+   [`trade_manager.gd`](../scripts/world/trade_manager.gd) (the loop): each Dock carries one
+   boat, so an island can start as many routes as it has Docks. A boat loads up to
+   `BOAT_CAPACITY` (5) of the outbound resource at home, sails to the other island (time =
+   `BASE_TRIP_SECONDS` + `SECONDS_PER_HEX` x world-map distance), unloads, optionally loads a
+   return resource, sails back, repeats. A route idles while either end lacks a Dock. Routes are
+   created and removed from a Dock's info panel and drawn on the world map with their boat.
+   The *The Supply Line* milestone (after *Set Sail*) teaches it. Still to come: boat tiers
+   raising capacity/reach, and hiding the dock's boat sprite while it is at sea.
 
 ## Open Questions
 

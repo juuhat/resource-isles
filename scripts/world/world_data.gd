@@ -7,6 +7,8 @@ extends RefCounted
 # order (used for naming and quick cycling). See docs/island-unlocks.md.
 
 const CENTER := Vector2i(0, 0)
+# Returned by coord_of for an island that is not in this world.
+const NO_COORD := Vector2i(-99999, -99999)
 # How many rings out the world map reveals at the start. 0 = only the starter
 # island, 1 = the starter plus the first ring of three islands, etc. Boat tiers
 # will grow this later via reveal_additional_rings().
@@ -15,6 +17,8 @@ const STARTING_REVEALED_RINGS := 0
 var islands: Dictionary = {}
 var current_coord := CENTER
 var revealed_rings := STARTING_REVEALED_RINGS
+# Standing boat links between islands, run by TradeManager. Saved with the world.
+var trade_routes: Array[TradeRoute] = []
 
 
 func has_island(coord: Vector2i) -> bool:
@@ -39,6 +43,14 @@ func ordered_coords() -> Array:
 	return islands.keys()
 
 
+# The world-map coord an island sits at, or NO_COORD if it is not in this world.
+func coord_of(island: IslandData) -> Vector2i:
+	for coord in islands:
+		if islands[coord] == island:
+			return coord
+	return NO_COORD
+
+
 func get_current() -> IslandData:
 	return get_island(current_coord)
 
@@ -56,20 +68,55 @@ func reveal_additional_rings(count: int = 1) -> void:
 	revealed_rings = maxi(0, revealed_rings + count)
 
 
+# --- Island slots ---
+# Island slots sit on the world hex lattice: the centre, then three per ring on every other
+# ring "corner", 120 deg apart (ring k's slots are k hexes out). See docs/island-unlocks.md.
+
+const CUBE_DIRS := [
+	Vector3i(1, -1, 0),
+	Vector3i(1, 0, -1),
+	Vector3i(0, 1, -1),
+	Vector3i(-1, 1, 0),
+	Vector3i(-1, 0, 1),
+	Vector3i(0, -1, 1),
+]
+const SLOT_DIRECTIONS := [0, 2, 4]
+
+
+# Every slot on the revealed rings, centre first, then ring by ring.
+func island_slots() -> Array[Vector2i]:
+	var slots: Array[Vector2i] = [CENTER]
+	for ring in range(1, revealed_rings + 1):
+		for direction in SLOT_DIRECTIONS:
+			var cube: Vector3i = CUBE_DIRS[direction] * ring
+			slots.append(Vector2i(cube.x, cube.z))
+	return slots
+
+
+# Which ring a hex coord lies on (0 = the centre).
+static func ring_of(coord: Vector2i) -> int:
+	return int((absi(coord.x) + absi(coord.y) + absi(-coord.x - coord.y)) / 2)
+
+
 # --- Save/load ---
 # The whole discovered world: every island keyed by its world-map coord, plus which slot is
-# current and how many rings are revealed. `reference_time` is forwarded to each island so its
-# production/fuel timers can be rebased (see IslandData.to_dict). Islands are restored straight
-# into the dict (not via add_island) so their saved names are preserved verbatim.
+# current, how many rings are revealed, and the trade routes. `reference_time` is forwarded to
+# each island and route so their timers can be rebased (see IslandData.to_dict). Islands are
+# restored straight into the dict (not via add_island) so their saved names are preserved
+# verbatim. Saves from before trade routes simply load with none.
 
 func to_dict(reference_time: float) -> Dictionary:
 	var serialized_islands := {}
 	for coord in islands:
 		serialized_islands[coord] = (islands[coord] as IslandData).to_dict(reference_time)
+	var serialized_routes := []
+	for route in trade_routes:
+		serialized_routes.append(route.to_dict(reference_time))
 	return {
 		current_coord = current_coord,
 		revealed_rings = revealed_rings,
 		islands = serialized_islands,
+		trade_routes = serialized_routes,
 	}
 
 
@@ -80,4 +127,9 @@ static func from_dict(data: Dictionary, reference_time: float) -> WorldData:
 	var serialized_islands: Dictionary = data.get("islands", {})
 	for coord in serialized_islands:
 		world.islands[coord] = IslandData.from_dict(serialized_islands[coord], reference_time)
+	for route_data in data.get("trade_routes", []):
+		var route := TradeRoute.from_dict(route_data, reference_time)
+		# Drop a route whose island is gone (e.g. a hand-edited save) rather than crash on it.
+		if world.has_island(route.home_coord) and world.has_island(route.away_coord):
+			world.trade_routes.append(route)
 	return world

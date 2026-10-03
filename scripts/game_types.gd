@@ -28,6 +28,8 @@ enum BuildingType {
 	SAWMILL,
 	DOCK,
 	WINDMILL,  # coastal power: more open water = more wind, crowding buildings = less
+	IRON_MINE, # island 2+ extractors (see docs/second-island-progression.md)
+	COAL_MINE,
 }
 
 enum BuildingCategory {
@@ -45,8 +47,9 @@ enum QuestKind {
 	MILESTONE,
 }
 
-# Every quest. See Quest / QuestCatalog for each one's objectives and rewards. The MILESTONE
-# entries are listed in play order — the chain advances down this list one at a time.
+# Every quest. See Quest / QuestCatalog for each one's objectives and rewards. Play order is
+# QuestCatalog's order, not this enum's: ids are saved as ints, so new quests are appended here
+# even when they slot earlier in the chain.
 enum QuestId {
 	RESCUE_THE_DOG, # MAIN: the north-star goal, sail out and bring the dog home
 	HELLO_WORLD,    # recover the scattered tools
@@ -54,6 +57,8 @@ enum QuestId {
 	SCALE_UP,       # bigger wood + stone haul -> refining and power
 	REFINE,         # raise a sawmill and mill planks -> the dock
 	SET_SAIL,       # build the dock -> reveal the first ring of islands
+	THE_SUPPLY_LINE, # dock a second island and run a trade route to it
+	STRIKE_IRON,     # hand-mine iron on a frontier island -> the iron and coal mines
 }
 
 # Loose pickups scattered on the ground that the robot collects by walking onto them.
@@ -115,6 +120,11 @@ enum Stat {
 	DOCKS_BUILT,
 	TOOLS_COLLECTED,
 	ISLANDS_REACHED, # new islands discovered/sailed to (the starter doesn't count)
+	TRADE_ROUTES_ESTABLISHED, # trade routes ever set up
+	GOODS_SHIPPED,            # units of cargo boats have ever unloaded
+	# Per-building-type build counts added after the first block (appended: stats save as ints).
+	IRON_MINES_BUILT,
+	COAL_MINES_BUILT,
 }
 
 

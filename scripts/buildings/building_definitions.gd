@@ -11,11 +11,14 @@ const CRASHED_SPACESHIP_MODEL := preload("res://assets/models/buildings/crashed_
 const LOGGER_CAMP_TEXTURE := preload("res://assets/buildings/logger_camp.png")
 const LOGGER_CAMP_MODEL := preload("res://assets/models/buildings/logger_camp.glb")
 const QUARRY_TEXTURE := preload("res://assets/buildings/quarry.png")
+const QUARRY_MODEL := preload("res://assets/models/buildings/quarry.glb")
 const BURNER_GENERATOR_TEXTURE := preload("res://assets/buildings/burner_generator.png")
 const SAWMILL_TEXTURE := preload("res://assets/buildings/sawmill.png")
 const SAWMILL_MODEL := preload("res://assets/models/buildings/sawmill.glb")
 const DOCK_TEXTURE := preload("res://assets/buildings/dock.png")
 const WINDMILL_MODEL := preload("res://assets/models/buildings/windmill2.glb")
+const IRON_MINE_MODEL := preload("res://assets/models/buildings/iron_mine.glb")
+const COAL_MINE_MODEL := preload("res://assets/models/buildings/coal_mine.glb")
 
 
 static func build_all() -> Array[BuildingDefinition]:
@@ -68,6 +71,8 @@ static func build_all() -> Array[BuildingDefinition]:
 	quarry.description = "Cuts stone from neighbouring rock deposits. Nearby quarries compete for the same rock face."
 	quarry.category = GameTypes.BuildingCategory.RESOURCES
 	quarry.texture = QUARRY_TEXTURE
+	quarry.model = QUARRY_MODEL
+	quarry.visual_size_tiles = Vector2(0.85, 0.85)
 	quarry.cost = {GameTypes.ResourceType.WOOD: 6}
 	quarry.required_terrains = GameTypes.LAND_TERRAINS
 	# Same rule as the logger's camp, one terrain over: built on the grass rim of a
@@ -83,6 +88,55 @@ static func build_all() -> Array[BuildingDefinition]:
 	quarry.production_interval_seconds = 3.0
 	quarry.power_consumed = 2
 	definitions.append(quarry)
+
+	# The frontier's extractors, modeled on the quarry: built beside an iron deposit or coal
+	# seam, +1 per adjacent node, -1 per neighboring mine of the same kind working the same
+	# vein. Any land will do. Model only — rendered from the .glb, no flat icon.
+	var iron_mine := BuildingDefinitionScript.new()
+	iron_mine.id = GameTypes.BuildingType.IRON_MINE
+	iron_mine.display_name = "Iron Mine"
+	iron_mine.description = "Tunnels into neighbouring iron deposits for a steady supply of ore. Nearby iron mines work the same vein."
+	iron_mine.category = GameTypes.BuildingCategory.RESOURCES
+	iron_mine.model = IRON_MINE_MODEL
+	iron_mine.visual_size_tiles = Vector2(0.85, 0.85)
+	iron_mine.cost = {
+		GameTypes.ResourceType.WOOD: 6,
+		GameTypes.ResourceType.STONE: 4,
+	}
+	iron_mine.required_terrains = GameTypes.LAND_TERRAINS
+	iron_mine.required_adjacent = [_resource_ref(GameTypes.ResourceNodeType.IRON_ORE)]
+	iron_mine.adjacency_yields = [
+		_yield_rule(GameTypes.AdjacencyKind.RESOURCE, GameTypes.ResourceNodeType.IRON_ORE, 1),
+		_yield_rule(GameTypes.AdjacencyKind.BUILDING, GameTypes.BuildingType.IRON_MINE, -1),
+	]
+	iron_mine.production_resource_type = GameTypes.ResourceType.IRON_ORE
+	iron_mine.production_base_amount = 1
+	iron_mine.production_interval_seconds = 3.0
+	iron_mine.power_consumed = 2
+	definitions.append(iron_mine)
+
+	var coal_mine := BuildingDefinitionScript.new()
+	coal_mine.id = GameTypes.BuildingType.COAL_MINE
+	coal_mine.display_name = "Coal Mine"
+	coal_mine.description = "Digs coal from neighbouring seams: smelter fuel and island power. Nearby coal mines work the same seam."
+	coal_mine.category = GameTypes.BuildingCategory.RESOURCES
+	coal_mine.model = COAL_MINE_MODEL
+	coal_mine.visual_size_tiles = Vector2(0.85, 0.85)
+	coal_mine.cost = {
+		GameTypes.ResourceType.WOOD: 6,
+		GameTypes.ResourceType.STONE: 4,
+	}
+	coal_mine.required_terrains = GameTypes.LAND_TERRAINS
+	coal_mine.required_adjacent = [_resource_ref(GameTypes.ResourceNodeType.COAL)]
+	coal_mine.adjacency_yields = [
+		_yield_rule(GameTypes.AdjacencyKind.RESOURCE, GameTypes.ResourceNodeType.COAL, 1),
+		_yield_rule(GameTypes.AdjacencyKind.BUILDING, GameTypes.BuildingType.COAL_MINE, -1),
+	]
+	coal_mine.production_resource_type = GameTypes.ResourceType.COAL
+	coal_mine.production_base_amount = 1
+	coal_mine.production_interval_seconds = 3.0
+	coal_mine.power_consumed = 2
+	definitions.append(coal_mine)
 
 	# The pre-fuel power bootstrap is no longer a building: the robot itself is the
 	# tier-0 power source. Parking on any power-consuming building and using the Operate

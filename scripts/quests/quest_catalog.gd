@@ -103,6 +103,38 @@ static func build_all() -> Array[Quest]:
 		[QuestReward.reveal_world_rings(1, "Reveals the first ring of islands")]
 	))
 
+	# The frontier's discovery beat (docs/second-island-progression.md): hand-mine a little iron,
+	# mirroring the island-1 wood/stone intro, then unlock the buildings that automate it. Iron
+	# only spawns on frontier islands, so this is geographically self-gating.
+	quests.append(QuestScript.new(
+		GameTypes.QuestId.STRIKE_IRON,
+		GameTypes.QuestKind.MILESTONE,
+		"Strike Iron",
+		"This rocky island is threaded with iron. Chip some ore out of a deposit by hand. "
+			+ "Ship-grade metal could be the key to getting off these islands for good.",
+		[_objective("Gather iron ore", GameTypes.Stat.IRON_ORE_GATHERED, 5)],
+		[
+			QuestReward.unlock_building(GameTypes.BuildingType.IRON_MINE, "Unlocks the Iron Mine"),
+			QuestReward.unlock_building(GameTypes.BuildingType.COAL_MINE, "Unlocks the Coal Mine")
+		]
+	))
+
+	# The trade-route tutorial (docs/second-island-progression.md). A route needs a dock at both
+	# ends, so establishing one implies the second island's dock too. No mechanical reward yet;
+	# the payoff is the running supply line itself.
+	quests.append(QuestScript.new(
+		GameTypes.QuestId.THE_SUPPLY_LINE,
+		GameTypes.QuestKind.MILESTONE,
+		"The Supply Line",
+		"A new island can't feed itself. Build a Dock there, then open a trade route from a "
+			+ "Dock's panel so a boat keeps hauling goods between your islands.",
+		[
+			_objective("Establish a trade route", GameTypes.Stat.TRADE_ROUTES_ESTABLISHED, 1),
+			_objective("Ship goods by boat", GameTypes.Stat.GOODS_SHIPPED, 20),
+		],
+		([] as Array[QuestReward])
+	))
+
 	return quests
 
 
