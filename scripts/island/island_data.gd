@@ -4,6 +4,10 @@ extends RefCounted
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 
 var island_name: String = ""
+# Whether the robot has ever landed here. Every island on the disc is generated up front, so
+# this (not existence) is what "discovered" means: it gates [ ] cycling and the first-landing
+# quest stat (see main._switch_to_island).
+var visited := false
 var inventory := Inventory.new()
 var width: int
 var height: int
@@ -222,6 +226,7 @@ func take_item(cell: Vector2i) -> int:
 func to_dict(reference_time: float) -> Dictionary:
 	return {
 		island_name = island_name,
+		visited = visited,
 		width = width,
 		height = height,
 		terrain = terrain.duplicate(),
@@ -240,6 +245,8 @@ func to_dict(reference_time: float) -> Dictionary:
 static func from_dict(data: Dictionary, reference_time: float) -> IslandData:
 	var island := IslandData.new(int(data.get("width", 0)), int(data.get("height", 0)))
 	island.island_name = data.get("island_name", "")
+	# Saves from before the shared world only ever held islands the robot had landed on.
+	island.visited = bool(data.get("visited", true))
 	island.terrain = (data.get("terrain", {}) as Dictionary).duplicate()
 	island.resources = (data.get("resources", {}) as Dictionary).duplicate()
 	island.items = (data.get("items", {}) as Dictionary).duplicate()
