@@ -32,10 +32,10 @@ What carries over from the Civ worker/scout, and what deliberately doesn't:
 | --- | --- |
 | One unit you select and command | One unit, selected by default (`selected = true`) |
 | Click a hex to issue a move order | **Right-click** a hex to order a move |
-| Travels tile-to-tile across the hex grid | Walks cell-to-cell along a BFS path over land hexes |
+| Travels tile-to-tile across the hex grid | Walks cell-to-cell along a shortest land path: straight through buildings, around resource nodes |
 | Spends movement points per turn | **Real-time** walk at a constant `move_speed` (no turns, no MP) |
 | Worker "build improvement" / "repair" actions | Harvest (chop minigame), later construct & ship repair |
-| Occupies / blocks its tile | **Does not block tiles** (Phase 1 simplification) |
+| Occupies / blocks its tile | Doesn't block movement, but nothing can be built on its tile (or K9-DA's) |
 | Can be lost in combat | No combat — the robot is never threatened or destroyed |
 
 ### Concrete properties (as implemented)
@@ -59,7 +59,7 @@ Defined in [`scripts/player/player_unit.gd`](../scripts/player/player_unit.gd) (
 | Input | Action |
 | --- | --- |
 | **Right-click** (on release) | Order the robot to walk to the hovered tile |
-| Pickaxe **Harvest** button (left edge) | Appears when parked on a node; starts the chop minigame |
+| Pickaxe **Harvest** button (left edge) | Appears when parked beside a node; starts the chop minigame |
 | **Left-click** | Select/inspect buildings, place a selected building |
 | **Middle-drag** | Pan the camera |
 | Mouse wheel | Zoom |
@@ -153,8 +153,8 @@ Phases 1–4 are the playable core; everything after is content.
    a `Node2D` with current cell, walk speed, and a path queue; renders the robot + a ground
    selection marker; emits `arrived` when its path is consumed.
 2. **DONE — Hex pathfinding** ([`scripts/island/hex_pathfinder.gd`](../scripts/island/hex_pathfinder.gd)):
-   BFS over walkable (land) tiles using the existing `HexGrid.neighbors`. Uniform step cost,
-   so BFS gives a shortest path.
+   Dijkstra over land tiles using `HexGrid.neighbors`. Buildings are walked through, so the player
+   can never wall the robot in. Resource nodes are walked around: stepping onto one costs `OBSTACLE_COST`, so a route crosses one only when there is no other way (no generated island needs this; `tools/robot_access_check.gd` sweeps 60). Nothing is ever unreachable.
 3. **DONE — Input rework in `main.gd`**: **right-click (on release)** commands the robot
    (`_command_unit_to_hovered`) — it pathfinds to the clicked tile. The robot's **command bar**
    ([`scripts/ui/action_bar.gd`](../scripts/ui/action_bar.gd), Civ 6 unit-command style) is a
@@ -177,10 +177,14 @@ Phases 1–4 are the playable core; everything after is content.
 
 ### Phase 1 simplifications (revisit later)
 
-- **Walkability is land-only.** Buildings and resource nodes do *not* block movement yet, so
-  the robot can stand on a node's tile to chop it (matches "do the minigame when it's in the
-  tile"). Refine to obstacle-aware pathfinding / adjacency-based interaction if the overlap
-  reads badly.
+- **Resolved — robot access.** The robot walks through buildings but around resource nodes, and it never parks on either: it works
+  them from beside them (`_plan_approach` in `main.gd`). Clicking one sends the robot to the
+  best open neighbour, preferring the camera side. It turns to face the target and leans in
+  `WORK_LEAN_TILES`. A building whose model exports a `WorkSpot` marker (the logger camp and
+  sawmill, see [building-style-palette.md](building-style-palette.md#footprint-and-work-space))
+  is worked from its own yard instead: the robot takes the shortest route straight onto the
+  building's tile, its last step going onto the parking spot, and turns to face the building. A fully enclosed target falls back to standing on it. A moving robot re-plans when
+  a building is placed on its route. `tools/robot_access_check.gd` covers all of this.
 - **The robot renders above everything** (separate `Node2D`, `z_index = 10`) rather than
   depth-sorting with buildings. Fine for visibility; revisit if it looks wrong behind tall
   buildings.
@@ -195,6 +199,6 @@ Phases 1–4 are the playable core; everything after is content.
 2. **One robot, or buildable extras later?** Leaning: build for a single unit but keep data
    structures plural-friendly.
 3. **Does the robot occupy/block its tile** like a Civ unit, or is it purely cosmetic on top
-   of terrain? Leaning: does not block tiles, for now.
+   of terrain? Decided: it doesn't block other units, but buildings can't be placed on it.
 4. **Node depletion vs. infinite harvest** — currently infinite. Revisit if it makes manual
    gathering feel weightless or breaks the push toward automation.

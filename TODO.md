@@ -10,10 +10,13 @@
 
 ## Robot access and clipping
 
-The robot currently walks through buildings: pathfinding allows every land cell and `PlayerUnit` visits cell centers, so traversal passes through occupied tiles. Shrinking models (see [docs/building-style-palette.md](docs/building-style-palette.md)) won't fix this on its own, and offsetting only the final destination isn't enough.
+The robot walks through buildings (so the player can't wall it in) but around resource nodes, and never parks on either; it works them from beside them or from a building's `WorkSpot` (see [docs/player-unit-and-manual-gathering.md](docs/player-unit-and-manual-gathering.md), checked by `tools/robot_access_check.gd`).
 
-- [ ] Block occupied cells in pathfinding and interact from an adjacent free cell. Keep the clicked cell as the action target, and tie action checks to the target rather than requiring the robot's cell to equal it. Update the manual power and gathering arrival checks at the same time.
-- [ ] Handle packed islands where a target has no reachable free neighbor.
-- [ ] Route to each asset's exported `WorkSpot` instead of a neighboring cell: path through obstacles inflated by the robot radius plus a small gap, then face the target and gather or operate. Sub-tile waypoints or a navigation mesh will work better on dense maps.
-- [ ] Reserve work spots during placement so another building can't cover them. Revalidate paths when construction changes the map, and never place geometry over the robot's current position.
+- [x] Block resource nodes in pathfinding (buildings stay walkable) and interact from an adjacent free cell. Keep the clicked cell as the action target, and tie action checks to the target rather than requiring the robot's cell to equal it. Update the manual power and gathering arrival checks at the same time.
+- [x] Handle packed islands where a target has no reachable free neighbor. Paths cross an obstacle only as a last resort, and a fully enclosed target is worked from on top of it.
+- [x] Route to each asset's exported `WorkSpot` instead of a neighboring cell. The robot takes the shortest route straight onto the building's tile, its last step going onto the spot, then turns to face the building. The logger camp and sawmill export one so far; buildings without one are still worked from a neighbouring tile. Sub-tile waypoints or a navigation mesh would still help on dense maps.
+- [x] Revalidate paths when construction changes the map, and never place geometry over the robot's (or K9-DA's) current position.
+- [ ] Re-author the other buildings as true-tile workbenches with `WorkSpot`/`Footprint` markers (quarry, mines; then the windmill, burner generator and dock models), and set their `visual_size_tiles` to width / `TILE`. The logger camp and sawmill are done. Give the iron and coal mines different big shapes: today only their ore lumps differ.
+- [ ] The crashed ship renders 1.6 tiles wide from one cell, so it overlaps its neighbours, including the robot's spawn cell. Reserve its real extent or scale it down.
+- [ ] While the robot stands in a building's yard, left-clicking that tile selects the robot rather than the building. Decide which should win.
 - [ ] Optionally add a selection ring or occlusion silhouette so the robot stays visible behind roofs. This helps visibility only; it doesn't prevent clipping. Don't disable depth testing globally.

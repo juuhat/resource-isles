@@ -86,6 +86,11 @@ var hovered_cell := Vector2i(-1, -1)
 var placement_preview_enabled := false
 var placement_building_type := GameTypes.BuildingType.LOGGER_CAMP
 var placement_can_afford := true
+# Optional veto on building placement, set by main: returns true for a cell a unit is standing on
+# (or walking into), so construction never drops geometry on the robot or the dog.
+var is_cell_occupied_by_unit := Callable()
+# Anchor cell -> world position of the building model's WorkSpot marker, if it has one.
+var _work_spots := {}
 
 var _terrain_root: Node3D
 var _objects_root: Node3D
@@ -346,6 +351,9 @@ func try_place_hovered_building(building_type: int = GameTypes.BuildingType.LOGG
 	if island == null or hovered_cell == Vector2i(-1, -1):
 		return false
 
+	if not _can_place_at(hovered_cell, building_type):
+		return false
+
 	var placed := building_manager.try_place(hovered_cell, building_type, island)
 	if placed:
 		refresh()
@@ -375,6 +383,37 @@ func place_building_at(anchor_cell: Vector2i, building_type: int) -> bool:
 		refresh()
 
 	return placed
+
+
+func _can_place_at(anchor_cell: Vector2i, building_type: int) -> bool:
+	if not building_manager.can_place(anchor_cell, building_type, island):
+		return false
+	if is_cell_occupied_by_unit.is_valid():
+		for cell in building_manager.get_footprint_cells(anchor_cell, building_type):
+			if is_cell_occupied_by_unit.call(cell):
+				return false
+	return true
+
+
+# World position of the WorkSpot marker in the building model anchored at anchor_cell (where the
+# robot stands to work it, see tools/lowpoly_kit.py marker()), or null when it has none.
+func get_work_spot(anchor_cell: Vector2i) -> Variant:
+	if not _work_spots.has(anchor_cell):
+		return null
+	return position + _work_spots[anchor_cell]
+
+
+# Renderer-local position of `node`, a descendant of `model` (a child of _objects_root, which sits
+# at the renderer origin). Walks the transforms by hand so it works before the renderer is in the
+# scene tree.
+func _local_position_in(node: Node3D, model: Node3D) -> Vector3:
+	var xform := node.transform
+	var parent := node.get_parent()
+	while parent != null and parent != model:
+		if parent is Node3D:
+			xform = (parent as Node3D).transform * xform
+		parent = parent.get_parent()
+	return (model.transform * xform).origin
 
 
 func get_hovered_building_type() -> int:
@@ -660,6 +699,7 @@ func _highlight_material(terrain_type: int) -> StandardMaterial3D:
 
 func _rebuild_objects() -> void:
 	_clear(_objects_root)
+	_work_spots.clear()
 	if island == null:
 		return
 
@@ -841,6 +881,10 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 			definition.spin_axis,
 			definition.spin_speed_degrees
 		)
+		if model != null:
+			var spot := model.find_child("WorkSpot", true, false) as Node3D
+			if spot != null:
+				_work_spots[anchor_cell] = _local_position_in(spot, model)
 		if model != null and definition.power_consumed > 0:
 			_spawn_power_indicator(anchor_cell, footprint, model)
 		return
@@ -892,7 +936,7 @@ func _rebuild_preview() -> void:
 		return
 
 	var footprint := building_manager.get_footprint_cells(hovered_cell, placement_building_type)
-	var can_place := building_manager.can_place(hovered_cell, placement_building_type, island) and placement_can_afford
+	var can_place := _can_place_at(hovered_cell, placement_building_type) and placement_can_afford
 	var tint := Color(0.45, 1.0, 0.5, 0.4) if can_place else Color(1.0, 0.3, 0.3, 0.4)
 
 	for cell in footprint:

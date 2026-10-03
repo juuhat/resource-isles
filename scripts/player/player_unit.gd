@@ -28,7 +28,9 @@ const SELECT_SOUNDS: Array[AudioStream] = [
 ]
 
 @export var move_speed := 320.0
-@export var visual_size_tiles := Vector2(0.65, 0.65)
+# Height 0.45 of a tile (docs/building-style-palette.md scale standard), which leaves the robot
+# room to stand beside a building or in its work yard without touching it.
+@export var visual_size_tiles := Vector2(0.45, 0.45)
 # How quickly the model turns to face its travel direction (higher = snappier).
 @export var turn_speed := 12.0
 
@@ -45,6 +47,14 @@ var _marker: MeshInstance3D
 var _marker_material: StandardMaterial3D
 var _select_player: AudioStreamPlayer
 var _last_sound_index := -1
+# Optional last leg of a route, into a building's work spot (see follow_path).
+var _spot_cell := Vector2i(-1, -1)
+var _spot_position := Vector3.ZERO
+var _at_spot := false
+# Parked pose set by face_toward().
+var _has_rest := false
+var _rest_position := Vector3.ZERO
+var _rest_yaw := 0.0
 
 
 func _ready() -> void:
@@ -85,20 +95,61 @@ func place_at(cell: Vector2i) -> void:
 	current_cell = cell
 	position = renderer.get_cell_center(cell)
 	_path.clear()
+	_spot_cell = Vector2i(-1, -1)
+	_at_spot = false
+	_has_rest = false
 	_moving = false
 	visible = true
+	_update_marker()
 
 
-func follow_path(path: Array[Vector2i]) -> void:
-	if path.is_empty():
+# Walk the cells in `path`, then, with a spot_cell, one last leg straight to spot_position inside
+# that cell (a building's work spot), which becomes the robot's cell.
+func follow_path(path: Array[Vector2i], spot_cell := Vector2i(-1, -1), spot_position := Vector3.ZERO) -> void:
+	if path.is_empty() and spot_cell == Vector2i(-1, -1):
 		return
 
 	_path = path.duplicate()
+	_spot_cell = spot_cell
+	_spot_position = spot_position
+	_at_spot = false
+	_has_rest = false
 	_advance_to_next()
+
+
+# Swap the rest of the route for `path` (from next_cell()), finishing the leg in progress first.
+# Used when construction changes the map under a moving robot.
+func reroute(path: Array[Vector2i], spot_cell := Vector2i(-1, -1), spot_position := Vector3.ZERO) -> void:
+	_path = path.duplicate()
+	_spot_cell = spot_cell
+	_spot_position = spot_position
+
+
+# True while parked on (or walking into) a building's work spot.
+func is_at_spot() -> bool:
+	return _at_spot
+
+
+# The cell the robot is standing on, or heading into while moving.
+func next_cell() -> Vector2i:
+	return _pending_cell if _moving else current_cell
 
 
 func is_moving() -> bool:
 	return _moving
+
+
+# While parked, turn to face `world_target` and lean `nudge_tiles` of a tile toward it — the
+# pose for working a building or resource node from beside it.
+func face_toward(world_target: Vector3, nudge_tiles := 0.0) -> void:
+	var flat := Vector3(world_target.x - position.x, 0.0, world_target.z - position.z)
+	if flat.length() < 0.001:
+		return
+	var cell_size := renderer.cell_size if renderer != null else Vector2(128.0, 128.0)
+	var base := position if _at_spot else renderer.get_cell_center(current_cell)
+	_rest_position = base + flat.normalized() * nudge_tiles * cell_size.x
+	_rest_yaw = atan2(flat.x, flat.z) + MODEL_YAW_OFFSET
+	_has_rest = true
 
 
 func set_selected(value: bool) -> void:
@@ -111,9 +162,16 @@ func set_selected(value: bool) -> void:
 
 
 # The selection cap shows only while selected; deselected, the robot has no ground marker.
+# Parked, it sits on the robot's tile even when the robot stands off-centre (leaning toward a
+# target, or at a work spot); moving, it travels with the robot.
 func _update_marker() -> void:
-	if _marker != null:
-		_marker.visible = selected
+	if _marker == null:
+		return
+	_marker.visible = selected
+	_marker.position = Vector3(0.0, 0.6, 0.0)
+	if not _moving and renderer != null and current_cell != Vector2i(-1, -1):
+		var center := renderer.get_cell_center(current_cell)
+		_marker.position = Vector3(center.x - position.x, 0.6, center.z - position.z)
 
 
 # A flat hex outline-fill matching the tile, for the selection highlight (mirrors the
@@ -160,6 +218,7 @@ func _face_direction(direction: Vector3, delta: float) -> void:
 
 func _process(delta: float) -> void:
 	if not _moving:
+		_settle(delta)
 		return
 
 	var to_target := _target_world - position
@@ -176,12 +235,34 @@ func _process(delta: float) -> void:
 		position += to_target / distance * step
 
 
+# Parked: ease into the pose from face_toward(), if any.
+func _settle(delta: float) -> void:
+	if not _has_rest or _model == null:
+		return
+
+	var weight := clampf(delta * turn_speed * 0.5, 0.0, 1.0)
+	position = position.lerp(_rest_position, weight)
+	_model.rotation.y = lerp_angle(_model.rotation.y, _rest_yaw, clampf(delta * turn_speed, 0.0, 1.0))
+	_update_marker()
+
+
 func _advance_to_next() -> void:
 	if _path.is_empty():
+		if _spot_cell != Vector2i(-1, -1):
+			# Last leg: straight into the building's work spot.
+			_pending_cell = _spot_cell
+			_target_world = _spot_position
+			_spot_cell = Vector2i(-1, -1)
+			_at_spot = true
+			_moving = true
+			return
+
 		_moving = false
+		_update_marker()
 		arrived.emit(current_cell)
 		return
 
 	_pending_cell = _path.pop_front()
 	_target_world = renderer.get_cell_center(_pending_cell)
 	_moving = true
+	_update_marker()

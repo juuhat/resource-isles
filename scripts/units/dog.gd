@@ -93,6 +93,11 @@ func follow(island: IslandData, cell: Vector2i, new_leader: PlayerUnit) -> void:
 	_place(island, cell)
 
 
+# The cell the dog is standing on, or stepping into while moving.
+func next_cell() -> Vector2i:
+	return _pending_cell if _moving else current_cell
+
+
 # Park the dog out of sight (e.g. its island hasn't been reached yet).
 func halt() -> void:
 	_island = null
@@ -215,7 +220,7 @@ func _pick_wander_path() -> Array[Vector2i]:
 			randi_range(-wander_radius, wander_radius)
 		)
 		var cell := current_cell + offset
-		if cell == current_cell or not HexPathfinderScript.is_walkable(_island, cell):
+		if cell == current_cell or not HexPathfinderScript.is_open(_island, cell):
 			continue
 		if leader != null and cell == leader.current_cell:
 			continue

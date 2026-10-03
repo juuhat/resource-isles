@@ -49,9 +49,9 @@ static func build_all() -> Array[BuildingDefinition]:
 	logger_camp.category = GameTypes.BuildingCategory.RESOURCES
 	logger_camp.texture = LOGGER_CAMP_TEXTURE
 	logger_camp.model = LOGGER_CAMP_MODEL
-	# Authored at true tile scale (tools/build_logger_camp.py): 1.33 units wide / 2 units per
+	# Authored at true tile scale (tools/build_logger_camp.py): 1.11 units wide / 2 units per
 	# tile, so the camp sits in the back of its tile with an open yard in front.
-	logger_camp.visual_size_tiles = Vector2(0.665, 0.665)
+	logger_camp.visual_size_tiles = Vector2(0.554, 0.554)
 	logger_camp.cost = {GameTypes.ResourceType.WOOD: 6}
 	logger_camp.required_terrains = [GameTypes.Terrain.GRASS]
 	# Must touch a forest, earns +1 per adjacent forest, but crowding other
@@ -198,7 +198,8 @@ static func build_all() -> Array[BuildingDefinition]:
 	sawmill.category = GameTypes.BuildingCategory.PROCESSING
 	sawmill.texture = SAWMILL_TEXTURE
 	sawmill.model = SAWMILL_MODEL
-	sawmill.visual_size_tiles = Vector2(0.85, 0.85)
+	# Authored at true tile scale (tools/build_sawmill.py): 1.16 units wide / 2 units per tile.
+	sawmill.visual_size_tiles = Vector2(0.58, 0.58)
 	sawmill.cost = {
 		GameTypes.ResourceType.WOOD: 8,
 		GameTypes.ResourceType.STONE: 4,

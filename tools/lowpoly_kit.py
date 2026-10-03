@@ -134,13 +134,15 @@ def beam(name, a, b, width, mat):
     return o
 
 
-def log(name, x, y, z, length, radius, bark, cut, heart, sides=None):
-    """Log lying along Y, with a cut-end disc and heartwood ring at both ends."""
-    cylinder(name + ' bark', (x, y - length / 2, z), (x, y + length / 2, z), radius, bark, sides)
+def log(name, x, y, z, length, radius, bark, cut, heart, sides=None, axis='Y'):
+    """Log lying along Y (or X), with a cut-end disc and heartwood ring at both ends."""
+    def at(offset):
+        return (x + offset, y, z) if axis == 'X' else (x, y + offset, z)
+    cylinder(name + ' bark', at(-length / 2), at(length / 2), radius, bark, sides)
     for s in [-1, 1]:
-        yy = y + s * length / 2
-        cylinder(name + ' cut end', (x, yy, z), (x, yy + s * .014, z), radius * .85, cut, sides)
-        cylinder(name + ' heartwood', (x, yy + s * .015, z), (x, yy + s * .018, z), radius * .32, heart, sides)
+        e = s * length / 2
+        cylinder(name + ' cut end', at(e), at(e + s * .014), radius * .85, cut, sides)
+        cylinder(name + ' heartwood', at(e + s * .015), at(e + s * .018), radius * .32, heart, sides)
 
 
 def saw_blade(name, x0, x1, y, z, outer, inner, teeth, mat):
@@ -159,6 +161,27 @@ def saw_blade(name, x0, x1, y, z, outer, inner, teeth, mat):
     mesh.update()
     o = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(o)
+    return finish(o, name, mat)
+
+
+def prism_y(name, profile, y0, y1, mat):
+    """Flat shape extruded along Y: profile is a list of (x, z) points (e.g. a gable triangle),
+    swept from y0 to y1."""
+    n = len(profile)
+    verts = [(x, y, z) for y in (y0, y1) for x, z in profile]
+    faces = [tuple(range(n)), tuple(reversed(range(n, 2 * n)))]
+    faces += [(i, i + n, (i + 1) % n + n, (i + 1) % n) for i in range(n)]
+    mesh = bpy.data.meshes.new(name + ' mesh')
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    mesh.validate()
+    o = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(o)
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.to_mesh(mesh)
+    bm.free()
     return finish(o, name, mat)
 
 

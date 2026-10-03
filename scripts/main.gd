@@ -29,6 +29,12 @@ const GameMenuScript := preload("res://scripts/ui/game_menu.gd")
 const NO_BUILDING := -1
 const HARVEST_INTERVAL := 3.0
 const HARVEST_YIELD := 1
+# Working a building or resource node from the tile beside it, the robot leans this far (in
+# tiles) toward it — close enough to read as working it, clear of its geometry.
+const WORK_LEAN_TILES := 0.15
+# Extra steps the robot will walk to work a target from the camera side rather than from behind
+# it, where the target would hide it.
+const BEHIND_PENALTY := 2
 
 # Upper bound on how often the throttled crash-backstop autosave writes (see _process).
 const AUTOSAVE_INTERVAL_SECONDS := 60.0
@@ -562,6 +568,9 @@ func _setup_lighting() -> void:
 	camera_rig.set_fog_environment(environment)
 
 
+# Send the robot to the hovered cell. Open ground is walked onto. The robot doesn't park on a
+# building or resource node, so for one it walks to where it can work it instead (see
+# _plan_approach) and the target stays the clicked cell.
 func _command_unit_to_hovered() -> bool:
 	if player_unit == null or current_island == null:
 		return false
@@ -570,24 +579,119 @@ func _command_unit_to_hovered() -> bool:
 	if cell == Vector2i(-1, -1) or not HexPathfinderScript.is_walkable(current_island, cell):
 		return false
 
+	var plan := _plan_approach(cell, player_unit.current_cell)
+	if plan.is_empty():
+		return false
+
 	pending_action_cell = cell
 
-	if cell == player_unit.current_cell:
-		_on_unit_arrived(cell)
+	if plan.path.is_empty() and plan.spot_cell == Vector2i(-1, -1):
+		# Already where it can work the target: switch to it without moving.
+		if cell != harvest_cell:
+			_stop_harvesting()
+		if current_island.get_building_anchor_cell(cell) != operate_cell:
+			_stop_operating()
+		_on_unit_arrived(player_unit.current_cell)
 		return true
-
-	var path := HexPathfinderScript.find_path(current_island, player_unit.current_cell, cell)
-	if path.is_empty():
-		pending_action_cell = Vector2i(-1, -1)
-		return false
 
 	_stop_harvesting()
 	_stop_operating()
 	harvestable_cell = Vector2i(-1, -1)
 	operable_cell = Vector2i(-1, -1)
-	player_unit.follow_path(path)
+	player_unit.follow_path(plan.path, plan.spot_cell, plan.spot_position)
 	_refresh_action_bar()
 	return true
+
+
+# How the robot, standing at `start`, gets to work `target`: {path, spot_cell, spot_position} for
+# PlayerUnit.follow_path, or {} when it can't get there. Empty path and no spot = already there.
+#   - A building with a WorkSpot: the shortest route straight onto the building's tile (walking
+#     through buildings is fine), the last step going onto the parking spot instead of the
+#     tile's centre. The robot then turns to face the building (see _on_unit_arrived).
+#   - Open ground: walk onto it.
+#   - Anything else (a resource node, or a building whose model fills its tile): the cheapest
+#     open neighbour, interacting across the edge. Neighbours behind the target (away from the
+#     camera) cost BEHIND_PENALTY extra, so the robot isn't hidden by it.
+#   - No open neighbour at all (fully enclosed): stand on the target itself, as a last resort.
+func _plan_approach(target: Vector2i, start: Vector2i) -> Dictionary:
+	var island := current_island
+	var no_path: Array[Vector2i] = []
+
+	var spot = renderer.get_work_spot(island.get_building_anchor_cell(target)) if island.has_building(target) else null
+	if spot != null:
+		if start == target and player_unit.is_at_spot():
+			return _approach(no_path)
+		var to_tile := HexPathfinderScript.find_path(island, start, target)
+		if to_tile.is_empty() and start != target:
+			return {}
+		if not to_tile.is_empty():
+			to_tile.pop_back()  # the spot leg replaces the step to the tile's centre
+		return _approach(to_tile, target, Vector3(spot.x, renderer.get_cell_center(target).y, spot.z))
+
+	if HexPathfinderScript.is_open(island, target):
+		var path := HexPathfinderScript.find_path(island, start, target)
+		if path.is_empty() and target != start:
+			return {}
+		return _approach(path)
+
+	var search := HexPathfinderScript.search(island, start)
+	var costs: Dictionary = search.cost
+	var center := renderer.get_cell_center(target)
+
+	var best := Vector2i(-1, -1)
+	var best_score := INF
+	for neighbor in HexGridScript.neighbors(target):
+		if not HexPathfinderScript.is_open(island, neighbor) or not costs.has(neighbor):
+			continue
+		var neighbor_z := renderer.get_cell_center(neighbor).z
+		var score: float = costs[neighbor] + (BEHIND_PENALTY if neighbor_z < center.z else 0)
+		# Equal scores: the tile nearer the camera.
+		score -= neighbor_z * 0.0001
+		if score < best_score:
+			best = neighbor
+			best_score = score
+
+	if best != Vector2i(-1, -1):
+		return _approach(HexPathfinderScript.path_to(search, best))
+
+	return _approach(HexPathfinderScript.path_to(search, target))
+
+
+func _approach(path: Array[Vector2i], spot_cell := Vector2i(-1, -1), spot_position := Vector3.ZERO) -> Dictionary:
+	return {path = path, spot_cell = spot_cell, spot_position = spot_position}
+
+
+# True when the robot can work `target` from where it stands: on it (open ground, a work spot,
+# or the enclosed-target fallback) or on a neighbouring tile.
+func _is_working_position(target: Vector2i) -> bool:
+	if player_unit == null or target == Vector2i(-1, -1):
+		return false
+	var cell := player_unit.current_cell
+	return cell == target or HexGridScript.neighbors(target).has(cell)
+
+
+# Placement veto (IslandRenderer.is_cell_occupied_by_unit): the robot's and K9-DA's cells,
+# including the ones they're stepping into.
+func _is_unit_cell(cell: Vector2i) -> bool:
+	if player_unit != null and (cell == player_unit.current_cell or cell == player_unit.next_cell()):
+		return true
+	if dog != null and dog.visible and dog.renderer == renderer:
+		return cell == dog.current_cell or cell == dog.next_cell()
+	return false
+
+
+# Construction changed the map: re-plan a moving robot's approach from the cell it's stepping
+# into, so it never ends up parked on a building placed where it was heading (walking through
+# one on the way is fine). The last leg into a work spot stays inside the building's own tile.
+func _reroute_unit() -> void:
+	if player_unit == null or not player_unit.is_moving() or pending_action_cell == Vector2i(-1, -1):
+		return
+	if player_unit.is_at_spot():
+		return
+
+	var plan := _plan_approach(pending_action_cell, player_unit.next_cell())
+	if not plan.is_empty():
+		player_unit.reroute(plan.path, plan.spot_cell, plan.spot_position)
 
 
 # Collect any ground item the robot walks onto. Fires for every cell stepped through,
@@ -606,13 +710,19 @@ func _on_unit_entered_cell(cell: Vector2i) -> void:
 	renderer.refresh()
 
 
-func _on_unit_arrived(cell: Vector2i) -> void:
-	if cell != pending_action_cell:
+func _on_unit_arrived(_cell: Vector2i) -> void:
+	var target := pending_action_cell
+	if target == Vector2i(-1, -1):
 		return
 
 	pending_action_cell = Vector2i(-1, -1)
-	harvestable_cell = cell if current_island.get_resource_node_type(cell) != -1 else Vector2i(-1, -1)
-	operable_cell = cell if _building_consumes_power(cell) else Vector2i(-1, -1)
+	if _is_working_position(target):
+		harvestable_cell = target if current_island.get_resource_node_type(target) != -1 else Vector2i(-1, -1)
+		operable_cell = target if _building_consumes_power(target) else Vector2i(-1, -1)
+		if player_unit.is_at_spot():
+			player_unit.face_toward(renderer.get_cell_center(target))
+		elif target != player_unit.current_cell:
+			player_unit.face_toward(renderer.get_cell_center(target), WORK_LEAN_TILES)
 	_refresh_action_bar()
 
 
@@ -660,7 +770,7 @@ func _harvest_action() -> Dictionary:
 	if not quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.HARVESTING):
 		return {}
 
-	if harvestable_cell == Vector2i(-1, -1) or player_unit.current_cell != harvestable_cell:
+	if harvestable_cell == Vector2i(-1, -1) or not _is_working_position(harvestable_cell):
 		return {}
 
 	var resource_node_type := current_island.get_resource_node_type(harvestable_cell)
@@ -679,7 +789,7 @@ func _harvest_action() -> Dictionary:
 
 
 func _operate_action() -> Dictionary:
-	if operable_cell == Vector2i(-1, -1) or player_unit.current_cell != operable_cell:
+	if operable_cell == Vector2i(-1, -1) or not _is_working_position(operable_cell):
 		return {}
 
 	if not _building_consumes_power(operable_cell):
@@ -812,11 +922,11 @@ func _stop_operating() -> void:
 
 
 func _update_harvest(delta: float) -> void:
-	# Stop if the robot is no longer parked on the node it was harvesting.
+	# Stop if the robot is no longer parked where it can work the node it was harvesting.
 	if (
 		player_unit == null
 		or player_unit.is_moving()
-		or player_unit.current_cell != harvest_cell
+		or not _is_working_position(harvest_cell)
 		or current_island == null
 		or current_island.get_resource_node_type(harvest_cell) == -1
 	):
@@ -956,6 +1066,7 @@ func _try_place_selected_building() -> bool:
 
 	if not renderer.try_place_hovered_building(selected_building_type):
 		return false
+	_reroute_unit()
 
 	resource_manager.spend(cost)
 	stat_tracker.record_building_built(selected_building_type)
@@ -1075,6 +1186,7 @@ func _switch_to_island(coord: Vector2i, instant := false) -> void:
 	if renderer != null and renderer != next_renderer:
 		renderer.clear_interaction()
 	renderer = next_renderer
+	renderer.is_cell_occupied_by_unit = _is_unit_cell
 	current_island = world.get_current()
 	# Landing on an island for the first time counts as discovering it. On K9-DA's island, point
 	# the player at the dog — the rescue itself is the robot's Rescue action beside it.
@@ -1117,11 +1229,7 @@ func _find_unit_spawn_cell(island: IslandData) -> Vector2i:
 	var crashed_spaceship_cell := _find_crashed_spaceship_cell(island)
 	if crashed_spaceship_cell != Vector2i(-1, -1):
 		for neighbor in HexGridScript.neighbors(crashed_spaceship_cell):
-			if (
-				HexPathfinderScript.is_walkable(island, neighbor)
-				and not island.has_building(neighbor)
-				and not island.has_item(neighbor)
-			):
+			if HexPathfinderScript.is_open(island, neighbor) and not island.has_item(neighbor):
 				return neighbor
 
 	for y in range(island.height):
@@ -1135,12 +1243,7 @@ func _find_unit_spawn_cell(island: IslandData) -> Vector2i:
 
 # Walkable land with nothing on it — somewhere a unit can stand without overlapping anything.
 func _is_open_ground(island: IslandData, cell: Vector2i) -> bool:
-	return (
-		HexPathfinderScript.is_walkable(island, cell)
-		and not island.has_building(cell)
-		and not island.has_resource(cell)
-		and not island.has_item(cell)
-	)
+	return HexPathfinderScript.is_open(island, cell) and not island.has_item(cell)
 
 
 func _find_crashed_spaceship_cell(island: IslandData) -> Vector2i:
@@ -1266,6 +1369,7 @@ func _try_finish_move() -> void:
 	# illegal target (occupied / wrong terrain) placement fails and we stay in move mode.
 	if not renderer.try_place_hovered_building(moving_building_type):
 		return
+	_reroute_unit()
 
 	if _placement_player != null:
 		_placement_player.play()

@@ -7,7 +7,7 @@ Art direction proposal, 3 October 2026. This is a proposed asset standard; curre
 | Board | Status | Use |
 | --- | --- | --- |
 | [building-style-palette-v2-low-poly.png](../art/style/building-style-palette-v2-low-poly.png) | **Current** kit reference | Overall style, palette, prop density |
-| [logger-camp-v3-low-poly.png](../art/style/logger-camp-v3-low-poly.png) | **Current** logger camp design | Logger camp, with the corrections below |
+| [logger-camp-v3-low-poly.png](../art/style/logger-camp-v3-low-poly.png) | Superseded | History only: the roofed logger camp, replaced by the [workbench style](#workbench-style) |
 | [building-style-palette-v1.png](../art/style/building-style-palette-v1.png) | Superseded | History only: the earlier painterly direction |
 
 Each board's generation prompt sits next to it as a `.prompt.txt`. The boards are concepts generated with the built-in imagegen tool. Their drawn swatches and proportions are illustrative; the palette values and scale table in this doc are authoritative. Where a board conflicts with this doc, follow the doc (see [Board corrections](#board-corrections)).
@@ -16,12 +16,25 @@ Each board's generation prompt sits next to it as a `.prompt.txt`. The boards ar
 
 Low poly, flat-shaded miniature architecture with a frontier-workshop identity: timber and stone buildings, terracotta roofs, teal salvaged machinery, and the cream-and-teal robot. Map readability comes from clear silhouettes, not detail.
 
-- **Geometry:** broad planar roofs (2–4 planes, no individual tiles), wide rectangular timber beams with almost no individual planks, six- or eight-sided cylinders, faceted rocks, conifers as 2–3 stacked polygonal cones.
+- **Geometry:** where a building has a roof, broad planar roofs (2–4 planes, no individual tiles); wide rectangular timber beams with almost no individual planks, six- or eight-sided cylinders, faceted rocks, conifers as 2–3 stacked polygonal cones.
 - **Composition:** each building has one dominant structure, one identifying machine, and at most two prop groups. No scattered grass, pebbles, fences, lanterns, ropes, barrels, or trim.
 - **Materials:** solid-color matte materials. No painted textures, wood grain, weathering, or scratches.
 - **Shading:** visible flat-face shading. Don't smooth or bevel away the facets.
 - **Bases:** no terrain tile, deck, or plinth under a building. The game's hex tile is the base.
 - **Robot and icons:** use the same low-sided geometry standard as the buildings.
+
+## Workbench style
+
+The player must tell buildings apart at a glance, and roofs don't help: from the game camera a roof hides what's under it, and one terracotta roof looks like another. So a production building is a workbench, not a house. Its working machine *is* the building:
+
+- **No full roof.** Height and silhouette come from the building's own work machine.
+- **One signature shape per building**, recognisable from across the map: the logger camp's giant axe sunk in a stump, the sawmill's huge upright blade, the quarry's crane, the mines' rock portal. If two buildings would be told apart only by color or a small prop, give one of them a different big shape.
+- **Face the camera.** Turn the signature face toward the yard (Blender −Y), as the sawmill's blade is. Keep beams and walls from crossing in front of it.
+- **Lay stock so it reads.** Logs and lumber lie crosswise so their long sides show. Seen end-on from the high camera, they read as upright posts or crates.
+- **Same layout as before:** everything in the back of the tile, an open yard in front with the `WorkSpot` (see [Footprint and work space](#footprint-and-work-space)).
+
+Roofed buildings, such as a windmill's house or a future home, still use the roof guidance in this doc.
+
 
 ## Material palette
 
@@ -54,7 +67,7 @@ Secondary tones are mixed from the palette (in sRGB, by the given fraction) rath
 
 All materials are matte and non-metallic. The game disables reflected light (`main.gd` sets `REFLECTION_SOURCE_DISABLED`), so metallic surfaces lose their diffuse color and render darker than authored.
 
-Use timber, stone, or cream for most of a building, roof color for its large identifying plane, and teal for a small machine or trim accent. Amber is a signal color only. Keep coal and iron deposits distinct through silhouette and material patches, not just by recoloring every surface.
+Use timber, stone, or cream for most of a building and teal for its machine or a trim accent; terracotta is for roofs, where a building has one. Amber is a signal color only. Keep coal and iron deposits distinct through silhouette and material patches, not just by recoloring every surface.
 
 ## Lighting and outlines
 
@@ -66,8 +79,8 @@ Author every asset under the same neutral lighting and let the game light it. Av
 
 | Asset | Primary read | Secondary read |
 | --- | --- | --- |
-| Logger camp | Low single-slope timber shelter | Short log stack, teal winch, oversized axe |
-| Sawmill | Open gabled shed | Large saw and broad output stack |
+| Logger camp | Giant axe sunk in a chopping stump | Crosswise log pile, teal winch |
+| Sawmill | Huge upright saw blade on a long bench | Teal motor, crosswise lumber stack |
 | Quarry | Stepped, man-made stone cut | Tall simple crane, squared blocks |
 | Iron mine | Braced opening and stone arch | Rust-colored ore and cart |
 | Coal mine | Dark low opening | Coal pile and stout supports |
@@ -79,27 +92,25 @@ Author every asset under the same neutral lighting and let the game light it. Av
 | Robot | Cream head/body silhouette | Teal panels, amber eyes |
 
 These silhouettes must stay readable at the normal map zoom. In particular:
-- **Logger camp vs sawmill:** the camp gathers raw logs and has no saw or gabled shed. The sawmill owns the saw.
+- **Logger camp vs sawmill:** the camp gathers raw logs and has no saw; the sawmill owns the saw.
 - **Quarry vs stone deposit:** the quarry must read as man-made, with stepped cut faces and squared blocks. The deposit is natural, irregular boulders.
 - **Quarry vs mines:** don't make them all the same shed or rock pile with a door.
+- **Iron mine vs coal mine:** today they are one model told apart only by small ore lumps. Give each its own big shape when they are reworked.
 
 ## Board corrections
 
 The boards get the style right but some of their designs break this standard. Don't copy these details:
 
-- **v2 logger camp and sawmill** are nearly identical (timber shed, orange roof, teal machine). Use v3 for the camp.
+- **v2 logger camp and sawmill** are nearly identical (timber shed, orange roof, teal machine). Both are now workbenches instead (see [Workbench style](#workbench-style)).
 - **v2 quarry** is a crane next to faceted boulders, which reads the same as the stone cluster. Keep the current quarry model's stepped cut wall and stacked blocks, simplified to this standard.
 - **v2 windmill** has an attached house, which widens the footprint beyond the slim-tower target. Drop the house.
 - **v2 robot** keeps some rounded details. Use angular low-sided forms.
-- **v3 logger camp roof** reads as a flat bench: a slab about 2.5 times longer than it is deep with no visible slope. From the game camera its top face becomes one big orange rectangle, and the long shape fits a hex poorly. Use two bays instead of three, a clearly visible pitch, and a footprint closer to square.
-- **v3 logs** extend in front of the posts into the work yard. Keep them inside the solid footprint.
-- **v3 tool locker** makes a third prop group and is hidden from the front view anyway. Cut it. Keep the winch (the strongest element) and enlarge the axe, which is the clearest "logger" signal at map zoom.
 
 ## Current asset inventory
 
 | Asset | Source | Gap to this standard |
 | --- | --- | --- |
-| Logger camp, sawmill, quarry, coal mine, iron mine | Scripted builds in `tools/build_*.py` on the shared `tools/lowpoly_kit.py` | Palette colors, no bevels, 8-sided cylinders, no base platforms. The logger camp is redesigned per v3 at true tile scale (see [Footprint and work space](#footprint-and-work-space)). Remaining for the others: true-tile layouts with work spots, and prop density cut to the two-group rule (bolts, rivets, chips, lantern, roof patch). |
+| Logger camp, sawmill, quarry, coal mine, iron mine | Scripted builds in `tools/build_*.py` on the shared `tools/lowpoly_kit.py` | Palette colors, no bevels, 8-sided cylinders, no base platforms. The logger camp and the sawmill are redesigned as workbenches at true tile scale, with work spots. Remaining for the quarry and mines: the same treatment, with prop density cut to the two-group rule (bolts, rivets, chips, lantern). |
 | Windmill (`windmill2.glb`), crashed spaceship, pine forest, stone deposit, player robot, dog | Imported meshes with image textures | Furthest from the standard. Rework these first. |
 | Burner generator, dock | 2D billboard sprites only | Need 3D models. |
 | Icons and building sprites in `assets/icons`, `assets/buildings` | Painterly 2D with dark outlines | Re-render from approved models (see [Icon standard](#icon-standard)). |
@@ -114,7 +125,8 @@ Let T = 128 world units, the current tile bounding width. Values below are initi
 | --- | --- | --- |
 | Robot | 0.20–0.24 | 0.42–0.48 |
 | Dog | 0.16–0.20 | 0.20–0.26 |
-| Camp / ordinary workshop | 0.58–0.68 | 0.65–0.85 |
+| Workbench building (logger camp, sawmill) | 0.55–0.68 | 0.45–0.60 |
+| Roofed building | 0.58–0.68 | 0.65–0.85 |
 | Low quarry / mine | 0.58–0.70 | 0.35–0.60, crane up to 0.90 |
 | Forest cluster | 0.60–0.70 | 0.80–1.10 |
 | Rock cluster | 0.50–0.65 | 0.30–0.50 |
@@ -122,7 +134,7 @@ Let T = 128 world units, the current tile bounding width. Values below are initi
 
 Unit scale is deliberately exaggerated for map readability; the style does not require a literal human-to-building scale. The robot is roughly half an ordinary roof's height, with a much narrower footprint.
 
-Today, ordinary buildings render at 0.85T width, resource clusters at 0.90T, and the robot at 0.65T height (83.2 units). These leave little access space. Static models are scaled by width in `IslandRenderer._spawn_model`, and the robot by a hard-coded native height in `PlayerUnit._ready`. Setting both `visual_size_tiles` components to the same number does not enforce equal width and height. Measure actual bounds and enforce separate footprint and height targets. Uniform scale preserves proportions; reauthor assets that are too tall or wide instead of stretching them.
+Today, most buildings render at 0.85T width and resource clusters at 0.90T, which leaves little access space. The logger camp (0.554T) and the sawmill (0.58T), both authored at true tile scale, meet their workbench targets. The robot now meets its height target (0.45T, down from 0.65T), but its arms make it about 0.31T wide, above the 0.20–0.24T target. Static models are scaled by width in `IslandRenderer._spawn_model`, and the robot by a hard-coded native height in `PlayerUnit._ready`. Setting both `visual_size_tiles` components to the same number does not enforce equal width and height. Measure actual bounds and enforce separate footprint and height targets. Uniform scale preserves proportions; reauthor assets that are too tall or wide instead of stretching them.
 
 The crashed ship renders at 1.6T width from a one-cell anchor. Treat it as a landmark and reserve space matching its actual visual extent.
 
@@ -143,7 +155,7 @@ To make the layout survive the game's width-based scaling, author at true tile s
 - Set the definition's `visual_size_tiles` to the model's width ÷ `TILE`, so one unit is exactly half a tile in the game.
 - Preview with `render_preview(true_tile=True)`. It draws one game tile (pointy along Y, as in the game), stands a robot-sized figure on `WorkSpot`, and uses a camera close to the game's.
 
-`tools/build_logger_camp.py` is the reference: 0.665 tiles wide, 0.775 tiles tall, with its work spot 0.30 tiles forward.
+`tools/build_logger_camp.py` and `tools/build_sawmill.py` are the references: workbenches 0.554 and 0.58 tiles wide, 0.535 and 0.455 tiles tall, each with its work spot 0.30 tiles forward.
 
 The movement changes needed to actually use work spots are tracked in [TODO.md](../TODO.md) under "Robot access and clipping".
 
@@ -153,7 +165,7 @@ Render icons from the approved models with a common isometric camera and neutral
 
 ## Asset prompt
 
-> Low poly flat-shaded 3D game asset for Resource Isles, a hex island resource strategy game. Frontier workshop style: wide rectangular timber beams, cream plaster, broad terracotta roof planes, teal machinery accents, gray stone, dark iron. Obvious large planar faces, 6- or 8-sided cylinders, faceted rocks, solid matte colors. One dominant structure, one function-defining machine, at most two prop groups. Subject: [asset and its dominant silhouette]. Compact solid footprint in the rear of the tile with a clear open front work area; no terrain tile, deck, or plinth. Readable at map zoom from a roughly 55-degree camera. No textures, wood grain, weathering, roof tiles, outlines, bevel-heavy rounding, glossy plastic, tiny wires, scattered props, or text. Pivot at the tile centre (so the structure sits behind it); Y-up; open front toward +Z (Blender −Y); applied transforms; WorkSpot and Footprint empties.
+> Low poly flat-shaded 3D game asset for Resource Isles, a hex island resource strategy game. Frontier workbench style: the building is its working machine, open to the sky with no roof, built from wide rectangular timber beams, teal machinery, gray stone and dark iron. One big signature shape that tells it apart from every other building at map zoom, its face turned toward the viewer. Obvious large planar faces, 6- or 8-sided cylinders, faceted rocks, solid matte colors. One function-defining machine, at most two prop groups; stock such as logs and lumber laid crosswise. Subject: [asset and its dominant silhouette]. Compact solid footprint in the rear of the tile with a clear open front work area; no terrain tile, deck, or plinth. Readable at map zoom from a roughly 55-degree camera. No textures, wood grain, weathering, roof tiles, outlines, bevel-heavy rounding, glossy plastic, tiny wires, scattered props, or text. Pivot at the tile centre (so the structure sits behind it); Y-up; open front toward +Z (Blender −Y); applied transforms; WorkSpot and Footprint empties.
 
 ## Validation before rollout
 

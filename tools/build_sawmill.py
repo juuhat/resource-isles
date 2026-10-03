@@ -1,80 +1,73 @@
-"""Blender --background --python tools/build_sawmill.py: model, source and preview."""
+"""Blender --background --python tools/build_sawmill.py: model, source and preview.
+
+Sawmill, workbench style (docs/building-style-palette.md): no roof; the work itself is the
+building. Its signature is one huge circular blade standing up through a long saw bench, face
+to the camera, with the teal motor that drives it at the bench's left end and a broad stack of
+finished planks on the right.
+
+Authored at true tile scale (lowpoly_kit.TILE = 2 units per tile, front toward -Y). Everything
+stands in the back of the tile, leaving an open work yard with the robot's work spot 0.30 tiles
+forward of centre, facing the blade.
+"""
 import math
 import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True  # keep tools/ free of __pycache__
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from lowpoly_kit import PALETTE, reset_scene, material, box, cylinder, beam, log, saw_blade, export, render_preview
+from lowpoly_kit import (PALETTE, TILE, reset_scene, material, box, cylinder, beam, saw_blade, marker,
+                         export, render_preview)
 
 reset_scene()
 
-wood=material('Timber',PALETTE['timber'])
-plank=material('Planks',PALETTE['plank'])
-end=material('Cut wood',PALETTE['cut_wood'])
-dark=material('Iron',PALETTE['iron'])
-steel=material('Steel',PALETTE['steel'])
-teal=material('Teal',PALETTE['teal'])
-roofmat=material('Terracotta',PALETTE['terracotta'])
-cream=material('Amber',PALETTE['amber'])
+wood = material('Timber', PALETTE['timber'])
+plank = material('Planks', PALETTE['plank'])
+end = material('Cut wood', PALETTE['cut_wood'])
+dark = material('Iron', PALETTE['iron'])
+steel = material('Steel', PALETTE['steel'])
+teal = material('Teal', PALETTE['teal'])
+amber = material('Amber', PALETTE['amber'])
 
-def timber(x,y,z,length,r):
-    log('Raw log',x,y,z,length,r,wood,end,plank)
+T = TILE
 
-# Open-front mill shed standing straight on the tile. The work area remains visible below roof.
-for x in [-.64,.64]:
-    for y in [.03,.72]:
-        box('Square timber post',(x,y,.91),(.15,.15,1.28),wood)
-        box('Post foot bracket',(x,y,.37),(.19,.19,.19),dark)
-        cylinder('Large bolt',(x,y-.10,.37),(x,y-.115,.37),.039,end)
-for i in range(6):
-    box('Rear wall board',(-.52+i*.21,.75,.89),(.20,.075,1.1),plank,.01)
-for x in [-.65,.65]:
-    beam('Side diagonal brace',(x,.08,1.36),(x,.65,.86),.09,wood)
-beam('Front lintel',(-.77,.01,1.51),(.77,.01,1.51),.16,wood)
-# Gabled roof with broad panels and stout edge trim, set back from exposed blade.
-for side in [-1,1]:
-    for i in range(5):
-        panel=box('Roof panel',(side*.39,.00+i*.205,1.74),(.87,.194,.065),roofmat,.012)
-        panel.rotation_euler.y=side*math.radians(28)
-    for y in [-.11,.96]:
-        beam('Roof edge trim',(0,y,1.96),(side*.80,y,1.535),.085,wood)
-beam('Roof ridge',(0,-.15,1.97),(0,1.0,1.97),.10,end)
-# Teal riveted roof repair plate reinforces the robot-built identity.
-patch=box('Teal roof patch',(-.40,.40,1.766),(.41,.42,.035),teal,.012)
-patch.rotation_euler.y=math.radians(-28)
+# Long saw bench across the back of the yard: a thick plank top on four stout legs.
+TABLE_Z = .42
+BENCH_X0, BENCH_X1, BENCH_Y = -.56, .22, .26
+box('Saw bench', ((BENCH_X0 + BENCH_X1) / 2, BENCH_Y, TABLE_Z - .04), (BENCH_X1 - BENCH_X0, .34, .08), plank)
+for x in [BENCH_X0 + .06, BENCH_X1 - .06]:
+    for y in [BENCH_Y - .12, BENCH_Y + .12]:
+        box('Bench leg', (x, y, (TABLE_Z - .08) / 2), (.08, .08, TABLE_Z - .08), wood)
+    beam('Leg rail', (x, BENCH_Y - .12, .12), (x, BENCH_Y + .12, .12), .05, wood)
+box('Board being cut', (-.02, BENCH_Y, TABLE_Z + .02), (.40, .14, .04), end)
 
-# Deep cutting table with clear log-in / plank-out arrangement.
-for x in [-.43,.16]:
-    for y in [-.73,.32]:
-        box('Workbench leg',(x,y,.46),(.12,.12,.42),wood)
-for x in [-.43,.16]:
-    beam('Steel table rail',(x,-.96,.66),(x,.47,.66),.10,dark)
-box('Cutting table',(-.135,-.26,.66),(.76,1.37,.095),plank)
-box('Blade slot',(-.22,-.38,.713),(.08,.63,.012),dark,.002)
-for y in [-.82,-.63,.05,.27]:
-    cylinder('Feed roller',(-.47,y,.733),(.19,y,.733),.04,steel)
-timber(-.06,.27,.85,.66,.12)
-# Big vertical toothed blade in the YZ plane, projecting above the table.
-saw_blade('Mill circular blade',-.25,-.20,-.39,.80,.365,.285,12,steel)
-cylinder('Blade axle',(-.59,-.39,.80),(-.14,-.39,.80),.065,dark)
-cylinder('Blade hub',(-.29,-.39,.80),(-.17,-.39,.80),.105,dark)
-cylinder('Hub cap',(-.305,-.39,.80),(-.29,-.39,.80),.05,end)
-# Motor directly coupled to blade axle, readable from the front-left camera.
-box('Motor feet',(-.76,-.34,.47),(.38,.44,.12),dark)
-box('Teal electric motor',(-.76,-.34,.72),(.36,.43,.43),teal,.055)
-for y in [-.46,-.34,-.22]:
-    box('Motor cooling rib',(-.955,y,.72),(.025,.045,.24),dark,.006)
-box('Motor switch',(-.76,-.565,.80),(.13,.035,.10),cream,.015)
-# Output stack on right, raw timber storage at rear right.
-for z in [.35,.425,.50]:
-    for x in [.43,.65,.87]:
-        box('Finished plank',(x,-.48,z),(.18,.88,.065),end,.01)
-for y in [-.74,-.23]:
-    box('Plank stack binding',(.65,y,.542),(.64,.035,.018),dark,.002)
-for x in [.77,1.0]:
-    timber(x,.50,.43,.67,.10)
-timber(.885,.50,.60,.67,.10)
+# The blade: big enough to tower over the bench, turned face-on to the yard. saw_blade builds
+# in the YZ plane (axle along X), so build it at the mirrored spot and turn it a quarter
+# around Z: the axle then runs along Y.
+BX, BY, BZ, BR = -.14, BENCH_Y, .50, .42
+blade = saw_blade('Saw blade', BY - .025, BY + .025, -BX, BZ, BR, BR * .8, 14, steel)
+blade.rotation_euler.z = math.pi / 2
+cylinder('Blade hub', (BX, BY - .05, BZ), (BX, BY + .05, BZ), .10, dark)
+cylinder('Hub cap', (BX, BY - .065, BZ), (BX, BY - .05, BZ), .05, end)
+cylinder('Blade axle', (BX, BY, BZ), (BX, BY + .22, BZ), .04, dark)
 
-export('sawmill', join_label='Sawmill', sink=.29)
-render_preview('sawmill', target_z=.87)
+# Teal motor on the bench's left end, belted to the blade axle behind it.
+MX = -.47
+box('Saw motor', (MX, BENCH_Y + .04, TABLE_Z + .14), (.18, .26, .28), teal)
+box('Power light', (MX, BENCH_Y - .04, TABLE_Z + .30), (.07, .07, .05), amber)
+beam('Drive belt', (MX + .06, BENCH_Y + .20, TABLE_Z + .16), (BX, BY + .20, BZ), .04, dark)
+
+# Output: finished planks on the right, laid crosswise so the stack reads as lumber, each
+# layer on dark spacer battens.
+for layer in range(4):
+    z = .03 + layer * .075
+    for y in [.18, .30, .42]:
+        box('Finished plank', (.43, y, z), (.34, .10, .05), end)
+    for x in [.31, .55]:
+        box('Spacer', (x, .30, z + .035), (.03, .36, .02), dark)
+
+# Layout metadata for the game: the solid footprint and where the robot works from.
+marker('Footprint', (0, .26, .5), (.30 * T, .225 * T, .5))
+marker('WorkSpot', (0, -.30 * T, 0))
+
+export('sawmill', join_label='Sawmill')
+render_preview('sawmill', target_z=.4, ortho_scale=3.0, true_tile=True)
