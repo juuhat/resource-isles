@@ -174,6 +174,11 @@ func _on_quest_completed(_quest_id: int) -> void:
 
 
 func _on_resource_changed(_resource_type: int, _amount: int) -> void:
+	refresh_stock()
+
+
+# Inventory switches change the stock without emitting a resource mutation.
+func refresh_stock() -> void:
 	_refresh_cost_colors()
 	_update_placement_bar()
 

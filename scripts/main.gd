@@ -760,6 +760,8 @@ func _on_building_produced(island: IslandData, anchor_cell: Vector2i, resource_t
 
 
 func _on_fuel_consumed(island: IslandData, anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
+	# Away inventories do not emit through ResourceManager; fuel still needs the save backstop.
+	_autosave_dirty = true
 	if island == current_island:
 		_spawn_resource_floating_text(renderer.get_cell_center(anchor_cell), resource_type, "-%d" % amount, 16)
 
@@ -995,6 +997,7 @@ func _switch_to_island(coord: Vector2i, instant := false) -> void:
 		if coord != WorldData.CENTER:
 			stat_tracker.add(GameTypes.Stat.ISLANDS_REACHED, 1)
 	resource_manager.set_inventory(current_island.inventory)
+	building_menu.refresh_stock()
 	building_info_panel.hide_info()
 	player_unit.setup(renderer)
 	_spawn_player_unit()
