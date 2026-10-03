@@ -5,3 +5,6 @@
 
 # Blender backup copies written on re-save
 *.blend1
+
+# Local Claude configuration
+.claude/
