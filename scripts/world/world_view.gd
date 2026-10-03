@@ -2,7 +2,7 @@ class_name WorldView
 extends Node3D
 
 # The whole world as one place: the flat-disc planet floating in space (docs/intro-story.md),
-# with every island at full scale on it. One calm ocean sits inside an icy rim on a rocky,
+# with every island at full scale on it. One calm ocean sits inside a frozen mountain range on a rocky,
 # tapering underside; sea water spills off the edge into the starfield. Each revealed island has
 # its own IslandRenderer standing on its slot, and the rings not yet revealed sit under thick
 # soft fog that fades when a ring is revealed. Unvisited islands show muted coastlines;
@@ -422,32 +422,140 @@ func _build_planet() -> void:
 		_surface.add_child(_build_waterfall(angle, rng.randf_range(0.8, 1.6), float(i)))
 
 
-func _build_ice_rim(rng: RandomNumberGenerator) -> MeshInstance3D:
+func _build_ice_rim(rng: RandomNumberGenerator) -> Node3D:
 	var r := _disc_radius
 	var profile: Array[Vector2] = [
 		Vector2(r - 1.2, -0.6),
-		Vector2(r - 0.9, 0.8),
-		Vector2(r - 0.3, 1.9),
-		Vector2(r + 0.7, 2.3),
-		Vector2(r + 1.7, 1.8),
+		Vector2(r - 0.9, 0.4),
+		Vector2(r - 0.3, 1.0),
+		Vector2(r + 0.7, 1.3),
+		Vector2(r + 1.7, 0.9),
 		Vector2(r + 2.2, 0.4),
 		Vector2(r + 2.0, -1.2),
 	]
 	var colors: Array[Color] = [
 		ICE_SHADOW_COLOR, ICE_COLOR, ICE_COLOR, ICE_COLOR, ICE_COLOR, ICE_SHADOW_COLOR, ICE_SHADOW_COLOR,
 	]
-	# Snow drifts: the crest wobbles a little in height around the rim.
+	# A fractured shelf joins the bergs and covers the ocean's circular boundary.
+	# Keep its submerged edges anchored over the rock, while breaking up the crest.
 	var jitter := _lathe_jitter(rng, profile.size(), 0.0)
+	var ice_rng := RandomNumberGenerator.new()
+	ice_rng.seed = 1707
 	for segment in range(RIM_SEGMENTS):
-		var wobble := sin(segment * 0.37) * 0.12 + sin(segment * 1.13 + 2.0) * 0.08
-		for row in [2, 3, 4]:
-			jitter[row][segment] = Vector2(0.0, wobble * (1.0 if row == 3 else 0.6))
-	var mesh := _lathe(profile, colors, jitter, true)
+		var fracture := ice_rng.randf_range(-0.35, 0.65)
+		for row in [1, 2, 3, 4, 5]:
+			jitter[row][segment] = Vector2(
+				ice_rng.randf_range(-0.45, 0.45), fracture * (1.0 if row == 3 else 0.6))
+	var rim := Node3D.new()
+	rim.name = "FrozenRim"
 	var instance := MeshInstance3D.new()
-	instance.mesh = mesh
-	instance.material_override = _vertex_color_material(0.55)
+	instance.name = "IceShelf"
+	instance.mesh = _lathe(profile, colors, jitter, false)
+	instance.material_override = _vertex_color_material(0.85)
+	instance.layers = 1 | (1 << (PLANET_LAYER - 1))
+	rim.add_child(instance)
+	rim.add_child(_build_icebergs(ice_rng))
+	return rim
+
+
+func _build_icebergs(rng: RandomNumberGenerator) -> MeshInstance3D:
+	# Irregularly spaced mountain groups: sharp peaks, tilted ridges and broad plateaus.
+	# The fixed ice seed keeps this distinctive skyline stable whenever the world rebuilds.
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(-1)
+	var count := maxi(24, int(TAU * _disc_radius / 5.8))
+	var spacing: Array[float] = []
+	var circumference := 0.0
+	for berg in range(count):
+		var span := rng.randf_range(0.65, 1.5)
+		spacing.append(span)
+		circumference += span
+	var distance := 0.0
+	for berg in range(count):
+		var angle := TAU * (distance + spacing[berg] * 0.5) / circumference
+		distance += spacing[berg]
+		var outward := Vector3(cos(angle), 0.0, sin(angle))
+		var tangent := Vector3(-sin(angle), 0.0, cos(angle))
+		var center := outward * (_disc_radius + rng.randf_range(-0.3, 1.4))
+		var width := rng.randf_range(3.1, 4.9) * spacing[berg]
+		var depth := rng.randf_range(1.8, 3.4)
+		# Slow height changes create high ranges and low passes, with local crags on top.
+		var range_height := sin(angle * 3.0 + 0.8) * 1.1 + sin(angle * 7.0 - 1.3) * 0.6
+		var height := rng.randf_range(2.5, 5.4) + range_height
+		var shape := rng.randi_range(0, 3)
+		var crest_width := rng.randf_range(0.28, 0.5)
+		var crest_depth := rng.randf_range(0.15, 0.35)
+		var crest_variation := 0.15
+		var crest_tilt := rng.randf_range(-0.18, 0.18)
+		var summit_height := 0.98
+		match shape:
+			0: # A few sharper summits punctuate the broader range.
+				height += rng.randf_range(0.8, 2.0)
+				crest_width = rng.randf_range(0.06, 0.16)
+				crest_depth = crest_width
+				summit_height = 1.12
+			1: # Long, sloping snow ridges.
+				crest_width = rng.randf_range(0.5, 0.72)
+				crest_depth = rng.randf_range(0.1, 0.22)
+				crest_tilt = rng.randf_range(0.12, 0.3) * (-1.0 if rng.randf() < 0.5 else 1.0)
+			2: # Low, broad table mountains with flatter snow caps.
+				height *= 0.8
+				crest_width = rng.randf_range(0.5, 0.75)
+				crest_depth = rng.randf_range(0.45, 0.65)
+				crest_variation = 0.04
+				crest_tilt = 0.0
+			3: # Broken, asymmetric shoulders and rounded crags.
+				crest_variation = 0.28
+		var ridge_center := center + tangent * rng.randf_range(-width * 0.25, width * 0.25)
+		ridge_center += outward * rng.randf_range(-0.6, 0.6)
+		var summit := ridge_center + Vector3.UP * height * summit_height
+		var base: Array[Vector3] = []
+		var shoulder: Array[Vector3] = []
+		var ridge: Array[Vector3] = []
+		var corners := rng.randi_range(5, 8)
+		var rotation := rng.randf_range(-0.3, 0.3)
+		for corner in range(corners):
+			var corner_angle := TAU * corner / corners + rotation
+			var spread := rng.randf_range(0.75, 1.25)
+			var offset := (tangent * cos(corner_angle) * width
+				+ outward * sin(corner_angle) * depth) * spread
+			base.append(center + offset + Vector3.DOWN * 0.35)
+			shoulder.append(center + offset * rng.randf_range(0.65, 0.9)
+				+ Vector3.UP * height * rng.randf_range(0.3, 0.65))
+			ridge.append(ridge_center + tangent * cos(corner_angle) * width * crest_width
+				+ outward * sin(corner_angle) * depth * crest_depth
+				+ Vector3.UP * height * (rng.randf_range(1.0 - crest_variation, 1.0)
+					+ cos(corner_angle) * crest_tilt))
+		var interior := center + Vector3.UP * height * 0.25
+		for corner in range(corners):
+			var next := (corner + 1) % corners
+			var face_color := ICE_SHADOW_COLOR.lerp(Color("#78b4c9"), rng.randf_range(0.1, 0.5))
+			_iceberg_face(st, base[corner], base[next], shoulder[next], interior, face_color)
+			_iceberg_face(st, base[corner], shoulder[next], shoulder[corner], interior, face_color)
+			var snow_color := ICE_COLOR.lerp(Color.WHITE, rng.randf_range(0.0, 0.7))
+			_iceberg_face(st, shoulder[corner], shoulder[next], ridge[next], interior, snow_color)
+			_iceberg_face(st, shoulder[corner], ridge[next], ridge[corner], interior, snow_color)
+			_iceberg_face(st, ridge[corner], ridge[next], summit, interior, snow_color)
+			_iceberg_face(st, base[next], base[corner], center + Vector3.DOWN * 0.35,
+				interior, ICE_SHADOW_COLOR)
+	st.generate_normals()
+	var instance := MeshInstance3D.new()
+	instance.name = "Icebergs"
+	instance.mesh = st.commit()
+	instance.material_override = _vertex_color_material(0.85)
 	instance.layers = 1 | (1 << (PLANET_LAYER - 1))
 	return instance
+
+
+func _iceberg_face(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3,
+		interior: Vector3, color: Color) -> void:
+	# Godot's front faces wind clockwise; orient each irregular face away from the core.
+	var outward := (b - a).cross(c - a).dot((a + b + c) / 3.0 - interior) > 0.0
+	st.set_color(color)
+	st.add_vertex(a)
+	st.add_vertex(c if outward else b)
+	st.add_vertex(b if outward else c)
 
 
 func _build_underside(rng: RandomNumberGenerator) -> MeshInstance3D:

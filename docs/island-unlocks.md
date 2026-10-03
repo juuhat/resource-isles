@@ -249,7 +249,8 @@ Start tiny; do not build a sprawling tech UI up front.
    island keeps producing.
 4. **World map DONE (one seamless flat-disc world)** — the play area *is* the world map: the
    flat-disc planet from the [intro story](intro-story.md) at full game scale
-   ([`world_view.gd`](../scripts/world/world_view.gd)) — one open sea in an icy rim on a rocky
+   ([`world_view.gd`](../scripts/world/world_view.gd)) — one open sea inside a frozen mountain
+   range of varied sharp peaks, flat summits, ridges, and low passes, on a rocky
    underside, water spilling off the edge into the starfield, the starter (and the wreck) at the
    dead center, three island slots per ring. Every island on the disc is generated up front and
    has a slot: unrevealed destinations have soft blue-grey fog and a `?` marker. Revealing a

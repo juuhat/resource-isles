@@ -22,6 +22,18 @@ The rescue is **not** the ending. It is the inciting incident that reveals the w
 than the starter rock. That reveal turns every island into a promise and the crashed ship into
 a long-term goal.
 
+## The World
+
+The planet is a flat disc floating in a starfield: islands share one open sea above a craggy,
+tapering rocky underside, with waterfalls spilling off its edge into space. A frozen mountain
+range encircles the outer sea. Its skyline mixes sharp peaks, broad flat snow caps, sloping
+ridges, and broken asymmetric crags. Irregular widths and spacing form taller mountain clusters
+and low passes around the disc, giving different stretches their own silhouette. White snow
+and pale blue ice faces keep the range readable in the world's faceted low-poly style.
+
+The range is built from procedural 3D meshes over a fractured ice shelf. Its seeded variation
+stays consistent between reloads so the outer frontier remains a recognizable part of the world.
+
 ## The Cold Open
 
 A short, mostly-non-interactive sequence before control is handed over:
