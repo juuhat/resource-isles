@@ -953,7 +953,7 @@ func _try_travel_to_clicked_island(screen_position: Vector2) -> bool:
 		return in_overview
 
 	if not world.is_revealed(coord):
-		toast.show_message("Uncharted waters — that island is still hidden in the clouds")
+		toast.show_message("Uncharted island — " + world_view.locked_island_hint(coord))
 		return true
 
 	if coord != world.current_coord:

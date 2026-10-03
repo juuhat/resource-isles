@@ -252,13 +252,18 @@ Start tiny; do not build a sprawling tech UI up front.
    ([`world_view.gd`](../scripts/world/world_view.gd)) — one open sea in an icy rim on a rocky
    underside, water spilling off the edge into the starfield, the starter (and the wreck) at the
    dead center, three island slots per ring. Every island on the disc is generated up front and
-   rendered at full detail on its slot; rings not yet revealed sit under thick cloud banks that
-   lift when the ring is revealed. The camera ([`camera_rig.gd`](../scripts/camera_rig.gd))
+   has a slot: unrevealed destinations have soft blue-grey fog and a `?` marker. Revealing a
+   ring fades the fog into muted island coastlines labelled "Unexplored"; resources, buildings,
+   shoreline water and plot lines appear after landing, together with the island's name.
+   Hovering a destination explains travel or its unlock requirement (the first ring needs the
+   Dock / Set Sail quest; outer boat tiers are still planned). Decorative clouds are sparse.
+   The camera ([`camera_rig.gd`](../scripts/camera_rig.gd))
    zooms continuously from the island out to the whole disc: neighbours come into view across
    the water, then the planet against the stars, where the charted rings get a navigator's grid
    and a gold frontier line and island names float over their slots. `M` jumps to that overview
    (`Esc` zooms back). Clicking another revealed island travels there — the robot lands on it and
-   the camera glides across; clicking a clouded one is refused. Islands are keyed by hex
+   the camera glides across; clicking an unrevealed one explains its sailing requirement.
+   Islands are keyed by hex
    coordinate in [`WorldData`](../scripts/world/world_data.gd), and an island counts as
    discovered once the robot first lands on it (`IslandData.visited`). How many rings are
    revealed lives on `WorldData` (`revealed_rings`, starting at `STARTING_REVEALED_RINGS`) and

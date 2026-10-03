@@ -100,6 +100,8 @@ var _flat_model_materials := {}
 # cell -> the terrain MeshInstance3D for that cell, so hover can recolor it in place.
 var _tiles := {}
 var _highlighted_cell := Vector2i(-1, -1)
+var _explored := true
+var _silhouette_material: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -146,6 +148,7 @@ func render(new_island: IslandData) -> void:
 	_rebuild_grid()
 	_rebuild_objects()
 	_rebuild_preview()
+	_apply_exploration_style()
 
 
 # Object-only rebuild — cheaper, for placements and ground-item pickups (replaces the
@@ -158,7 +161,34 @@ func refresh() -> void:
 func set_show_grid(value: bool) -> void:
 	show_grid = value
 	if _grid_instance != null:
-		_grid_instance.visible = value
+		_grid_instance.visible = value and _explored
+
+
+# Keep the coastline readable before landing, without revealing resources or buildings.
+func set_explored(value: bool) -> void:
+	if value == _explored:
+		return
+	_explored = value
+	clear_interaction()
+	_apply_exploration_style()
+
+
+func _apply_exploration_style() -> void:
+	if _terrain_root == null:
+		return
+	if _silhouette_material == null:
+		_silhouette_material = StandardMaterial3D.new()
+		_silhouette_material.albedo_color = Color("#89959b")
+		_silhouette_material.roughness = 1.0
+		_silhouette_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for tile: MeshInstance3D in _terrain_root.get_children():
+		var terrain_type: int = tile.get_meta("terrain_type")
+		tile.visible = _explored or not GameTypes.is_water(terrain_type)
+		tile.material_override = _base_tile_material(terrain_type) if _explored else _silhouette_material
+	_objects_root.visible = _explored
+	_preview_root.visible = _explored
+	_grid_instance.visible = show_grid and _explored
+	_water_instance.visible = _explored and island != null
 
 
 # --- Coordinate mapping (delegates to HexGrid, see Phase 1) ---
@@ -376,6 +406,7 @@ func _rebuild_terrain() -> void:
 			var is_water := GameTypes.is_water(terrain_type)
 
 			var tile := MeshInstance3D.new()
+			tile.set_meta("terrain_type", terrain_type)
 			tile.mesh = _prism_mesh
 			# Land caps use their terrain colour; the submerged seabed uses sandy ground so
 			# the blue reads as the translucent water above it, not painted-on floor.
@@ -571,7 +602,7 @@ func _rebuild_grid() -> void:
 	if _grid_instance == null:
 		return
 
-	_grid_instance.visible = show_grid
+	_grid_instance.visible = show_grid and _explored
 
 	if island == null:
 		_grid_instance.mesh = null

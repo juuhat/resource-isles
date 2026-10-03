@@ -5,7 +5,8 @@ extends Node3D
 # with every island at full scale on it. One calm ocean sits inside an icy rim on a rocky,
 # tapering underside; sea water spills off the edge into the starfield. Each revealed island has
 # its own IslandRenderer standing on its slot, and the rings not yet revealed sit under thick
-# cloud banks that lift when a ring is revealed. Trade routes run across the open sea with their
+# soft fog that fades when a ring is revealed. Unvisited islands show muted coastlines;
+# landing restores their full detail. Trade routes run across the open sea with their
 # boats, and island names float over the slots once the camera pulls back.
 #
 # Slots live on the world hex lattice (WorldData keys islands by axial coord and trade trips are
@@ -17,6 +18,7 @@ extends Node3D
 const IslandRendererScript := preload("res://scripts/island/island_renderer.gd")
 const DiscOceanShader := preload("res://assets/shaders/world_map/disc_ocean.gdshader")
 const WaterfallShader := preload("res://assets/shaders/world_map/waterfall.gdshader")
+const IslandFogShader := preload("res://assets/shaders/world_map/island_fog.gdshader")
 const SurfaceNoise := preload("res://assets/shaders/water_toon/PerlinNoise.png")
 const DistortNoise := preload("res://assets/shaders/water_toon/WaterDistortion.png")
 
@@ -33,12 +35,12 @@ const DISC_MARGIN := 0.85
 const SEA_LEVEL_Y := -10.0
 const RIM_SEGMENTS := 128
 const WATERFALL_COUNT := 7
-const CLOUD_COUNT := 11
+const CLOUD_COUNT := 4
 
 # A ground point within this distance of a slot centre belongs to that slot's island.
 const ISLAND_PICK_RADIUS := 2700.0
 # Cloud banks cover roughly an island's footprint.
-const FOG_BANK_RADIUS := 2300.0
+const FOG_BANK_RADIUS := 3000.0
 const FOG_LIFT_SECONDS := 1.8
 const LABEL_HEIGHT := 900.0
 # Trade lanes start/end this far out from each slot centre, clear of the island.
@@ -46,7 +48,6 @@ const ROUTE_CLEARANCE := 2600.0
 const ROUTE_Y := 8.0
 
 const CLOUD_COLOR := Color("#f4f6f8")
-const FOG_COLOR := Color("#e6edf2")
 const ICE_COLOR := Color("#e9f3f6")
 const ICE_SHADOW_COLOR := Color("#a9cad8")
 const SOIL_COLOR := Color("#7a4f33")
@@ -222,6 +223,8 @@ func set_hovered(coord: Vector2i) -> void:
 
 
 func set_current_coord(_coord: Vector2i) -> void:
+	for coord in _renderers:
+		(_renderers[coord] as IslandRenderer).set_explored(world.get_island(coord).visited)
 	_style_labels()
 
 
@@ -248,6 +251,7 @@ func _sync_islands() -> void:
 		if island != null and world.is_revealed(coord):
 			if not _renderers.has(coord):
 				_add_renderer(coord, island)
+			(_renderers[coord] as IslandRenderer).set_explored(island.visited)
 			if _fog_banks.has(coord):
 				_lift_fog_bank(coord)
 		elif not _fog_banks.has(coord):
@@ -268,36 +272,39 @@ func _add_renderer(coord: Vector2i, island: IslandData) -> void:
 	var slot := slot_position(coord)
 	renderer.position = Vector3(slot.x - center.x, 0.0, slot.z - center.z)
 	renderer.render(island)
+	renderer.set_explored(island.visited)
 	_renderers[coord] = renderer
 
 
-# A low, thick bank of cloud puffs sitting over a hidden island.
+# A low, soft veil marks an unknown destination without resembling weather clouds.
 func _make_fog_bank(coord: Vector2i) -> Node3D:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(Vector3i(coord.x, coord.y, 17))
 	var bank := Node3D.new()
 	bank.position = slot_position(coord)
-	var material := _flat_material(FOG_COLOR, 1.0)
-	var count := 16
-	for i in range(count):
-		# Sunflower spread so the bank covers the island's footprint evenly, then jittered.
-		var spread := sqrt((float(i) + 0.5) / count) * FOG_BANK_RADIUS
-		var angle := float(i) * 2.39996 + rng.randf_range(-0.3, 0.3)
-		var radius := rng.randf_range(520.0, 820.0) * (1.15 - spread / FOG_BANK_RADIUS * 0.35)
-		var puff := _make_puff(material, radius)
-		puff.position = Vector3(cos(angle) * spread * 1.15, rng.randf_range(120.0, 360.0), sin(angle) * spread * 0.85)
-		bank.add_child(puff)
+	var veil := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2.ONE * FOG_BANK_RADIUS * 2.0
+	veil.mesh = plane
+	var material := ShaderMaterial.new()
+	material.shader = IslandFogShader
+	material.set_shader_parameter("seed", float(coord.x * 7 + coord.y * 13))
+	veil.material_override = material
+	veil.position.y = 80.0
+	veil.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	bank.add_child(veil)
 	return bank
 
 
-# Lift the clouds off a newly revealed island: the bank swells, rises and dissolves.
+# Fade the veil to expose the reachable island's silhouette.
 func _lift_fog_bank(coord: Vector2i) -> void:
 	var bank: Node3D = _fog_banks[coord]
 	_fog_banks.erase(coord)
 	var tween := bank.create_tween().set_parallel(true)
-	tween.tween_property(bank, "scale", Vector3(1.5, 0.05, 1.5), FOG_LIFT_SECONDS) \
+	var veil := bank.get_child(0) as MeshInstance3D
+	var material := veil.material_override as ShaderMaterial
+	tween.tween_method(func(value: float): material.set_shader_parameter("opacity", value),
+		1.0, 0.0, FOG_LIFT_SECONDS) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.tween_property(bank, "position:y", bank.position.y + 900.0, FOG_LIFT_SECONDS) \
+	tween.tween_property(bank, "scale", Vector3(1.15, 1.0, 1.15), FOG_LIFT_SECONDS) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tween.chain().tween_callback(bank.queue_free)
 
@@ -332,6 +339,12 @@ func _style_labels() -> void:
 		var is_current: bool = revealed and coord == world.current_coord
 		if not revealed:
 			label.text = "?"
+			if coord == _hovered:
+				label.text += "\nUncharted\n" + locked_island_hint(coord)
+		elif not island.visited:
+			label.text = "Unexplored"
+			if coord == _hovered:
+				label.text += "\nClick to sail here"
 		elif is_current:
 			label.text = "▼ %s" % island.island_name
 		else:
@@ -342,6 +355,12 @@ func _style_labels() -> void:
 		label.modulate = color
 		label.scale = Vector3.ONE * (1.2 if coord == _hovered else 1.0)
 	_apply_label_fade()
+
+
+func locked_island_hint(coord: Vector2i) -> String:
+	if WorldData.ring_of(coord) == 1:
+		return "Build a Dock to complete Set Sail"
+	return "Beyond your sailing range"
 
 
 # Labels only appear once the camera has pulled well back.
@@ -560,7 +579,7 @@ func _build_clouds() -> void:
 		var radius := rng.randf_range(min_radius, max_radius)
 		var cluster := Node3D.new()
 		var count := rng.randi_range(3, 5)
-		var puff_scale := rng.randf_range(1.2, 2.2)
+		var puff_scale := rng.randf_range(0.6, 1.0)
 		for j in range(count):
 			var puff := _make_puff(material, puff_scale * rng.randf_range(0.7, 1.15))
 			puff.position = Vector3(
