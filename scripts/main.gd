@@ -24,6 +24,7 @@ const QuestLogViewScript := preload("res://scripts/ui/quest_log_view.gd")
 const QuestTrackerViewScript := preload("res://scripts/ui/quest_tracker_view.gd")
 const ToastScript := preload("res://scripts/ui/toast.gd")
 const TradeManagerScript := preload("res://scripts/world/trade_manager.gd")
+const GameMenuScript := preload("res://scripts/ui/game_menu.gd")
 
 const NO_BUILDING := -1
 const HARVEST_INTERVAL := 3.0
@@ -93,6 +94,7 @@ var quest_manager: QuestManager
 var quest_log_view: QuestLogView
 var quest_tracker_view: QuestTrackerView
 var toast: Toast
+var game_menu: GameMenu
 var _placement_player: AudioStreamPlayer
 var pending_action_cell := Vector2i(-1, -1)
 var harvestable_cell := Vector2i(-1, -1)
@@ -226,9 +228,9 @@ func _try_load_game() -> bool:
 	return true
 
 
-func _save_game() -> void:
+func _save_game() -> bool:
 	if world == null:
-		return
+		return false
 
 	# A move in progress has lifted the building off the map. Write it back at its original cell
 	# just for this save, so a quit/crash/autosave mid-move persists the building where it started
@@ -250,13 +252,55 @@ func _save_game() -> void:
 		seed_value,
 		reference_time
 	)
-	SaveManager.write(payload)
+	var saved := SaveManager.write(payload)
 
 	if restore_for_save:
 		current_island.remove_building(moving_from_cell)
 	# Any save (event or timer) satisfies the throttle: clear the flag and restart the window.
-	_autosave_dirty = false
-	_autosave_accum = 0.0
+	if saved:
+		_autosave_dirty = false
+		_autosave_accum = 0.0
+	return saved
+
+
+func _on_menu_opened() -> void:
+	is_panning = false
+	is_left_panning = false
+	left_button_down = false
+	building_menu.close_menu()
+	quest_log_view.close()
+	building_info_panel.hide_info()
+
+
+func _on_menu_save_game() -> void:
+	game_menu.show_status("Game saved." if _save_game() else "Could not save the game. Please try again.")
+
+
+func _on_menu_load_game() -> void:
+	if SaveManager.read().is_empty():
+		game_menu.show_status("No readable save found.")
+		return
+	_reload_from_menu()
+
+
+func _on_menu_new_game() -> void:
+	SaveManager.delete_save()
+	if SaveManager.has_save():
+		game_menu.show_status("Could not replace the save. Please try again.")
+		return
+	_reload_from_menu()
+
+
+func _reload_from_menu() -> void:
+	# Reload runs the normal startup path, rebuilding every manager and view together.
+	# Keep the old scene paused until it is replaced so it cannot autosave over the load.
+	# The outgoing scene is detached during reload; retain the tree before that happens.
+	var tree := get_tree()
+	var error := tree.reload_current_scene()
+	if error != OK:
+		game_menu.show_status("Could not restart the game. Please try again.")
+		return
+	tree.paused = false
 
 
 # Flush the crash-backstop save once a dirty interval has elapsed. The accumulator only runs
@@ -1314,3 +1358,10 @@ func _add_ui() -> void:
 	add_child(toast)
 	# Reward the moment of completion without making the player open the quest log.
 	quest_manager.quest_completed.connect(_on_quest_completed)
+
+	game_menu = GameMenuScript.new()
+	add_child(game_menu)
+	game_menu.opened.connect(_on_menu_opened)
+	game_menu.new_game_requested.connect(_on_menu_new_game)
+	game_menu.save_game_requested.connect(_on_menu_save_game)
+	game_menu.load_game_requested.connect(_on_menu_load_game)

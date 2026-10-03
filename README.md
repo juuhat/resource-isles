@@ -100,6 +100,8 @@ Current visual references:
 
 ## Project Status
 
+See [To-do list](TODO.md) for outstanding work and playtest feedback.
+
 Early prototype setup:
 
 - Godot project created
@@ -199,6 +201,8 @@ The placement preview tints red when a rule is unmet, and the building info pane
 Producing buildings declare a `production_resource_type`, `production_base_amount`, and `production_interval_seconds`. Each interval the building pays out `base + adjacency total` (clamped to zero) of its resource into the inventory. A logger's camp produces Wood every 3 seconds, scaling with the number of adjacent forests; a quarry produces Stone every 3 seconds, scaling with adjacent stone deposits. Newly placed buildings wait one full interval before their first payout.
 
 Prototype controls:
+
+- **MENU** button (top-left, below the resource bar): open the game menu. **New Game** replaces the current save after confirmation; **Save Game** saves immediately; **Load Game** reloads the latest save. Manual saves and autosaves share one slot. The game pauses while the menu is open; **Resume** or **Esc** closes it.
 
 - **Left click**: place the selected building
 - **Left click on a building**: show building info. On a Dock this includes its trade routes (live status) and a form to open a new route to another island with a Dock.
