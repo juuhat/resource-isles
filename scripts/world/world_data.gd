@@ -1,10 +1,12 @@
 class_name WorldData
 extends RefCounted
 
-# Islands keyed by their world-map hex coordinate (axial Vector2i). The starter sits
-# at CENTER; other slots are generated on demand when the player clicks them on the
-# world map. Dictionaries preserve insertion order, so keys() doubles as discovery
-# order (used for naming and quick cycling). See docs/island-unlocks.md.
+# Islands keyed by their world hex coordinate (axial Vector2i). The starter sits at CENTER.
+# Every slot on the disc is generated up front (main._ensure_world_generated) so the whole
+# archipelago exists as one world; unrevealed rings simply stay hidden under clouds, and an
+# island counts as discovered once the robot first lands on it (IslandData.visited).
+# Dictionaries preserve insertion order, so keys() doubles as generation order (used for
+# naming). See docs/island-unlocks.md.
 
 const CENTER := Vector2i(0, 0)
 # Returned by coord_of for an island that is not in this world.
@@ -13,6 +15,9 @@ const NO_COORD := Vector2i(-99999, -99999)
 # island, 1 = the starter plus the first ring of three islands, etc. Boat tiers
 # will grow this later via reveal_additional_rings().
 const STARTING_REVEALED_RINGS := 0
+# The disc is always at least this many rings wide, so the clouded frontier reads as a big
+# world still to explore; it grows if more rings than this are ever revealed.
+const MIN_WORLD_RINGS := 4
 
 var islands: Dictionary = {}
 var current_coord := CENTER
@@ -43,6 +48,15 @@ func ordered_coords() -> Array:
 	return islands.keys()
 
 
+# Islands the robot has landed on, in generation order — the set [ and ] cycle through.
+func visited_coords() -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for coord in islands:
+		if (islands[coord] as IslandData).visited:
+			result.append(coord)
+	return result
+
+
 # The world-map coord an island sits at, or NO_COORD if it is not in this world.
 func coord_of(island: IslandData) -> Vector2i:
 	for coord in islands:
@@ -63,9 +77,19 @@ func set_current(coord: Vector2i) -> bool:
 	return true
 
 
-# Reveal more rings on the world map — the hook a boat-tier unlock will call.
+# Reveal more rings — lifts the clouds off their islands. The hook a boat-tier unlock calls.
 func reveal_additional_rings(count: int = 1) -> void:
 	revealed_rings = maxi(0, revealed_rings + count)
+
+
+func is_revealed(coord: Vector2i) -> bool:
+	return ring_of(coord) <= revealed_rings
+
+
+# How many rings the disc holds (and how many are generated): the revealed rings plus a
+# clouded frontier, never fewer than MIN_WORLD_RINGS.
+func world_rings() -> int:
+	return maxi(MIN_WORLD_RINGS, revealed_rings)
 
 
 # --- Island slots ---
@@ -85,8 +109,17 @@ const SLOT_DIRECTIONS := [0, 2, 4]
 
 # Every slot on the revealed rings, centre first, then ring by ring.
 func island_slots() -> Array[Vector2i]:
+	return slots_within(revealed_rings)
+
+
+# Every slot on the disc, revealed or still under the clouds.
+func all_slots() -> Array[Vector2i]:
+	return slots_within(world_rings())
+
+
+static func slots_within(rings: int) -> Array[Vector2i]:
 	var slots: Array[Vector2i] = [CENTER]
-	for ring in range(1, revealed_rings + 1):
+	for ring in range(1, rings + 1):
 		for direction in SLOT_DIRECTIONS:
 			var cube: Vector3i = CUBE_DIRS[direction] * ring
 			slots.append(Vector2i(cube.x, cube.z))

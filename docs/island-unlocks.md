@@ -76,7 +76,7 @@ player had to expand to obtain — exactly the expansion spiral the game wants.
 
 ## The World Map: rings expanding outward
 
-The world map is the navigational backbone (a strategic zoom-out / overlay), and **the
+The world map is the navigational backbone (the play camera pulled all the way back), and **the
 starter island sits at the center**. Islands are arranged in concentric **rings** outward:
 
 ```text
@@ -247,21 +247,24 @@ Start tiny; do not build a sprawling tech UI up front.
 3. **Rowboat + one neighbor** — build a rowboat at the dock; reveal and travel to a single
    ring-1 island. View-swap with a short sailing transition. The robot travels; the starter
    island keeps producing.
-4. **World map DONE (flat-disc planet + generate-on-click)** — [`world_map.gd`](../scripts/ui/world_map.gd)
-   hosts a 3D view of the world as the flat-disc planet from the
-   [intro story](intro-story.md) ([`world_map_disc.gd`](../scripts/world/world_map_disc.gd)): an
-   ocean disc in an icy rim on a rocky underside, water spilling off the edge into space,
-   starter (and the wreck) at the dead center, three island slots per ring. The charted rings get
-   a navigator's grid and a gold frontier line; beyond it the sea is dimmer and clouds drift over
-   it. Generated islands are drawn as miniatures of their real terrain and buildings; unexplored
-   slots are a `?` in the mist. Drag to orbit, scroll to zoom, double-click to reset. Toggled
-   with `M`. Clicking a generated island travels there; clicking an unexplored slot (`?`)
-   **generates** the island at that hex coord and travels to it (the old `Enter`-to-spawn key is
-   gone). Islands are keyed by hex coordinate in [`WorldData`](../scripts/world/world_data.gd).
-   Travel uses a [`screen_fade.gd`](../scripts/ui/screen_fade.gd) transition. How many rings are
-   revealed lives on [`WorldData`](../scripts/world/world_data.gd) (`revealed_rings`, starting at
-   `STARTING_REVEALED_RINGS`) and grows via `reveal_additional_rings()` — currently driven by a
-   temporary `=` debug key. Still to add: a real boat-tier system to drive that reveal.
+4. **World map DONE (one seamless flat-disc world)** — the play area *is* the world map: the
+   flat-disc planet from the [intro story](intro-story.md) at full game scale
+   ([`world_view.gd`](../scripts/world/world_view.gd)) — one open sea in an icy rim on a rocky
+   underside, water spilling off the edge into the starfield, the starter (and the wreck) at the
+   dead center, three island slots per ring. Every island on the disc is generated up front and
+   rendered at full detail on its slot; rings not yet revealed sit under thick cloud banks that
+   lift when the ring is revealed. The camera ([`camera_rig.gd`](../scripts/camera_rig.gd))
+   zooms continuously from the island out to the whole disc: neighbours come into view across
+   the water, then the planet against the stars, where the charted rings get a navigator's grid
+   and a gold frontier line and island names float over their slots. `M` jumps to that overview
+   (`Esc` zooms back). Clicking another revealed island travels there — the robot lands on it and
+   the camera glides across; clicking a clouded one is refused. Islands are keyed by hex
+   coordinate in [`WorldData`](../scripts/world/world_data.gd), and an island counts as
+   discovered once the robot first lands on it (`IslandData.visited`). How many rings are
+   revealed lives on `WorldData` (`revealed_rings`, starting at `STARTING_REVEALED_RINGS`) and
+   grows via `reveal_additional_rings()` — currently driven by quest rewards and a temporary `=`
+   debug key. Still to add: a real boat-tier system to drive that reveal, and an actual sailing
+   trip for the robot.
 5. **Boat tiers + rare-resource gating** — sailboat/ship reach outer rings; higher tiers cost
    earlier islands' rare resources; fuse with ship-module repair toward the win condition.
 6. **Per-island inventory storage DONE** ([`inventory.gd`](../scripts/resources/inventory.gd)
@@ -275,7 +278,7 @@ Start tiny; do not build a sprawling tech UI up front.
    `BOAT_CAPACITY` (5) of the outbound resource at home, sails to the other island (time =
    `BASE_TRIP_SECONDS` + `SECONDS_PER_HEX` x world-map distance), unloads, optionally loads a
    return resource, sails back, repeats. A route idles while either end lacks a Dock. Routes are
-   created and removed from a Dock's info panel and drawn on the world map with their boat.
+   created and removed from a Dock's info panel and drawn across the open sea with their boat.
    The *The Supply Line* milestone (after *Set Sail*) teaches it. Still to come: boat tiers
    raising capacity/reach, and hiding the dock's boat sprite while it is at sea.
 

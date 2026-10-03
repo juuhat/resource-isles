@@ -25,6 +25,14 @@ uniform sampler2D shore_distance : filter_linear; // R = distance to land / far_
 uniform vec2 grid_min;
 uniform vec2 grid_size = vec2(1.0);
 uniform float far_distance = 768.0;
+// World position of the island's cell (0, 0) corner: the cell/grid data above is island-local,
+// while the noise stays in world space so it lines up with the open-sea shader around it.
+uniform vec2 island_origin = vec2(0.0);
+// The plane is a disc around the island that fades out at its rim, letting the shared world
+// ocean (assets/shaders/world_map/disc_ocean.gdshader) take over between islands.
+uniform vec2 fade_center = vec2(0.0);
+uniform float fade_radius = 1e6;
+uniform float fade_width = 600.0;
 
 // --- Noise ---
 uniform sampler2D surface_noise : repeat_enable, filter_linear_mipmap;
@@ -155,7 +163,8 @@ vec4 over(vec4 top, vec4 bottom) {
 
 void fragment() {
 	vec2 p = world_pos.xz;
-	float dist = min(near_land_distance(p), far_land_distance(p));
+	vec2 local_p = p - island_origin;
+	float dist = min(near_land_distance(local_p), far_land_distance(local_p));
 
 	// Two slow noise layers: one wobbles every contour, one breaks the foam lines up.
 	vec2 wobble = texture(distort_noise, p * 0.0045 + vec2(TIME * 0.01, TIME * 0.007)).rg - 0.5;
@@ -204,6 +213,7 @@ void fragment() {
 	color = over(swell_layer, color);
 	color = over(foam_layer, color);
 
+	float edge = length(p - fade_center);
 	ALBEDO = color.rgb;
-	ALPHA = color.a;
+	ALPHA = color.a * (1.0 - smoothstep(fade_radius - fade_width, fade_radius, edge));
 }

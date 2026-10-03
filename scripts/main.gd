@@ -1,7 +1,7 @@
 extends Node3D
 
 const IslandGeneratorScript := preload("res://scripts/island/island_generator.gd")
-const IslandRendererScript := preload("res://scripts/island/island_renderer.gd")
+const WorldViewScript := preload("res://scripts/world/world_view.gd")
 const BuildingMenuScript := preload("res://scripts/ui/building_menu.gd")
 const BuildingInfoPanelScript := preload("res://scripts/ui/building_info_panel.gd")
 const ResourceBarScript := preload("res://scripts/ui/resource_bar.gd")
@@ -18,8 +18,6 @@ const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
 const CameraRigScript := preload("res://scripts/camera_rig.gd")
 const WorldDataScript := preload("res://scripts/world/world_data.gd")
-const WorldMapScript := preload("res://scripts/ui/world_map.gd")
-const ScreenFadeScript := preload("res://scripts/ui/screen_fade.gd")
 const StatTrackerScript := preload("res://scripts/quests/stat_tracker.gd")
 const QuestManagerScript := preload("res://scripts/quests/quest_manager.gd")
 const QuestLogViewScript := preload("res://scripts/ui/quest_log_view.gd")
@@ -39,6 +37,7 @@ const PICKAXE_ICON := preload("res://assets/icons/pickaxe.png")
 const POWER_ICON := preload("res://assets/icons/power.png")
 
 const PLACEMENT_SOUND := preload("res://assets/audio/sfx/building_placement.wav")
+const StarfieldSkyShader := preload("res://assets/shaders/world_map/starfield_sky.gdshader")
 
 # Actions the selected robot can take on its current tile, dispatched from the ActionBar.
 enum UnitAction {
@@ -50,6 +49,8 @@ enum UnitAction {
 const DRAG_THRESHOLD := 6.0
 
 var generator := IslandGeneratorScript.new()
+# The renderer of the island the robot is on (current_island). Every revealed island has its own
+# renderer inside world_view; this is the one hover, placement and the robot work against.
 var renderer: IslandRenderer
 var camera_rig: CameraRig
 # The world seed. Default 1 => every player gets the identical archipelago. Each island's own
@@ -82,8 +83,7 @@ var resource_bar: ResourceBar
 var building_menu: BuildingMenu
 var building_info_panel: BuildingInfoPanel
 var action_bar: ActionBar
-var world_map: WorldMap
-var screen_fade: ScreenFade
+var world_view: WorldView
 var player_unit: PlayerUnit
 var dog: Dog
 var stat_tracker: StatTracker
@@ -134,18 +134,18 @@ func _ready() -> void:
 	quest_manager = QuestManagerScript.new()
 	quest_manager.setup(stat_tracker)
 
-	renderer = IslandRendererScript.new()
-	renderer.name = "IslandRenderer"
-	renderer.setup(resource_node_database, building_manager)
-	add_child(renderer)
+	# The whole disc and every island on it; set up once the world exists (below).
+	world_view = WorldViewScript.new()
+	world_view.name = "WorldView"
+	add_child(world_view)
 
 	_placement_player = AudioStreamPlayer.new()
 	_placement_player.stream = PLACEMENT_SOUND
 	add_child(_placement_player)
 
+	# The robot walks the current island; it is handed that island's renderer on every switch.
 	player_unit = PlayerUnitScript.new()
 	player_unit.name = "PlayerUnit"
-	player_unit.setup(renderer)
 	player_unit.arrived.connect(_on_unit_arrived)
 	player_unit.entered_cell.connect(_on_unit_entered_cell)
 	add_child(player_unit)
@@ -153,7 +153,6 @@ func _ready() -> void:
 	# Ambient dog companion that wanders the starter island on its own (testing).
 	dog = DogScript.new()
 	dog.name = "Dog"
-	dog.setup(renderer)
 	add_child(dog)
 
 	camera_rig = CameraRigScript.new()
@@ -163,8 +162,16 @@ func _ready() -> void:
 
 	world = WorldDataScript.new()
 	# A save, if present, replaces the fresh world plus the global progression (stats/quests)
-	# before the UI is built so world_map/building_menu wire up against the loaded state.
+	# before the UI is built so building_menu wires up against the loaded state.
 	var loaded := _try_load_game()
+	# Every island on the disc exists from the start (unrevealed ones wait under the clouds).
+	# Also fills in slots an older save never generated.
+	_ensure_world_generated()
+	world_view.setup(world, resource_node_database, building_manager)
+	world_view.refresh()
+	camera_rig.set_overview(world_view.overview_pivot(), world_view.overview_distance())
+	dog.setup(world_view.renderer_for(WorldData.CENTER))
+	dog.begin(world.get_island(WorldData.CENTER))
 	# Built after loading so it runs the loaded world's routes.
 	trade_manager = TradeManagerScript.new()
 	trade_manager.setup(world, building_manager)
@@ -176,10 +183,7 @@ func _ready() -> void:
 	# react to the mobile pause notification in _notification (the OS can kill a backgrounded
 	# app without further warning).
 	get_tree().set_auto_accept_quit(false)
-	if loaded:
-		_switch_to_island(world.current_coord)
-	else:
-		_enter_island(WorldData.CENTER)
+	_switch_to_island(world.current_coord if loaded else WorldData.CENTER, true)
 
 
 # Save on the ways the game can end: a desktop window close, or a mobile app suspend (which
@@ -265,6 +269,7 @@ func _update_autosave(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_update_autosave(delta)
+	world_view.set_overview_amount(camera_rig.overview_amount())
 
 	if current_island == null:
 		return
@@ -300,7 +305,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_switch_to_adjacent_island(-1)
 
 	if key_event.keycode == KEY_M:
-		world_map.toggle()
+		camera_rig.toggle_overview()
 
 	if key_event.keycode == KEY_T:
 		quest_log_view.toggle()
@@ -309,13 +314,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		building_menu.toggle_menu()
 
 	if key_event.keycode == KEY_SPACE:
-		renderer.set_show_grid(not renderer.show_grid)
+		world_view.set_show_grid(not renderer.show_grid)
 
 	if key_event.keycode == KEY_ESCAPE:
 		if quest_log_view.is_open():
 			quest_log_view.close()
-		elif world_map.is_open:
-			world_map.close()
+		elif camera_rig.overview_amount() > 0.5:
+			camera_rig.exit_overview()
 		else:
 			building_menu.clear_selection_and_close()
 			_deselect_unit()
@@ -337,6 +342,10 @@ func _handle_debug_key(keycode: int) -> void:
 	# (A plain delete wouldn't stick, since quitting and most actions re-save.)
 	if keycode == KEY_DELETE:
 		_debug_reset_save()
+
+	# =: reveal one more ring of islands — a stand-in for a boat-tier unlock.
+	if keycode == KEY_EQUAL:
+		_reveal_rings(1)
 
 
 # DEBUG BUILD ONLY (P key, via _handle_debug_key). Adds 1000 of every GameTypes.ResourceType
@@ -379,15 +388,20 @@ func _apply_reward(reward: QuestReward) -> void:
 				GameTypes.RobotUpgrade.HARVESTING:
 					pass # Capability gate read via quest_manager.is_upgrade_active(); no imperative change.
 		GameTypes.RewardKind.REVEAL_WORLD_RINGS:
-			world.reveal_additional_rings(reward.ring_count)
-			world_map.refresh()
+			_reveal_rings(reward.ring_count)
+
+
+# Lift the clouds off more rings. Revealing past the disc's edge grows the disc, so its new
+# islands are generated and the overview reframed.
+func _reveal_rings(count: int) -> void:
+	world.reveal_additional_rings(count)
+	_ensure_world_generated()
+	world_view.refresh()
+	camera_rig.set_overview(world_view.overview_pivot(), world_view.overview_distance())
+	_save_game()
 
 
 func _input(event: InputEvent) -> void:
-	# The world map owns the mouse while open (it orbits/zooms its own camera).
-	if world_map != null and world_map.is_open:
-		return
-
 	if event is InputEventMouseButton:
 		var is_over_ui := get_viewport().gui_get_hovered_control() != null
 
@@ -409,7 +423,7 @@ func _input(event: InputEvent) -> void:
 				left_press_position = event.position
 			elif not event.pressed:
 				if left_button_down and not is_left_panning:
-					_handle_left_click()
+					_handle_left_click(event.position)
 				left_button_down = false
 				is_left_panning = false
 
@@ -423,19 +437,22 @@ func _input(event: InputEvent) -> void:
 
 		var camera := camera_rig.get_camera()
 		if camera != null:
-			renderer.set_hovered_from_ray(
-				camera.project_ray_origin(event.position),
-				camera.project_ray_normal(event.position)
-			)
+			var origin := camera.project_ray_origin(event.position)
+			var direction := camera.project_ray_normal(event.position)
+			renderer.set_hovered_from_ray(origin, direction)
+			world_view.set_hovered(world_view.slot_at_ray(origin, direction))
 
 
-func _handle_left_click() -> void:
+func _handle_left_click(screen_position: Vector2) -> void:
 	if is_moving_building:
 		_try_finish_move()
 		return
 
 	if selected_building_type != NO_BUILDING:
 		_try_place_selected_building()
+		return
+
+	if _try_travel_to_clicked_island(screen_position):
 		return
 
 	if _try_select_unit():
@@ -449,9 +466,10 @@ func _setup_lighting() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation = Vector3(deg_to_rad(-55.0), deg_to_rad(-40.0), 0.0)
-	# Sun-cast shadows. The world is large (128-unit cells, camera 300-1200 units out), so the
-	# shadow range is pushed well past the default 100 to cover the visible island. Biases are
-	# kept low — large values peter-pan the shadow inside the caster at this geometry scale.
+	# Sun-cast shadows. The world is large (128-unit cells, camera 300-1200 units out in play), so
+	# the shadow range is pushed well past the default 100; the camera rig grows it further as it
+	# zooms out. Biases are kept low — large values peter-pan the shadow inside the caster at this
+	# geometry scale.
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	sun.directional_shadow_max_distance = 4000.0
@@ -462,21 +480,31 @@ func _setup_lighting() -> void:
 	sun.shadow_bias = 0.1
 	sun.shadow_normal_bias = 1.0
 	add_child(sun)
+	camera_rig.set_sun(sun)
 
+	# The disc floats in open space: a procedural starfield behind everything, seen past the ice
+	# rim whenever the camera pulls back far enough to look over the edge.
+	var sky_material := ShaderMaterial.new()
+	sky_material.shader = StarfieldSkyShader
+	var sky := Sky.new()
+	sky.sky_material = sky_material
 	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	# Matches the water shader's deep_color so the far ocean blends into the background.
-	environment.background_color = Color(0.14, 0.43, 0.53)
+	environment.background_mode = Environment.BG_SKY
+	environment.sky = sky
+	# Lighting stays the hand-tuned flat ambient rather than coming from the (dark) sky.
+	environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = Color(0.6, 0.65, 0.75)
 	environment.ambient_light_energy = 0.5
 	# Islanders-style distance haze: depth fog fading the far ocean into a light cyan. The camera
-	# rig moves the fog start/end with zoom so the island itself always stays clear.
+	# rig moves the fog start/end with zoom so the island itself always stays clear, and fades it
+	# out for the overview. It never touches the stars.
 	environment.fog_enabled = true
 	environment.fog_mode = Environment.FOG_MODE_DEPTH
 	environment.fog_light_color = Color(0.45, 0.8, 0.8)
 	environment.fog_density = 0.85
 	environment.fog_depth_curve = 1.4
+	environment.fog_sky_affect = 0.0
 	var world_environment := WorldEnvironment.new()
 	world_environment.name = "WorldEnvironment"
 	world_environment.environment = environment
@@ -743,12 +771,12 @@ func _on_input_consumed(island: IslandData, anchor_cell: Vector2i, resource_type
 
 func _on_trade_route_created(_route: TradeRoute) -> void:
 	stat_tracker.add(GameTypes.Stat.TRADE_ROUTES_ESTABLISHED, 1)
-	world_map.refresh()
+	world_view.refresh()
 	_save_game()
 
 
 func _on_trade_route_removed(_route: TradeRoute) -> void:
-	world_map.refresh()
+	world_view.refresh()
 	_save_game()
 
 
@@ -855,14 +883,13 @@ func _get_building_cost(building_type: int) -> Dictionary:
 	return building_manager.get_cost(building_type)
 
 
-# Enter the island at a world-map slot: travel there if it exists, otherwise
-# generate it first. Used both for the starter at startup and for slots clicked on
-# the world map.
-func _enter_island(coord: Vector2i) -> void:
-	if not world.has_island(coord):
-		_generate_island_at(coord)
-
-	_switch_to_island(coord)
+# Generate every slot on the disc that doesn't exist yet. The whole archipelago is one world, so
+# islands exist from the start (hidden under clouds until their ring is revealed); this also
+# fills in slots an older save never generated, and new ones when the disc grows.
+func _ensure_world_generated() -> void:
+	for coord in world.all_slots():
+		if not world.has_island(coord):
+			_generate_island_at(coord)
 
 
 func _generate_island_at(coord: Vector2i) -> void:
@@ -876,9 +903,6 @@ func _generate_island_at(coord: Vector2i) -> void:
 	var island := generator.generate(profile, _island_seed(coord), building_manager)
 	if not is_starter:
 		_stock_bootstrap_supplies(island)
-		# Discovering any island beyond the starter is the "Rescue the Dog" beat — sailing
-		# out to a new island is what reunites the robot with its pet (see QuestCatalog).
-		stat_tracker.add(GameTypes.Stat.ISLANDS_REACHED, 1)
 	world.add_island(coord, island)
 
 
@@ -898,11 +922,11 @@ func _stock_bootstrap_supplies(island: IslandData) -> void:
 		island.inventory.add_amount(resource_type, dock_cost[resource_type])
 
 
-# Cycle through already-discovered islands in discovery order (wrapping). Islands
+# Cycle through already-visited islands in generation order (wrapping). Islands
 # persist, so a revisited island keeps the buildings placed on it. No-op until a
-# second island exists.
+# second island has been visited.
 func _switch_to_adjacent_island(direction: int) -> void:
-	var coords := world.ordered_coords()
+	var coords := world.visited_coords()
 	if coords.size() <= 1:
 		return
 
@@ -911,7 +935,43 @@ func _switch_to_adjacent_island(direction: int) -> void:
 	_switch_to_island(next_coord)
 
 
-func _switch_to_island(coord: Vector2i) -> void:
+# A left click on another island travels there; in the overview, picking any revealed island
+# (the current one included) also zooms back down into it. Returns true if the click was used.
+func _try_travel_to_clicked_island(screen_position: Vector2) -> bool:
+	var camera := camera_rig.get_camera()
+	if camera == null:
+		return false
+
+	var coord := world_view.slot_at_ray(
+		camera.project_ray_origin(screen_position), camera.project_ray_normal(screen_position)
+	)
+	var in_overview := camera_rig.overview_amount() > 0.5
+	if coord == WorldData.NO_COORD:
+		# Open sea: nothing to do, but in the overview don't let it fall through to the island.
+		return in_overview
+
+	if not world.is_revealed(coord):
+		toast.show_message("Uncharted waters — that island is still hidden in the clouds")
+		return true
+
+	if coord != world.current_coord:
+		_switch_to_island(coord)
+	elif not in_overview:
+		return false
+
+	if in_overview:
+		camera_rig.exit_overview()
+	return true
+
+
+# Make the island at `coord` the one the robot, resource bar and build tools work on. Every
+# island is always on screen in the shared world, so this hands the robot to that island's
+# renderer and glides the camera across (`instant` jumps there, for startup).
+func _switch_to_island(coord: Vector2i, instant := false) -> void:
+	var next_renderer := world_view.renderer_for(coord)
+	if next_renderer == null:
+		return
+
 	# Restore any building mid-move onto the island we are leaving (still current here), so it
 	# isn't orphaned when current_island changes.
 	_cancel_building_move()
@@ -923,30 +983,29 @@ func _switch_to_island(coord: Vector2i) -> void:
 	if not world.set_current(coord):
 		return
 
+	if renderer != null and renderer != next_renderer:
+		renderer.clear_interaction()
+	renderer = next_renderer
 	current_island = world.get_current()
+	# Landing on an island for the first time is the "Rescue the Dog" beat for any island beyond
+	# the starter — sailing out to a new island is what reunites the robot with its pet (see
+	# QuestCatalog).
+	if not current_island.visited:
+		current_island.visited = true
+		if coord != WorldData.CENTER:
+			stat_tracker.add(GameTypes.Stat.ISLANDS_REACHED, 1)
 	resource_manager.set_inventory(current_island.inventory)
 	building_info_panel.hide_info()
-	renderer.render(current_island)
+	player_unit.setup(renderer)
 	_spawn_player_unit()
-	_spawn_dog()
 	resource_bar.refresh()
-	world_map.refresh()
+	world_view.set_current_coord(coord)
 	_apply_selected_building()
-	camera_rig.center_on(renderer.get_map_center())
+	camera_rig.center_on(renderer.get_map_center(), instant)
 
 	# Autosave at each settled island state — the natural checkpoint, and it also writes the
 	# initial save for a brand-new game (the starter island is entered through here too).
 	_save_game()
-
-
-# Enter an island slot chosen on the world map, with a fade transition. Travels to
-# an existing island or discovers (generates) a new one at that slot.
-func _on_world_map_slot_activated(coord: Vector2i) -> void:
-	world_map.close()
-	if coord == world.current_coord and world.has_island(coord):
-		return
-
-	screen_fade.transition(_enter_island.bind(coord))
 
 
 func _spawn_player_unit() -> void:
@@ -960,18 +1019,6 @@ func _spawn_player_unit() -> void:
 	operable_cell = Vector2i(-1, -1)
 	player_unit.place_at(_find_unit_spawn_cell())
 	_refresh_action_bar()
-
-
-# The dog is a testing-only ambient wanderer confined to the starter island; it sits idle
-# (hidden) on every other island for now.
-func _spawn_dog() -> void:
-	if dog == null:
-		return
-
-	if world.current_coord == WorldData.CENTER:
-		dog.begin(current_island)
-	else:
-		dog.halt()
 
 
 func _find_unit_spawn_cell() -> Vector2i:
@@ -1123,11 +1170,6 @@ func _add_ui() -> void:
 	action_bar.select_requested.connect(_on_portrait_select_requested)
 	add_child(action_bar)
 
-	world_map = WorldMapScript.new()
-	world_map.setup(world)
-	world_map.slot_activated.connect(_on_world_map_slot_activated)
-	add_child(world_map)
-
 	quest_log_view = QuestLogViewScript.new()
 	quest_log_view.setup(quest_manager)
 	add_child(quest_log_view)
@@ -1140,6 +1182,3 @@ func _add_ui() -> void:
 	add_child(toast)
 	# Reward the moment of completion without making the player open the quest log.
 	quest_manager.quest_completed.connect(_on_quest_completed)
-
-	screen_fade = ScreenFadeScript.new()
-	add_child(screen_fade)

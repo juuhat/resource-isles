@@ -10,6 +10,12 @@ extends Node3D
 # and player_unit.gd are largely unchanged: render(), refresh(), get_cell_center(),
 # cell_to_world(), world_to_cell(), set_hovered_world_position(), set_placement_preview(),
 # try_place_hovered_building(), get_hovered_building_type(), hovered_cell, cell_size.
+#
+# Every island on the disc has its own renderer, positioned at the island's spot in the shared
+# world (see WorldView). Everything it builds lives in island-local space as its children, but
+# the public positional API (get_cell_center, get_map_center, world_to_cell, cell_from_ray,
+# set_hovered_from_ray) speaks world space, so units, popups and the camera never need to know
+# where on the disc the island sits.
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const BladeSpinnerScript := preload("res://scripts/island/blade_spinner.gd")
@@ -59,6 +65,12 @@ const WATER_TILE_TOP_Y := WATER_TOP_Y - 3.0
 const COAST_SEABED_TOP_Y := WATER_TILE_TOP_Y
 const OCEAN_SEABED_TOP_Y := WATER_TILE_TOP_Y
 const WATER_FLOOR_Y := -8.0
+
+# The island's toon-water plane is a disc around the island, fading out over its last
+# WATER_FADE_WIDTH units into the shared open sea (WorldView). Kept under half of
+# WorldView.RING_SPACING so neighbouring islands' planes never overlap.
+const WATER_PLANE_RADIUS := 3150.0
+const WATER_FADE_WIDTH := 650.0
 
 @export var cell_size := Vector2(128.0, 128.0)
 @export var show_grid := true
@@ -155,19 +167,28 @@ func cell_to_world(cell: Vector2i) -> Vector3:
 	return HexGridScript.cell_to_world_3d(cell, cell_size)
 
 
+# World-space centre of a cell's top surface — where a unit, popup or the camera aims.
 func get_cell_center(cell: Vector2i) -> Vector3:
+	return position + _local_cell_center(cell)
+
+
+func _local_cell_center(cell: Vector2i) -> Vector3:
 	var center := HexGridScript.cell_center_3d(cell, cell_size)
 	center.y = _terrain_top_y(_terrain_of(cell))
 	return center
 
 
 func world_to_cell(world_position: Vector3) -> Vector2i:
+	return _local_to_cell(world_position - position)
+
+
+func _local_to_cell(local_position: Vector3) -> Vector2i:
 	if island == null:
 		return Vector2i(-1, -1)
 
-	var point := Vector2(world_position.x, world_position.z)
-	var row := roundi(world_position.z / (cell_size.y * 0.75))
-	var column := roundi(world_position.x / cell_size.x - _row_offset(row))
+	var point := Vector2(local_position.x, local_position.z)
+	var row := roundi(local_position.z / (cell_size.y * 0.75))
+	var column := roundi(local_position.x / cell_size.x - _row_offset(row))
 	var nearest_cell := Vector2i(column, row)
 	var nearest_distance := INF
 
@@ -190,14 +211,23 @@ func world_to_cell(world_position: Vector3) -> Vector2i:
 
 
 func get_map_center() -> Vector3:
+	return position + _local_map_center()
+
+
+func _local_map_center() -> Vector3:
 	if island == null:
 		return Vector3.ZERO
+	return grid_center(island.width, island.height, cell_size)
 
+
+# Island-local centre of a width x height cell grid's bounds, at grass height. Static so
+# WorldView can centre an island on its slot before the renderer exists.
+static func grid_center(grid_width: int, grid_height: int, size: Vector2) -> Vector3:
 	var min_xz := Vector2(INF, INF)
 	var max_xz := Vector2(-INF, -INF)
-	for y in range(island.height):
-		for x in range(island.width):
-			var center := HexGridScript.cell_center_3d(Vector2i(x, y), cell_size)
+	for y in range(grid_height):
+		for x in range(grid_width):
+			var center := HexGridScript.cell_center_3d(Vector2i(x, y), size)
 			min_xz.x = minf(min_xz.x, center.x)
 			min_xz.y = minf(min_xz.y, center.z)
 			max_xz.x = maxf(max_xz.x, center.x)
@@ -233,17 +263,27 @@ func set_hovered_from_ray(origin: Vector3, direction: Vector3) -> void:
 # land plane for an approximate cell, then re-intersect at that cell's actual top height so
 # the selection lands on the tile under the cursor rather than on a fixed-height plane.
 func cell_from_ray(origin: Vector3, direction: Vector3) -> Vector2i:
-	var approx = _ray_plane_xz(origin, direction, GRASS_TOP_Y)
+	var local_origin := origin - position
+	var approx = _ray_plane_xz(local_origin, direction, GRASS_TOP_Y)
 	if approx == null:
 		return Vector2i(-1, -1)
 
-	var cell := world_to_cell(approx)
+	var cell := _local_to_cell(approx)
 	if island != null and island.is_in_bounds(cell):
-		var refined = _ray_plane_xz(origin, direction, _terrain_top_y(island.get_terrain(cell)))
+		var refined = _ray_plane_xz(local_origin, direction, _terrain_top_y(island.get_terrain(cell)))
 		if refined != null:
-			cell = world_to_cell(refined)
+			cell = _local_to_cell(refined)
 
 	return cell
+
+
+# Drop the hover highlight and any placement preview — used when this island stops being the
+# one the player is working on.
+func clear_interaction() -> void:
+	placement_preview_enabled = false
+	hovered_cell = Vector2i(-1, -1)
+	_update_hover()
+	_rebuild_preview()
 
 
 # Ray/horizontal-plane intersection, returning the hit as a Vector3 (or null if the ray is
@@ -408,10 +448,11 @@ func _seabed_color(terrain_type: int) -> Color:
 
 # --- Water ---
 
-# A single horizontal plane covering the map (plus open-ocean margin) at water height. The
-# shader gets the island's per-cell land mask (exact hex distance near the shore) and a coarse
-# baked shore-distance field (the broad depth gradient) — mobile-safe, no depth-buffer reads,
-# so the plane itself needs no subdivision.
+# A single horizontal plane around the island at water height, fading out at WATER_PLANE_RADIUS
+# into the shared open sea. The shader gets the island's per-cell land mask (exact hex distance
+# near the shore) and a coarse baked shore-distance field (the broad depth gradient) —
+# mobile-safe, no depth-buffer reads, so the plane itself needs no subdivision. The renderer must
+# already sit at its world position (the shader maps world space back onto the island's cells).
 func _rebuild_water() -> void:
 	if _water_instance == null:
 		return
@@ -421,10 +462,15 @@ func _rebuild_water() -> void:
 		return
 
 	var bake := _build_shore_distance_texture()
-	var extent: float = maxf(bake["size"].x, bake["size"].y)
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(extent, extent) * 2.5
+	plane.size = Vector2.ONE * WATER_PLANE_RADIUS * 2.0
 	_water_instance.mesh = plane
+
+	var center := _local_map_center()
+	_water_material.set_shader_parameter("island_origin", Vector2(position.x, position.z))
+	_water_material.set_shader_parameter("fade_center", Vector2(position.x + center.x, position.z + center.z))
+	_water_material.set_shader_parameter("fade_radius", WATER_PLANE_RADIUS)
+	_water_material.set_shader_parameter("fade_width", WATER_FADE_WIDTH)
 
 	_water_material.set_shader_parameter("cell_mask", _build_land_mask_texture())
 	_water_material.set_shader_parameter("cell_count", Vector2i(island.width, island.height))
@@ -434,7 +480,6 @@ func _rebuild_water() -> void:
 	_water_material.set_shader_parameter("grid_size", bake["size"])
 	_water_material.set_shader_parameter("far_distance", bake["far_distance"])
 
-	var center := get_map_center()
 	_water_instance.position = Vector3(center.x, WATER_TOP_Y, center.z)
 	_water_instance.visible = true
 
@@ -772,7 +817,7 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 
 func _spawn_boat(water_cell: Vector2i) -> void:
 	var sprite := _make_billboard(ROWBOAT_TEXTURE, BOAT_SIZE_TILES, Vector2.ZERO)
-	sprite.position = get_cell_center(water_cell)
+	sprite.position = _local_cell_center(water_cell)
 	_lift_to_ground(sprite)
 	_objects_root.add_child(sprite)
 
@@ -798,7 +843,7 @@ func _rebuild_preview() -> void:
 		var marker := MeshInstance3D.new()
 		marker.mesh = _cap_mesh
 		marker.material_override = _make_overlay_material(tint)
-		var center := get_cell_center(cell)
+		var center := _local_cell_center(cell)
 		marker.position = Vector3(center.x, center.y + 0.6, center.z)
 		_preview_root.add_child(marker)
 
@@ -838,7 +883,7 @@ func _make_yield_marker(cell: Vector2i, color: Color) -> MeshInstance3D:
 	var material := _make_overlay_material(color)
 	material.no_depth_test = true
 	marker.material_override = material
-	var center := get_cell_center(cell)
+	var center := _local_cell_center(cell)
 	marker.position = Vector3(center.x, center.y + 0.55, center.z)
 	return marker
 
@@ -919,7 +964,7 @@ func _offset_xz(offset_tiles: Vector2) -> Vector3:
 func _ground_anchor(cells: Array) -> Vector3:
 	var sum := Vector3.ZERO
 	for cell in cells:
-		sum += get_cell_center(cell)
+		sum += _local_cell_center(cell)
 	return sum / float(maxi(1, cells.size()))
 
 
