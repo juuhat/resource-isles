@@ -19,6 +19,7 @@ extends Node3D
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const BladeSpinnerScript := preload("res://scripts/island/blade_spinner.gd")
+const PowerIndicatorScript := preload("res://scripts/island/power_indicator.gd")
 # Toon water (see assets/shaders/water_toon.gdshader): a transparent animated plane whose
 # depth bands, foam rim and swell lines all key off the distance to the nearest land hex —
 # exact near the shore (per-cell land mask), baked coarse further out (set in _rebuild_water).
@@ -34,6 +35,9 @@ const ITEM_TEXTURES := {
 }
 
 const BOAT_SIZE_TILES := Vector2(0.8, 0.8)
+# Red "no power" bolt over unpowered consumers: its height and the gap above the roof, in tiles.
+const POWER_INDICATOR_HEIGHT_TILES := 0.5
+const POWER_INDICATOR_GAP_TILES := 0.12
 
 # Cartoon outline for tinted models: an inverted-hull pass grows the mesh along its normals,
 # culls the front faces and paints the remaining back faces, leaving a rim around the
@@ -706,10 +710,10 @@ func _spawn_model(
 	spin_node_name: String = "",
 	spin_axis: Vector3 = Vector3.ZERO,
 	spin_speed_degrees: float = 0.0
-) -> void:
+) -> Node3D:
 	var model := scene.instantiate() as Node3D
 	if model == null:
-		return
+		return null
 
 	# Added at origin first so its untransformed bounds read as native model space. Rotate
 	# before measuring so the auto-scale fits the rotated footprint.
@@ -739,6 +743,8 @@ func _spawn_model(
 			spinner.axis = spin_axis
 			spinner.degrees_per_second = spin_speed_degrees
 			model.add_child(spinner)
+
+	return model
 
 
 # Replaces every mesh surface's material with one flat, fully-lit colour, discarding the
@@ -824,7 +830,7 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 		footprint = [anchor_cell]
 
 	if definition.model != null:
-		_spawn_model(
+		var model := _spawn_model(
 			definition.model,
 			footprint,
 			definition.visual_size_tiles,
@@ -835,6 +841,8 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 			definition.spin_axis,
 			definition.spin_speed_degrees
 		)
+		if model != null and definition.power_consumed > 0:
+			_spawn_power_indicator(anchor_cell, footprint, model)
 		return
 
 	if definition.texture == null:
@@ -844,6 +852,25 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 	sprite.position = _ground_anchor(footprint) + _offset_xz(definition.visual_offset_tiles)
 	_lift_to_ground(sprite)
 	_objects_root.add_child(sprite)
+
+
+# Floats the red power bolt over a consumer's roof. It shows/hides itself from the island's
+# powered flag each frame, so it reacts to generators and the robot's Operate action without
+# waiting for a re-render.
+func _spawn_power_indicator(anchor_cell: Vector2i, footprint: Array, model: Node3D) -> void:
+	var bounds := _objects_root.global_transform.affine_inverse() * _instance_aabb(model)
+	var ground := _ground_anchor(footprint)
+	var indicator := PowerIndicatorScript.new()
+	indicator.name = "PowerIndicator"
+	# Sits on the roof's top point; the bolt itself is lifted along screen-up from here.
+	indicator.position = Vector3(ground.x, bounds.end.y, ground.z)
+	_objects_root.add_child(indicator)
+	indicator.setup(
+		island,
+		anchor_cell,
+		POWER_INDICATOR_HEIGHT_TILES * cell_size.x,
+		POWER_INDICATOR_GAP_TILES * cell_size.x
+	)
 
 
 func _spawn_boat(water_cell: Vector2i) -> void:
