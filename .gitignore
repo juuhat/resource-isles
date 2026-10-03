@@ -2,3 +2,6 @@
 .godot/
 /android/
 *.tmp
+
+# Blender backup copies written on re-save
+*.blend1
