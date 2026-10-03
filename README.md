@@ -115,6 +115,20 @@ Early prototype setup:
 
 The project is configured as a Godot 4 project and currently uses the mobile rendering method.
 
+### Blender (3D models)
+
+Blender 5.0 is installed on the development machine at
+`C:\Program Files\Blender Foundation\Blender 5.0` (executable: `blender.exe`), so it can be used
+to generate 3D models from scripts. The `tools/build_*.py` scripts build a model headlessly and
+write the `.glb` to `assets/models/buildings/`, the `.blend` source to `art/blender/`, and a
+preview render to `art/previews/`:
+
+```bash
+"C:\Program Files\Blender Foundation\Blender 5.0\blender.exe" --background --python tools/build_quarry.py
+```
+
+See [3D Models](docs/3d-models.md) for the model style and pipeline.
+
 ## Running the Game
 
 1. Open Godot.
