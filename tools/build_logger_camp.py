@@ -1,173 +1,114 @@
-"""Rebuild with Blender --background --python tools/build_logger_camp.py."""
-import bpy
+"""Blender --background --python tools/build_logger_camp.py: model, source and preview.
+
+Logger camp, v3 design (docs/building-style-palette.md, art/style/logger-camp-v3-low-poly.png):
+a two-bay lean-to with a single-slope terracotta roof, a teal powered winch in the left bay, a
+short log stack in the right bay and an oversized axe against the right front post. No saw: that
+belongs to the sawmill.
+
+Authored at true tile scale (lowpoly_kit.TILE = 2 units per tile, front toward -Y). The solid
+structure is 0.60 x 0.45 tiles, set 0.13 tiles toward the back, leaving the front of the tile
+as an open work yard with the robot's work spot 0.30 tiles forward of centre.
+"""
 import math
+import sys
 from pathlib import Path
-from mathutils import Vector
 
-ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / 'assets/models/buildings'
-SOURCE = ROOT / 'art/blender'
-PREVIEW = ROOT / 'art/previews'
-for folder in (OUT, SOURCE, PREVIEW):
-    folder.mkdir(parents=True, exist_ok=True)
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete(use_global=False)
+import bpy
+from mathutils import Matrix
 
-def material(name, color, metal=0):
-    m = bpy.data.materials.new(name)
-    m.diffuse_color = (*color, 1)
-    m.use_nodes = True
-    p = m.node_tree.nodes.get('Principled BSDF')
-    p.inputs['Base Color'].default_value = (*color, 1)
-    p.inputs['Roughness'].default_value = .78
-    p.inputs['Metallic'].default_value = metal
-    return m
+sys.dont_write_bytecode = True  # keep tools/ free of __pycache__
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lowpoly_kit import (PALETTE, TILE, reset_scene, material, box, cylinder, beam, log, marker,
+                         export, render_preview)
 
-wood = material('Warm timber', (.34, .17, .065))
-end = material('Fresh cut wood', (.69, .43, .19))
-plank = material('Honey planks', (.49, .27, .105))
-dark = material('Dark iron', (.105, .14, .135), .25)
-steel = material('Saw steel', (.43, .48, .43), .55)
-teal = material('Salvaged teal panels', (.045, .31, .30), .15)
-canvas = material('Rust orange canopy', (.62, .18, .065))
-cream = material('Warm indicator', (.95, .69, .27))
+reset_scene()
 
-def finish(obj, name, mat, bevel=0):
-    obj.name = name
-    obj.data.materials.append(mat)
-    if bevel:
-        mod = obj.modifiers.new('Small readable edge bevel', 'BEVEL')
-        mod.width = bevel
-        mod.segments = 1
-        obj.modifiers.new('Weighted corner normals', 'WEIGHTED_NORMAL')
-    return obj
+wood = material('Timber', PALETTE['timber'])
+end = material('Cut wood', PALETTE['cut_wood'])
+plank = material('Planks', PALETTE['plank'])
+dark = material('Iron', PALETTE['iron'])
+steel = material('Steel', PALETTE['steel'])
+teal = material('Teal', PALETTE['teal'])
+roof_mat = material('Terracotta', PALETTE['terracotta'])
+amber = material('Amber', PALETTE['amber'])
 
-def box(name, loc, size, mat, bevel=.025):
-    bpy.ops.mesh.primitive_cube_add(size=1, location=loc)
-    o = bpy.context.object
-    o.dimensions = size
-    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    return finish(o, name, mat, bevel)
+T = TILE
+FRONT_Y, BACK_Y = -.12, .62  # post rows
+POST_X = [-.53, 0, .53]       # three posts per row: two bays
+FRONT_TOP = 1.3               # roof underside over the front posts
+PITCH = math.radians(24)      # single slope, falling toward the back
 
-def cylinder(name, a, b, radius, mat, vertices=10):
-    a, b = Vector(a), Vector(b)
-    bpy.ops.mesh.primitive_cylinder_add(vertices=vertices, radius=radius, depth=(b-a).length, location=(a+b)/2)
-    o = bpy.context.object
-    o.rotation_euler = (b-a).to_track_quat('Z', 'Y').to_euler()
-    return finish(o, name, mat)
 
-def beam(name, a, b, width, mat):
-    a, b = Vector(a), Vector(b)
-    o = box(name, (a+b)/2, (width, width, (b-a).length), mat)
-    o.rotation_euler = (b-a).to_track_quat('Z', 'Y').to_euler()
-    return o
+def roof_z(y):
+    """Height of the roof underside at depth y."""
+    return FRONT_TOP - (y - FRONT_Y) * math.tan(PITCH)
 
-def log(name, x, y, z, length, radius):
-    cylinder(name+' bark', (x,y-length/2,z),(x,y+length/2,z),radius,wood)
-    for s in [-1,1]:
-        yy = y+s*(length/2+.003)
-        cylinder(name+' cut end', (x,yy,z),(x,yy+s*.012,z),radius*.84,end)
-        cylinder(name+' heartwood', (x,yy+s*.013,z),(x,yy+s*.016,z),radius*.31,plank)
 
-# Compact timber skid base, open-front workshop and a raised log rack.
-for x in [-.70,.70]:
-    box('Foundation skid', (x,0,.10),(.19,1.75,.20),dark)
-for i in range(8):
-    box('Deck plank', (-.79+i*.225,0,.23),(.215,1.70,.12),plank,.012)
-for x in [-.64,.64]:
-    for y in [-.24,.61]:
-        cylinder('Structural timber post',(x,y,.27),(x,y,1.78),.095,wood)
-        box('Iron post collar',(x,y,1.46),(.215,.215,.16),dark,.015)
-        cylinder('Oversized brass bolt',(x,y-.115,1.46),(x,y-.14,1.46),.045,end,8)
-for x in [-.66,.66]:
-    beam('Upper rack rail',(x,-.34,1.61),(x,.77,1.61),.14,plank)
-for y in [-.19,.58]:
-    beam('Rack cross member',(-.75,y,1.61),(.75,y,1.61),.13,wood)
-for i in range(5):
-    log('Stored timber',-.47+i*.23,.22,1.76,1.0,.105)
-for i in range(5):
-    box('Back wall plank',(-.48+i*.24,.60,.79),(.225,.09,.98),plank,.01)
-box('Teal machine body',(.02,.29,.69),(.66,.51,.78),teal,.075)
-box('Dark machine opening',(.02,.019,.68),(.39,.025,.46),dark,.04)
-box('Log feed table',(.02,-.38,.49),(.72,.81,.13),wood)
-for x in [-.27,.27]:
-    beam('Feed runner',(x,-.86,.54),(x,.04,.54),.095,end)
-log('Log on feed bed',.02,-.48,.68,.88,.12)
-# A broad sloping canvas canopy, tied to chunky timber bars.
-roof = box('Orange canvas awning',(0,-.15,1.20),(1.24,.96,.075),canvas,.025)
-roof.rotation_euler.x = math.radians(19)
-for x in [-.61,.61]:
-    beam('Awning side spar',(x,-.61,1.04),(x,.31,1.36),.065,wood)
-beam('Awning front spar',(-.67,-.61,1.04),(.67,-.61,1.04),.075,end)
-# Battery on right; fat, readable vent slits and indicator.
-box('Battery dark surround',(.87,.02,.66),(.43,.60,.68),dark,.06)
-box('Teal battery cover',(.90,-.015,.69),(.43,.57,.56),teal,.06)
-for i in range(3):
-    box('Battery indicator',(.79+i*.085,-.306,.72),(.04,.012,.13),cream,.006)
-box('Battery top cap',(.88,.04,1.02),(.17,.21,.13),dark)
-# Articulated saw arm along the left side, outside the canopy silhouette.
-beam('Saw mounting bracket',(-.63,.34,.99),(-.92,.34,1.22),.19,dark)
-beam('Upper teal saw arm',(-.92,.34,1.22),(-1.02,-.02,1.60),.17,teal)
-beam('Lower teal saw arm',(-1.02,-.02,1.60),(-1.00,-.52,1.00),.15,teal)
-for y,z in [(.34,1.22),(-.02,1.60),(-.52,1.00)]:
-    cylinder('Arm pivot',(-1.12,y,z),(-.86,y,z),.12,dark)
-    cylinder('Pivot bolt',(-1.135,y,z),(-1.12,y,z),.068,end)
-# Extruded alternating tooth profile: saw lies in YZ plane, axle along X.
-verts=[]
-n=48
-for x in [-1.045,-.985]:
-    for i in range(n):
-        angle=2*math.pi*i/n
-        radius=.29 if i%2==0 else .245
-        verts.append((x,-.56+math.cos(angle)*radius,.77+math.sin(angle)*radius))
-faces=[tuple(reversed(range(n))),tuple(range(n,2*n))]
-faces += [(i,(i+1)%n,(i+1)%n+n,i+n) for i in range(n)]
-mesh=bpy.data.meshes.new('Saw tooth mesh')
-mesh.from_pydata(verts,[],faces)
-mesh.update()
-obj=bpy.data.objects.new('Circular harvesting saw',mesh)
-bpy.context.collection.objects.link(obj)
-finish(obj,obj.name,steel)
-cylinder('Saw hub',(-1.075,-.56,.77),(-.955,-.56,.77),.095,dark)
+# Lean-to frame: stout square posts, a header beam under each roof edge, and three rafters
+# whose ends show under the eaves. Plank back walls close each bay, so it reads as a shelter
+# rather than a table on legs.
+for y in [FRONT_Y, BACK_Y]:
+    for x in POST_X:
+        h = roof_z(y)
+        box('Timber post', (x, y, h / 2), (.15, .15, h), wood)
+    beam('Header beam', (-.62, y, roof_z(y) - .06), (.62, y, roof_z(y) - .06), .12, wood)
+wall_h = roof_z(BACK_Y) - .12
+for x in [-.265, .265]:
+    box('Back wall', (x, BACK_Y + .02, wall_h / 2), (.40, .05, wall_h), plank)
+EAVE_FRONT, EAVE_BACK = -.32, .74
+for x in POST_X:
+    beam('Rafter', (x, EAVE_FRONT, roof_z(EAVE_FRONT) - .04), (x, EAVE_BACK, roof_z(EAVE_BACK) - .04), .08, plank)
 
-# Apply bevels for a self-contained, material-only glTF with no external textures.
-asset_objects=list(bpy.context.scene.objects)
-bpy.ops.object.select_all(action='DESELECT')
-for obj in asset_objects:
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active=obj
-    for modifier in list(obj.modifiers):
-        bpy.ops.object.modifier_apply(modifier=modifier.name)
-bpy.ops.export_scene.gltf(filepath=str(OUT/'logger_camp.glb'),export_format='GLB',use_selection=True)
-print('LOGGER_ASSET meshes=%d triangles=%d' % (len(asset_objects),sum(sum(len(p.vertices)-2 for p in o.data.polygons) for o in asset_objects)))
+# One broad roof plane resting on the rafters, framed by timber edge boards and a centre
+# batten so its pitch and roof-ness read from above.
+THICK = .09
+mid = (EAVE_FRONT + EAVE_BACK) / 2
+roof = box('Roof', (0, mid, roof_z(mid) + THICK / 2 / math.cos(PITCH)),
+           (1.32, (EAVE_BACK - EAVE_FRONT) / math.cos(PITCH), THICK), roof_mat)
+roof.rotation_euler.x = -PITCH
+top = THICK / math.cos(PITCH) + .03
+for x in [-.63, 0, .63]:
+    beam('Roof batten', (x, EAVE_FRONT, roof_z(EAVE_FRONT) + top), (x, EAVE_BACK, roof_z(EAVE_BACK) + top), .07, wood)
 
-# Studio setup is only in the editable .blend and preview, never exported to the game.
-ground=material('Preview background',(.075,.105,.10))
-cylinder('Preview hex plinth',(0,0,-.16),(0,0,-.025),1.58,ground,6)
-scene=bpy.context.scene
-scene.render.engine='CYCLES'
-scene.cycles.samples=40
-scene.cycles.use_denoising=True
-scene.world.color=(.25,.25,.25)
-def point_at(obj,target):
-    obj.rotation_euler=(Vector(target)-obj.location).to_track_quat('-Z','Y').to_euler()
-bpy.ops.object.camera_add(location=(-3.5,-5,3.8))
-scene.camera=bpy.context.object
-point_at(scene.camera,(0,0,.85))
-scene.camera.data.type='ORTHO'
-scene.camera.data.ortho_scale=3.85
-for name,loc,power,size in [('Key',(-3,-4,7),650,5),('Fill',(4,-1,4),400,4),('Rim',(1,4,5),700,3)]:
-    bpy.ops.object.light_add(type='AREA',location=loc)
-    light=bpy.context.object
-    light.name=name
-    light.data.energy=power
-    light.data.shape='DISK'
-    light.data.size=size
-    point_at(light,(0,0,.8))
-scene.render.resolution_x=1000
-scene.render.resolution_y=1000
-scene.render.resolution_percentage=100
-scene.view_settings.view_transform='AgX'
-scene.render.filepath=str(PREVIEW/'logger_camp.png')
-bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE/'logger_camp.blend'))
-bpy.ops.render.render(write_still=True)
+# Right bay: three short six-sided logs, ends toward the yard, kept between the post rows.
+LOG_R, LOG_LEN, LOG_Y = .13, .58, .24
+for x, z in [(.40, LOG_R), (.14, LOG_R), (.27, LOG_R * 2.7)]:
+    log('Stacked log', x, LOG_Y, z, LOG_LEN, LOG_R, wood, end, plank, sides=6)
+
+# Left bay, in clear view: the powered winch that drags felled trunks in. Teal cheeks carry
+# an iron drum wound with cable; a motor housing sits behind with its amber power light, and
+# a broad crank handle sticks out to the side.
+WX, WY, WZ = -.27, .22, .30
+box('Winch skid', (WX, WY, .03), (.44, .34, .06), dark)
+for x in [WX - .18, WX + .18]:
+    box('Winch cheek', (x, WY, .23), (.07, .30, .40), teal)
+cylinder('Winch drum', (WX - .15, WY, WZ), (WX + .15, WY, WZ), .11, dark)
+cylinder('Wound cable', (WX - .10, WY, WZ), (WX + .10, WY, WZ), .118, steel)
+box('Winch motor', (WX, .45, .15), (.30, .18, .26), teal)
+box('Power light', (WX, .45, .30), (.08, .08, .04), amber)
+cylinder('Crank axle', (WX - .215, WY, WZ), (WX - .29, WY, WZ), .03, dark)
+beam('Crank arm', (WX - .29, WY, WZ + .02), (WX - .29, WY - .04, WZ - .17), .05, dark)
+cylinder('Crank grip', (WX - .27, WY - .04, WZ - .17), (WX - .37, WY - .04, WZ - .17), .032, end)
+
+# Oversized axe leaning back against the right front post, its blade over the log stack and
+# inside the footprint. Built upright at the origin, then tilted onto the post.
+axe = [
+    cylinder('Axe handle', (0, 0, 0), (0, 0, 1.0), .04, end),
+    box('Axe head', (-.02, 0, .88), (.14, .08, .15), dark),
+    box('Axe blade', (-.19, 0, .88), (.22, .04, .18), steel),
+]
+for v in axe[2].data.vertices:
+    if v.co.x < 0:
+        v.co.z *= 1.6  # flared cutting edge
+lean = Matrix.Translation((.50, -.29, .005)) @ Matrix.Rotation(math.radians(-6), 4, 'X') \
+    @ Matrix.Rotation(math.radians(-4), 4, 'Y')
+bpy.context.view_layer.update()  # refresh matrix_world from the parts' fresh rotations
+for part in axe:
+    part.matrix_world = lean @ part.matrix_world
+
+# Layout metadata for the game: the solid footprint and where the robot works from.
+marker('Footprint', (0, .26, .75), (.30 * T, .225 * T, .75))
+marker('WorkSpot', (0, -.30 * T, 0))
+
+export('logger_camp', join_label='Logger camp')
+render_preview('logger_camp', target_z=.5, ortho_scale=3.0, true_tile=True)

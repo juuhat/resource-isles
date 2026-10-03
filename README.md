@@ -129,6 +129,10 @@ preview render to `art/previews/`:
 "C:\Program Files\Blender Foundation\Blender 5.0\blender.exe" --background --python tools/build_quarry.py
 ```
 
+The builders share their primitives (box, beam, cylinder, log, boulder, saw blade), export and
+preview studio through `tools/lowpoly_kit.py`, which also holds the art-direction palette from
+[docs/building-style-palette.md](docs/building-style-palette.md) as linear RGB.
+
 See [3D Models](docs/3d-models.md) for the model style and pipeline.
 
 ## Running the Game

@@ -12,14 +12,15 @@ the camera).
 import bpy
 import bmesh
 import math
+import sys
 from pathlib import Path
 from mathutils import Vector
 
-ROOT = Path(__file__).resolve().parents[1]
-for folder in ['assets/models/ui', 'art/blender', 'art/previews']:
-    (ROOT / folder).mkdir(parents=True, exist_ok=True)
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete(use_global=False)
+sys.dont_write_bytecode = True  # keep tools/ free of __pycache__
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lowpoly_kit import reset_scene, export, render_preview
+
+reset_scene()
 
 def mat(name, color, emit=0.0):
     m=bpy.data.materials.new(name)
@@ -100,11 +101,7 @@ bpy.ops.object.modifier_apply(modifier=bev.name)
 
 shell=prism('Power bolt outline',offset_polygon(outline,OUTLINE_WIDTH),DEPTH+2*OUTLINE_WIDTH,rim)
 
-print('POWER BOLT triangles=%d outline=%d' % (len(bolt.data.polygons),len(shell.data.polygons)))
-bpy.ops.object.select_all(action='DESELECT')
-bolt.select_set(True)
-shell.select_set(True)
-bpy.ops.export_scene.gltf(filepath=str(ROOT/'assets/models/ui/power_bolt.glb'),export_format='GLB',use_selection=True)
+export('power_bolt', folder='assets/models/ui')
 
 # Preview: the bolt floating above a dark hex plinth, from the game's front-left angle. Cycles
 # ignores backface culling, so the shell's preview shader shows only its back faces (as Godot
@@ -119,33 +116,5 @@ links.new(nodes.new('ShaderNodeNewGeometry').outputs['Backfacing'],mix.inputs['F
 links.new(nodes.new('ShaderNodeBsdfTransparent').outputs['BSDF'],mix.inputs[1])
 links.new(nodes.get('Principled BSDF').outputs['BSDF'],mix.inputs[2])
 links.new(mix.outputs['Shader'],out.inputs['Surface'])
-ground=mat('Preview ground',(.075,.105,.10))
-bpy.ops.mesh.primitive_cylinder_add(vertices=6,radius=.75,depth=.12,location=(0,0,-.06))
-bpy.context.object.data.materials.append(ground)
-scene=bpy.context.scene
-scene.render.engine='CYCLES'
-scene.cycles.samples=40
-scene.cycles.use_denoising=True
-scene.world.color=(.25,.25,.25)
-def aim(o,p):
-    o.rotation_euler=(Vector(p)-o.location).to_track_quat('-Z','Y').to_euler()
-bpy.ops.object.camera_add(location=(-1.2,-5,3.0))
-scene.camera=bpy.context.object
-aim(scene.camera,(0,0,.6))
-scene.camera.data.type='ORTHO'
-scene.camera.data.ortho_scale=2.2
-for name,loc,power,size in [('Key',(-3,-4,7),650,5),('Fill',(4,-1,4),400,4),('Rim',(1,4,5),700,3)]:
-    bpy.ops.object.light_add(type='AREA',location=loc)
-    o=bpy.context.object
-    o.name=name
-    o.data.energy=power
-    o.data.shape='DISK'
-    o.data.size=size
-    aim(o,(0,0,.8))
-scene.render.resolution_x=600
-scene.render.resolution_y=600
-scene.render.resolution_percentage=100
-scene.view_settings.view_transform='AgX'
-scene.render.filepath=str(ROOT/'art/previews/power_bolt.png')
-bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/'art/blender/power_bolt.blend'))
-bpy.ops.render.render(write_still=True)
+render_preview('power_bolt', target_z=.6, ortho_scale=2.2, plinth_radius=.75, plinth_z=(-.12, 0),
+               camera=(-1.2, -5, 3.0), resolution=600)
