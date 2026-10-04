@@ -68,6 +68,7 @@ func _run() -> void:
 	_walk(robot)
 	_expect(not game.is_harvesting, "Walking off stops harvesting")
 	_expect(game.is_operating, "Right-clicking a powered building starts operating on arrival")
+	_expect(robot._work == "operate", "Operating plays the hand-PTO docking pose")
 
 	_command(game, open)
 	_walk(robot)

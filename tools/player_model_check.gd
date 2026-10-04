@@ -78,6 +78,29 @@ func _check_model() -> void:
 	player.set_work("")
 	assert(player._animation_player.current_animation == player._idle_animation)
 	assert(not axe.visible and not pickaxe.visible)
+
+	# Operate: the hand PTO shows instead of a tool, the forearm holds level and the spindle
+	# spins. The nose sits 0.345 ahead at 0.53 up (native units) on the right hand (-X), which
+	# the sawmill's generator socket is placed to meet (tools/sawmill_model_check.gd).
+	var pto := model.find_child("HeldPTO", true, false) as Node3D
+	var spindle := model.find_child("PTOSpindle", true, false) as Node3D
+	var nose := model.find_child("PTO nose", true, false) as Node3D
+	assert(pto != null and spindle != null and nose != null, "Export must include the hand PTO")
+	assert(not pto.visible, "The PTO stays hidden outside Operate")
+	assert(player._work_animations.has("operate"), "Operate clip must be found")
+	player.set_work("operate")
+	assert(player._animation_player.current_animation == player._work_animations["operate"])
+	assert(pto.visible and not axe.visible and not pickaxe.visible, "Operate shows only the PTO")
+	player._animation_player.advance(0.3)  # finish the crossfade from the previous clip
+	pto.scale = Vector3.ONE  # what the equip pop-in tween ends on (tweens don't run here)
+	player._animation_player.seek(0.0, true)
+	var nose_at := model.global_transform.affine_inverse() * nose.global_position
+	assert(nose_at.distance_to(Vector3(-0.29, 0.53, 0.345)) < 0.01, "Forearm level, PTO pointing ahead: %s" % nose_at)
+	var spin_rest := spindle.transform
+	player._animation_player.seek(0.1, true)
+	assert(not spindle.transform.is_equal_approx(spin_rest), "Operate must spin the spindle")
+	player.set_work("")
+	assert(not pto.visible, "Stopping puts the PTO away")
 	player.queue_free()
 	renderer.queue_free()
 	await process_frame

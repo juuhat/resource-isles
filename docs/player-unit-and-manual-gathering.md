@@ -79,6 +79,13 @@ action on arrival. That single verb covers everything:
   *power* — being the power source yourself is the "before" that makes the self-running burner
   generator feel like liberation, just as hand-chopping does for the logger camp. With one robot
   you cannot chop and power at once, which is the intended early friction.
+  While operating, the robot plays its **Operate** clip: the hand-PTO docking pose from
+  [the concept](../art/concepts/player-building-hand-pto-v2-neutral.png). It stands upright with
+  its right elbow at 90 degrees, the forearm level, and a spindle (`HeldPTO`) spinning out of
+  the wrist into the building's [shared generator](shared-generator-model.md) socket
+  (`main._on_operate_pressed` → `player_unit.set_work("operate")`). The socket only lines up for
+  buildings fitted with the generator at their `WorkSpot` (the sawmill so far). Elsewhere the
+  arm just points at the building.
 - **Construct** — placing a building drops a *blueprint/ghost*; the robot must walk there and
   build it (construction minigame or timer). Makes placement feel earned and reuses the loop.
 - **Repair / ship assembly** — the endgame: haul resources to the crashed ship and repair its

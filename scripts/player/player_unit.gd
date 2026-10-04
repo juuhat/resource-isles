@@ -34,9 +34,10 @@ const SELECT_SOUNDS: Array[AudioStream] = [
 # How quickly the model turns to face its travel direction (higher = snappier).
 @export var turn_speed := 12.0
 
-# Work swings (see set_work): the clip played while parked, and the tool node in the robot's
+# Work clips (see set_work): the clip played while parked, and the tool node in the robot's
 # hand that only shows during it (tools/build_player_robot.py).
-const WORK_CLIPS := {"chop": "HeldAxe", "mine": "HeldPickaxe"}
+# "operate" is the hand-PTO docking pose, its spindle spinning in a building's generator socket.
+const WORK_CLIPS := {"chop": "HeldAxe", "mine": "HeldPickaxe", "operate": "HeldPTO"}
 # How long a tool takes to pop into the hand when a swing starts.
 const EQUIP_TIME := 0.15
 
@@ -166,8 +167,9 @@ func face_toward(world_target: Vector3, nudge_tiles := 0.0) -> void:
 	_has_rest = true
 
 
-# Swing a tool while parked: "chop" (axe) or "mine" (pickaxe), or "" to stop. Walking still plays
-# the walk clip; the swing resumes once parked again.
+# Work while parked: swing a tool ("chop" with the axe, "mine" with the pickaxe), dock the hand PTO
+# into a building ("operate"), or "" to stop. Walking still plays the walk clip; the work resumes
+# once parked again.
 func set_work(kind: String) -> void:
 	_work = kind
 	_update_animation()

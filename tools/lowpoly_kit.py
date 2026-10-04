@@ -248,8 +248,10 @@ def export(name, folder='assets/models/buildings', join_label=None, sink=0):
     """Apply modifiers and export every object in the scene to <folder>/<name>.glb.
 
     With join_label, static meshes are first merged per material (named '<label> <material>')
-    so a building costs one draw call per material instead of dozens. With sink, the model is
-    lowered by that much and trimmed at the ground (see _sink)."""
+    so a building costs one draw call per material instead of dozens. Only unparented meshes
+    count as static: anything parented under a pivot (a spinning blade, a built-in part such as
+    the shared generator) keeps its own hierarchy. With sink, the model is lowered by that much
+    and trimmed at the ground (see _sink)."""
     out = ROOT / folder
     out.mkdir(parents=True, exist_ok=True)
     objects = list(bpy.context.scene.objects)
@@ -263,13 +265,16 @@ def export(name, folder='assets/models/buildings', join_label=None, sink=0):
         _sink(objects, sink)
         objects = list(bpy.context.scene.objects)
     if join_label:
+        def static(o):
+            return o.type == 'MESH' and o.parent is None
+
         materials = []
         for o in objects:
-            if o.type == 'MESH' and o.data.materials[0] not in materials:
+            if static(o) and o.data.materials[0] not in materials:
                 materials.append(o.data.materials[0])
         for m in materials:
             bpy.ops.object.select_all(action='DESELECT')
-            group = [o for o in bpy.context.scene.objects if o.type == 'MESH' and o.data.materials[0] == m]
+            group = [o for o in bpy.context.scene.objects if static(o) and o.data.materials[0] == m]
             for o in group:
                 o.select_set(True)
             bpy.context.view_layer.objects.active = group[0]

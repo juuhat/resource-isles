@@ -4,7 +4,8 @@ Blender --background --python tools/build_player_robot.py
 Mechanical pivot rig: rigid parts, no deforming skin or texture dependency.
 Blender front -Y exports as Godot +Z; native standing height is 1.20 to the head top, with
 the antenna rising to 1.445 above that (the game scales by the 1.20 body height).
-Clips: Idle, Walk, and the harvesting swings Chop (axe) and Mine (pickaxe). The axe and pickaxe
+Clips: Idle, Walk, the harvesting swings Chop (axe) and Mine (pickaxe), and Operate (the hand-PTO
+docking pose, forearm level into a building's generator socket, HeldPTO spinning). The axe and pickaxe
 from tools/build_robot_tools.py sit in the robot's right hand as HeldAxe and HeldPickaxe; the
 game shows the one a swing needs and hides both otherwise.
 """
@@ -103,7 +104,9 @@ rod('Antenna socket', (.16, .09, 1.20), (.16, .09, 1.245), .04, dark, antenna)
 rod('Antenna mast', (.16, .09, 1.245), (.16, .09, 1.39), .013, steel, antenna)
 block('Antenna beacon', (.16, .09, 1.415), (.06, .06, .06), beacon, antenna)
 
-arms, legs = [], []
+arms, elbows, legs = [], [], []
+# The tool hand's two gripper fingers hinge at the wrist so they can open around the PTO spindle.
+fingers = []
 for sign, side in [(-1, 'Left'), (1, 'Right')]:
     x = sign*.29
     arm = pivot(side+'ArmPivot', (x, 0, .73), body)
@@ -111,11 +114,17 @@ for sign, side in [(-1, 'Left'), (1, 'Right')]:
     rod(side+' shoulder axle', (sign*.205, 0, .73), (sign*.30, 0, .73), .07, dark, arm)
     shell(side+' upper arm', (x, 0, .63), .115, .15, .20, .018, teal, arm)
     rod(side+' elbow', (x-.065, 0, .52), (x+.065, 0, .52), .055, steel, arm)
-    shell(side+' forearm', (x, -.01, .46), .135, .16, .14, .022, cream, arm)
-    block(side+' tool socket', (x, -.01, .365), (.13, .12, .055), dark, arm)
+    elbow = pivot(side+'ElbowPivot', (x, 0, .52), arm)
+    elbows.append(elbow)
+    shell(side+' forearm', (x, -.01, .46), .135, .16, .14, .022, cream, elbow)
+    block(side+' tool socket', (x, -.01, .365), (.13, .12, .055), dark, elbow)
     for dx in [-.047, .047]:
-        block(side+' gripper finger', (x+dx, -.018, .30), (.035, .12, .10), steel, arm)
-        block(side+' gripper tip', (x+dx*.65, -.048, .26), (.05, .065, .035), steel, arm)
+        grip = elbow
+        if sign < 0:
+            grip = pivot(side+('InnerFinger' if dx > 0 else 'OuterFinger')+'Pivot', (x+dx, -.018, .35), elbow)
+            fingers.append((grip, 1 if dx < 0 else -1))
+        block(side+' gripper finger', (x+dx, -.018, .30), (.035, .12, .10), steel, grip)
+        block(side+' gripper tip', (x+dx*.65, -.048, .26), (.05, .065, .035), steel, grip)
     hip = pivot(side+'LegPivot', (sign*.125, 0, .395), root)
     legs.append(hip)
     rod(side+' hip', (sign*.125-.065, 0, .38), (sign*.125+.065, 0, .38), .06, dark, hip)
@@ -128,7 +137,7 @@ for sign, side in [(-1, 'Left'), (1, 'Right')]:
 # Held tools for the work clips. The robot faces -Y, so the arm at -X ('Left', named as seen
 # from the front) is its own right hand. ToolPivot is the wrist, between the gripper fingers.
 hand = arms[0]
-tool_pivot = pivot('ToolPivot', (-.29, -.02, .30), hand)
+tool_pivot = pivot('ToolPivot', (-.29, -.02, .30), elbows[0])
 HELD_LENGTH = .72  # butt to head top, a little over half the robot's height
 GRIP_Z = .22  # where the gripper holds the handle, in the tool's own units (butt at 0)
 
@@ -161,8 +170,26 @@ def held_tool(name, build):
 
 held_tools = [held_tool('HeldAxe', build_axe), held_tool('HeldPickaxe', build_pickaxe)]
 
+# Hand PTO (art/concepts/player-building-hand-pto-v2-neutral.png): a fixed teal collar at the
+# wrist and a splined male spindle that spins inside it, docking into the shared generator's
+# socket (tools/build_shared_generator.py). HeldPTO grows out of the wrist like the other tools;
+# PTOSpindle turns around the forearm's axis (local Z). With the forearm level (Operate), the
+# spindle tip is .35 ahead of the elbow, which puts it inside the socket at the sawmill.
+WRIST = (-.29, -.01, .34)
+held_pto = pivot('HeldPTO', WRIST, elbows[0])
+spindle = pivot('PTOSpindle', WRIST, held_pto)
+rod('PTO collar', WRIST, (WRIST[0], WRIST[1], .31), .058, teal, held_pto)
+rod('PTO spindle', (WRIST[0], WRIST[1], .31), (WRIST[0], WRIST[1], .18), .042, steel, spindle)
+for i in range(6):
+    angle = 2*math.pi*i/6
+    spline = block('PTO spline', (WRIST[0] + .043*math.cos(angle), WRIST[1] + .043*math.sin(angle), .25),
+                   (.016, .016, .10), steel, spindle)
+    spline.rotation_euler.z = angle
+rod('PTO nose', (WRIST[0], WRIST[1], .18), (WRIST[0], WRIST[1], .17), .028, dark, spindle)
+pto_meshes = [o for o in held_pto.children_recursive if o.type == 'MESH']
+
 bpy.context.view_layer.update()
-animated = [body, head, antenna, *arms, *legs, tool_pivot]
+animated = [body, head, antenna, *arms, *elbows, *legs, tool_pivot, spindle, *(f for f, _ in fingers)]
 rest = {obj.name: (obj.location.copy(), obj.rotation_euler.copy()) for obj in animated}
 scene = bpy.context.scene
 scene.render.fps = 30
@@ -229,6 +256,20 @@ def animate(clip, end_frame):
             arms[1].rotation_euler.x += pose['off']
             head.rotation_euler.x += pose['nod']
             antenna.rotation_euler.x += pose['mast']
+        elif clip == 'Operate':
+            # Neutral docking pose: upright, tool upper arm hanging, elbow at 90 degrees so the
+            # forearm points level straight ahead, gripper open around the spinning spindle (two
+            # turns per loop; its six splines make any whole turn seamless). The working thrum is
+            # a small fast bob, a buzzing antenna and the free arm swaying, all looping.
+            elbows[0].rotation_euler.x = -math.pi/2
+            for finger, opens in fingers:
+                finger.rotation_euler.y = opens*.45
+            spindle.rotation_euler.z = -2*phase
+            body.location.z += .004*(1-math.cos(4*phase))
+            head.rotation_euler.x = .12 + .015*math.sin(4*phase)
+            head.rotation_euler.z = .04*math.sin(phase)
+            antenna.rotation_euler.x = .07*math.sin(8*phase)
+            arms[1].rotation_euler.x = .04*math.sin(phase)
         elif clip == 'Idle':
             body.location.z += .006*(1-math.cos(phase))
             head.rotation_euler.z = .09*math.sin(phase)
@@ -273,6 +314,7 @@ animate('Idle', 91)  # 3 seconds
 animate('Walk', 25)  # 0.8 seconds, in place
 animate('Chop', 31)  # 1.0 second per blow
 animate('Mine', 37)  # 1.2 seconds per blow
+animate('Operate', 31)  # 1.0 second loop, the spindle at two turns a second
 scene.frame_start, scene.frame_end = 1, 91
 scene.frame_set(1)
 
@@ -287,7 +329,11 @@ asset_path = ROOT/'assets/models/units/salvage_robot.glb'
 asset_path.parent.mkdir(parents=True, exist_ok=True)
 bpy.ops.export_scene.gltf(filepath=str(asset_path), export_format='GLB', use_selection=True,
                           export_animation_mode='NLA_TRACKS', export_animations=True,
-                          export_force_sampling=True)
+                          export_force_sampling=True,
+                          # Keep held-still channels (the elbow locked at 90 degrees in Operate):
+                          # without them a pose that never moves within a clip is lost, and the next
+                          # clip wouldn't reset it.
+                          export_optimize_animation_keep_anim_object=True)
 print('SALVAGE_ROBOT exported:', asset_path)
 
 def solo(clip):
@@ -296,8 +342,8 @@ def solo(clip):
             track.mute = track.name != clip
 
 
-# The held tools only show in the swing previews, as in the game.
-for tool in held_tools:
+# The held tools only show in the swing and operate previews, as in the game.
+for tool in held_tools + pto_meshes:
     tool.hide_render = True
 solo('Idle')
 render_preview('salvage_robot', target_z=.60, ortho_scale=1.9,
@@ -331,3 +377,14 @@ for clip, tool, end_frame in [('Chop', held_tools[0], 31), ('Mine', held_tools[1
         bpy.ops.render.render(write_still=True)
     tool.hide_render = True
     print(clip.upper(), 'preview frames:', frames_dir)
+
+# Operate preview: one still of the docking pose from the tool side, PTO shown.
+solo('Operate')
+for part in pto_meshes:
+    part.hide_render = False
+scene.frame_set(1)
+scene.render.resolution_x = scene.render.resolution_y = 768
+scene.cycles.samples = 40
+scene.render.filepath = str(ROOT/'art/previews/salvage_robot_operate.png')
+bpy.ops.render.render(write_still=True)
+print('OPERATE preview:', scene.render.filepath)

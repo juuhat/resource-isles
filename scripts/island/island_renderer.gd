@@ -20,6 +20,7 @@ extends Node3D
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const BladeSpinnerScript := preload("res://scripts/island/blade_spinner.gd")
 const PowerIndicatorScript := preload("res://scripts/island/power_indicator.gd")
+const PoweredSpinnerScript := preload("res://scripts/island/powered_spinner.gd")
 # Toon water (see assets/shaders/water_toon.gdshader): a transparent animated plane whose
 # depth bands, foam rim and swell lines all key off the distance to the nearest land hex —
 # exact near the shore (per-cell land mask), baked coarse further out (set in _rebuild_water).
@@ -46,6 +47,14 @@ const TRUE_TILE_UNITS := 2.0
 # Red "no power" bolt over unpowered consumers: its height and the gap above the roof, in tiles.
 const POWER_INDICATOR_HEIGHT_TILES := 0.5
 const POWER_INDICATOR_GAP_TILES := 0.12
+# Moving parts a power consumer's model may carry, spun while it is powered (PoweredSpinner):
+# node name -> [model-local axis, degrees per second]. FlywheelPivot and SocketRotor come with
+# the shared PTO generator (tools/build_shared_generator.py); SawBladePivot is the sawmill's.
+const POWERED_SPIN_PARTS := {
+	"SawBladePivot": [Vector3(0, 0, -1), 420.0],
+	"FlywheelPivot": [Vector3(1, 0, 0), 300.0],
+	"SocketRotor": [Vector3(0, 0, 1), 300.0],
+}
 
 # Cartoon outline for tinted models: an inverted-hull pass grows the mesh along its normals,
 # culls the front faces and paints the remaining back faces, leaving a rim around the
@@ -940,6 +949,7 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 				_spawn_boat(_local_position_in(boat_spot, model))
 		if model != null and definition.power_consumed > 0:
 			_spawn_power_indicator(anchor_cell, footprint, model)
+			_add_powered_spinner(anchor_cell, model)
 		return
 
 	if definition.texture == null:
@@ -1000,6 +1010,21 @@ func _spawn_power_indicator(anchor_cell: Vector2i, footprint: Array, model: Node
 		POWER_INDICATOR_HEIGHT_TILES * cell_size.x,
 		POWER_INDICATOR_GAP_TILES * cell_size.x
 	)
+
+
+# Spins whichever POWERED_SPIN_PARTS the consumer's model carries while the building is powered.
+func _add_powered_spinner(anchor_cell: Vector2i, model: Node3D) -> void:
+	var spinner := PoweredSpinnerScript.new()
+	spinner.island = island
+	spinner.anchor_cell = anchor_cell
+	for part_name in POWERED_SPIN_PARTS:
+		var part := model.find_child(part_name, true, false) as Node3D
+		if part != null:
+			spinner.add_target(part, POWERED_SPIN_PARTS[part_name][0], POWERED_SPIN_PARTS[part_name][1])
+	if spinner.has_targets():
+		model.add_child(spinner)
+	else:
+		spinner.free()
 
 
 func _spawn_boat(mooring: Vector3) -> void:

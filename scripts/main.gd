@@ -962,6 +962,8 @@ func _on_operate_pressed() -> void:
 
 	is_operating = true
 	operate_cell = current_island.get_building_anchor_cell(operable_cell)
+	# The hand PTO docks into the building's generator socket.
+	player_unit.set_work("operate")
 	_refresh_action_bar()
 
 
@@ -974,6 +976,8 @@ func _stop_operating() -> void:
 
 	is_operating = false
 	operate_cell = Vector2i(-1, -1)
+	if player_unit != null:
+		player_unit.set_work("")
 
 
 func _update_harvest(delta: float) -> void:

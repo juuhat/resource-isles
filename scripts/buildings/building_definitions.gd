@@ -205,8 +205,11 @@ static func build_all() -> Array[BuildingDefinition]:
 	sawmill.category = GameTypes.BuildingCategory.PROCESSING
 	sawmill.texture = SAWMILL_TEXTURE
 	sawmill.model = SAWMILL_MODEL
-	# Authored at true tile scale (tools/build_sawmill.py): 1.16 units wide / 2 units per tile.
-	sawmill.visual_size_tiles = Vector2(0.58, 0.58)
+	# Authored at true tile scale (tools/build_sawmill.py), origin at the tile centre, so the
+	# shared generator's socket lands exactly under the robot's hand at the WorkSpot.
+	# visual_size_tiles (1.47 units wide / 2 units per tile) only frames the menu art.
+	sawmill.true_tile_model = true
+	sawmill.visual_size_tiles = Vector2(0.73, 0.73)
 	sawmill.cost = {
 		GameTypes.ResourceType.WOOD: 8,
 		GameTypes.ResourceType.STONE: 4,

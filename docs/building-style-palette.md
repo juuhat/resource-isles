@@ -80,7 +80,7 @@ Author every asset under the same neutral lighting and let the game light it. Av
 | Asset | Primary read | Secondary read |
 | --- | --- | --- |
 | Logger camp | Giant axe sunk in a chopping stump | Crosswise log pile, teal winch |
-| Sawmill | Huge upright saw blade on a long bench | Teal motor, crosswise lumber stack |
+| Sawmill | Huge upright saw blade in an open timber frame | Shared PTO generator belted to the blade, logs and boards |
 | Quarry | Stepped, man-made stone cut | Tall simple crane, squared blocks |
 | Iron mine | Braced opening and stone arch | Rust-colored ore and cart |
 | Coal mine | Dark low opening | Coal pile and stout supports |
@@ -135,7 +135,7 @@ Let T = 128 world units, the current tile bounding width. Values below are initi
 
 Unit scale is deliberately exaggerated for map readability; the style does not require a literal human-to-building scale. The robot is roughly half an ordinary roof's height, with a much narrower footprint.
 
-Today, most buildings render at 0.85T width and resource clusters at 0.90T, which leaves little access space. The logger camp (0.554T) and the sawmill (0.58T), both authored at true tile scale, meet their workbench targets. The robot now meets its height target (0.45T, down from 0.65T), but its arms make it about 0.31T wide, above the 0.20–0.24T target. Static models are scaled by width in `IslandRenderer._spawn_model`, and the robot by a hard-coded native height in `PlayerUnit._ready`. Setting both `visual_size_tiles` components to the same number does not enforce equal width and height. Measure actual bounds and enforce separate footprint and height targets. Uniform scale preserves proportions; reauthor assets that are too tall or wide instead of stretching them.
+Today, most buildings render at 0.85T width and resource clusters at 0.90T, which leaves little access space. The logger camp (0.554T), authored at true tile scale, meets its workbench target. The sawmill (0.73T wide, 0.57T tall) is over it: the shared PTO generator, its flywheel and the log pile widen it, though everything still fits the tile and leaves the yard open. The robot now meets its height target (0.45T, down from 0.65T), but its arms make it about 0.31T wide, above the 0.20–0.24T target. Static models are scaled by width in `IslandRenderer._spawn_model`, and the robot by a hard-coded native height in `PlayerUnit._ready`. Setting both `visual_size_tiles` components to the same number does not enforce equal width and height. Measure actual bounds and enforce separate footprint and height targets. Uniform scale preserves proportions; reauthor assets that are too tall or wide instead of stretching them.
 
 The crashed ship renders at 1.6T width from a one-cell anchor. Treat it as a landmark and reserve space matching its actual visual extent.
 
@@ -156,7 +156,7 @@ To make the layout survive the game's width-based scaling, author at true tile s
 - Set the definition's `visual_size_tiles` to the model's width ÷ `TILE`, so one unit is exactly half a tile in the game.
 - Preview with `render_preview(true_tile=True)`. It draws one game tile (pointy along Y, as in the game), stands a robot-sized figure on `WorkSpot`, and uses a camera close to the game's.
 
-`tools/build_logger_camp.py` and `tools/build_sawmill.py` are the references: workbenches 0.554 and 0.58 tiles wide, 0.535 and 0.455 tiles tall, each with its work spot 0.30 tiles forward.
+`tools/build_logger_camp.py` and `tools/build_sawmill.py` are the references: workbenches 0.554 and 0.73 tiles wide, 0.535 and 0.57 tiles tall, each with its work spot 0.30 tiles forward. The sawmill is also the reference for building in the [shared PTO generator](shared-generator-model.md): its socket placed under the robot's right hand at the work spot, and moving parts kept under pivots.
 
 The movement changes needed to actually use work spots are tracked in [TODO.md](../TODO.md) under "Robot access and clipping".
 
