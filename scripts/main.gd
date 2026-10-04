@@ -742,7 +742,36 @@ func _on_unit_arrived(_cell: Vector2i) -> void:
 			player_unit.face_toward(renderer.get_cell_center(target))
 		elif target != player_unit.current_cell:
 			player_unit.face_toward(renderer.get_cell_center(target), WORK_LEAN_TILES)
+		_start_action_at(target)
 	_refresh_action_bar()
+
+
+# The robot was sent to `target` and can work it from here: start the work right away (what the
+# green hover promised, see _is_actionable_cell). Work already under way there is left running.
+func _start_action_at(target: Vector2i) -> void:
+	var can_harvest := quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.HARVESTING)
+	if harvestable_cell == target and not is_harvesting and can_harvest:
+		_on_harvest_pressed()
+	elif operable_cell == target and not is_operating:
+		_on_operate_pressed()
+	elif _can_rescue_dog() and target == world.dog_cell:
+		_on_rescue_pressed()
+
+
+# True for a cell the selected robot would start working on if right-clicked: a resource node
+# once harvesting is unlocked, a building that draws power, or the stranded K9-DA. The hover
+# tints it green (IslandRenderer.is_cell_actionable). Not while placing or moving a building,
+# where the right-click cancels instead.
+func _is_actionable_cell(cell: Vector2i) -> bool:
+	if player_unit == null or not player_unit.selected or current_island == null:
+		return false
+	if selected_building_type != NO_BUILDING:
+		return false
+	if current_island.get_resource_node_type(cell) != -1:
+		return quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.HARVESTING)
+	if _building_consumes_power(cell):
+		return true
+	return world.is_dog_stranded_on(world.current_coord) and cell == world.dog_cell
 
 
 # Rebuild the robot's command bar from its current context: the bar shows only while a
@@ -772,6 +801,9 @@ func _refresh_action_bar() -> void:
 
 	action_bar.set_actions(actions)
 	action_bar.set_selected(player_unit != null and player_unit.selected)
+	# Selection and unlocks change which cells the hover tints green.
+	if renderer != null:
+		renderer.refresh_hover()
 
 
 # The portrait in the command bar is a second way to select the robot (besides clicking it
@@ -1210,6 +1242,7 @@ func _switch_to_island(coord: Vector2i, instant := false) -> void:
 		renderer.clear_interaction()
 	renderer = next_renderer
 	renderer.is_cell_occupied_by_unit = _is_unit_cell
+	renderer.is_cell_actionable = _is_actionable_cell
 	current_island = world.get_current()
 	# Landing on an island for the first time counts as discovering it. On K9-DA's island, point
 	# the player at the dog — the rescue itself is the robot's Rescue action beside it.

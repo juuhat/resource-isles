@@ -58,7 +58,8 @@ Defined in [`scripts/player/player_unit.gd`](../scripts/player/player_unit.gd) (
 
 | Input | Action |
 | --- | --- |
-| **Right-click** (on release) | Order the robot to walk to the hovered tile |
+| **Right-click** (on release) | Order the robot to walk to the hovered tile; on a green tile it starts the action on arrival |
+| Hover with the robot selected | A tile the robot can work (harvestable node, powered building, stranded K9-DA) tints green |
 | Pickaxe **Harvest** button (left edge) | Appears when parked beside a node; starts the chop minigame |
 | **Left-click** | Select/inspect buildings, place a selected building |
 | **Middle-drag** | Pan the camera |
@@ -165,7 +166,14 @@ Phases 1–4 are the playable core; everything after is content.
    while a parked, selected robot has an applicable action and hides when the robot moves away;
    the portrait is always visible. The bar is a pure view fed by `main._refresh_action_bar()`;
    add a new robot action by appending a descriptor there and handling its id in
-   `_on_action_pressed`. **Left-click** also selects the robot / places buildings on the map,
+   `_on_action_pressed`. With the robot selected, hovering a tile it can work tints the tile
+   green (`main._is_actionable_cell`, fed to `IslandRenderer.is_cell_actionable`): a resource
+   node once harvesting is unlocked, a building that draws power, or the stranded K9-DA. Not in
+   placement mode, where right-click cancels. Right-clicking such a tile starts the work as
+   soon as the robot arrives (`_start_action_at`): harvest, operate or rescue, the same as
+   pressing the button. Work already running there is left alone, so a second right-click
+   doesn't cancel it. `tools/action_hover_check.gd` covers both. **Left-click** also selects the
+   robot / places buildings on the map,
    and **middle-drag** pans the camera. The robot spawns next to the crashed spaceship each
    time the island generates.
 4. **DONE — Crashed spaceship start**: the generator force-places the crashed spaceship

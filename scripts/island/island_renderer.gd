@@ -58,6 +58,10 @@ const MODEL_OUTLINE_GROW := 0.024
 const SAND_COLOR := Color("#e3bc83")
 const GRASS_COLOR := Color("#9ea131")
 const STONE_COLOR := Color("#8e8791")
+# Hover tint for a cell the selected robot can work (see is_cell_actionable): the terrain colour
+# pulled most of the way to this green.
+const ACTION_HOVER_COLOR := Color("#4fe36f")
+const ACTION_HOVER_WEIGHT := 0.8
 # Seabed tones seen through the translucent water. The coast shelf is a pale aqua sand so the
 # shallows read turquoise over it; the water shader supplies the depth colours themselves.
 const SEABED_COAST_COLOR := Color("#7cc9c6")
@@ -100,6 +104,9 @@ var placement_rotation := 0
 # Optional veto on building placement, set by main: returns true for a cell a unit is standing on
 # (or walking into), so construction never drops geometry on the robot or the dog.
 var is_cell_occupied_by_unit := Callable()
+# Optional, set by main: true for a cell the selected robot would start working on if sent there
+# (harvest, operate, rescue). The hover tints such a cell green instead of brightening it.
+var is_cell_actionable := Callable()
 # Anchor cell -> world position of the building model's WorkSpot marker, if it has one.
 var _work_spots := {}
 
@@ -114,6 +121,7 @@ var _cap_mesh: ArrayMesh
 var _terrain_materials := {}
 var _seabed_materials := {}
 var _highlight_materials := {}
+var _action_highlight_materials := {}
 # Flat material per model tint colour, shared across every recolored instance (the per-colour
 # inverted-hull outline rides along as each material's next_pass).
 var _flat_model_materials := {}
@@ -356,6 +364,14 @@ func set_placement_preview(
 	placement_building_type = building_type
 	placement_can_afford = can_afford
 	_rebuild_preview()
+	# Placement mode turns the right-click into "cancel", so the action tint comes and goes.
+	_update_hover()
+
+
+# Re-tint the hovered cell after something outside the renderer changed whether it is
+# actionable (robot selected or deselected, an action started or unlocked).
+func refresh_hover() -> void:
+	_update_hover()
 
 
 func rotate_placement(steps: int) -> void:
@@ -714,6 +730,19 @@ func _highlight_material(terrain_type: int) -> StandardMaterial3D:
 	material.roughness = 1.0
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_highlight_materials[terrain_type] = material
+	return material
+
+
+# Green-tinted terrain material for a hovered cell the robot can work.
+func _action_highlight_material(terrain_type: int) -> StandardMaterial3D:
+	if _action_highlight_materials.has(terrain_type):
+		return _action_highlight_materials[terrain_type]
+
+	var material := StandardMaterial3D.new()
+	material.albedo_color = _base_tile_color(terrain_type).lerp(ACTION_HOVER_COLOR, ACTION_HOVER_WEIGHT)
+	material.roughness = 1.0
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_action_highlight_materials[terrain_type] = material
 	return material
 
 
@@ -1077,8 +1106,8 @@ func _make_yield_label(footprint: Array, output: int, unit: String) -> Label3D:
 
 # --- Hover ---
 
-# Recolor the cell under the cursor in place (brightened terrain), restoring the
-# previously hovered cell. Recoloring the actual tile avoids the depth/parallax artifacts
+# Recolor the cell under the cursor in place (brightened terrain, or green when the robot can
+# work it), restoring the previously hovered cell. Recoloring the actual tile avoids the depth/parallax artifacts
 # of a separate overlay mesh floating above the surface.
 func _update_hover() -> void:
 	if _highlighted_cell != Vector2i(-1, -1):
@@ -1090,7 +1119,9 @@ func _update_hover() -> void:
 
 	var tile = _tiles.get(hovered_cell)
 	if tile != null:
-		tile.material_override = _highlight_material(island.get_terrain(hovered_cell))
+		var terrain_type := island.get_terrain(hovered_cell)
+		var actionable: bool = is_cell_actionable.is_valid() and is_cell_actionable.call(hovered_cell)
+		tile.material_override = _action_highlight_material(terrain_type) if actionable else _highlight_material(terrain_type)
 		_highlighted_cell = hovered_cell
 
 
