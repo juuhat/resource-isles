@@ -2,7 +2,7 @@ class_name WorldView
 extends Node3D
 
 # The whole world as one place: the flat-disc planet floating in space (docs/intro-story.md),
-# with every island at full scale on it. One calm ocean sits inside a frozen mountain range on a rocky,
+# with every island at full scale on it. One calm ocean sits inside a snow-capped mountain range on a rocky,
 # tapering underside; sea water spills off the edge into the starfield. Each revealed island has
 # its own IslandRenderer standing on its slot, and the rings not yet revealed sit under thick
 # soft fog that fades when a ring is revealed. Unvisited islands show muted coastlines;
@@ -34,6 +34,17 @@ const DISC_MARGIN := 0.85
 # WATER_FLOOR_Y), so it only shows where an island's toon water has faded out.
 const SEA_LEVEL_Y := -10.0
 const RIM_SEGMENTS := 128
+# The mountain range ringing the sea runs from its foothills under the shallows (RANGE_INNER) out
+# to the cliff edge over the underside (RANGE_OUTER), in disc units from the ocean's edge.
+const RANGE_INNER := -2.2
+const RANGE_OUTER := 3.4
+const RANGE_ROWS := 10
+# The range's outer edge hangs this low, overlapping the top of the underside so no seam shows.
+const RANGE_EDGE_Y := -1.8
+# Rows of the craggy cliff below that edge: x = radius offset from RANGE_OUTER, y = height.
+const RANGE_SKIRT: Array[Vector2] = [Vector2(-0.1, -3.2), Vector2(-0.35, -5.2)]
+# The passes the waterfalls run out through sit this high above the sea.
+const PASS_FLOOR := 0.12
 const WATERFALL_COUNT := 7
 const CLOUD_COUNT := 4
 
@@ -48,8 +59,11 @@ const ROUTE_CLEARANCE := 2600.0
 const ROUTE_Y := 8.0
 
 const CLOUD_COLOR := Color("#f4f6f8")
-const ICE_COLOR := Color("#e9f3f6")
-const ICE_SHADOW_COLOR := Color("#a9cad8")
+const SNOW_COLOR := Color("#e9f3f6")
+const SNOW_SHADOW_COLOR := Color("#a9c3d4")
+const MOUNTAIN_ROCK_COLOR := Color("#6b5d53")
+const MOUNTAIN_HIGH_ROCK_COLOR := Color("#8e8a88")
+const FOOTHILL_COLOR := Color("#5f6d4b")
 const SOIL_COLOR := Color("#7a4f33")
 const ROCK_COLOR := Color("#7d5a41")
 const ROCK_DEEP_COLOR := Color("#624533")
@@ -390,7 +404,7 @@ func _add_bounce_light() -> void:
 	add_child(bounce)
 
 
-# --- The planet: ocean, ice rim, rocky underside, waterfalls (in disc units) ---
+# --- The planet: ocean, mountain range, rocky underside, waterfalls (in disc units) ---
 
 func _build_planet() -> void:
 	_clear(_surface)
@@ -415,142 +429,148 @@ func _build_planet() -> void:
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
-	_surface.add_child(_build_ice_rim(rng))
+	# Each waterfall pours out through its own pass in the range: x = angle, y = width.
+	var falls: Array[Vector2] = []
+	for i in range(WATERFALL_COUNT):
+		falls.append(Vector2(TAU * (float(i) + rng.randf_range(0.15, 0.85)) / WATERFALL_COUNT,
+			rng.randf_range(0.8, 1.6)))
+	_surface.add_child(_build_mountain_range(falls))
 	_surface.add_child(_build_underside(rng))
 	for i in range(WATERFALL_COUNT):
-		var angle := TAU * (float(i) + rng.randf_range(0.15, 0.85)) / WATERFALL_COUNT
-		_surface.add_child(_build_waterfall(angle, rng.randf_range(0.8, 1.6), float(i)))
+		_surface.add_child(_build_waterfall(falls[i].x, falls[i].y, float(i)))
 
 
-func _build_ice_rim(rng: RandomNumberGenerator) -> Node3D:
-	var r := _disc_radius
-	var profile: Array[Vector2] = [
-		Vector2(r - 1.2, -0.6),
-		Vector2(r - 0.9, 0.4),
-		Vector2(r - 0.3, 1.0),
-		Vector2(r + 0.7, 1.3),
-		Vector2(r + 1.7, 0.9),
-		Vector2(r + 2.2, 0.4),
-		Vector2(r + 2.0, -1.2),
-	]
-	var colors: Array[Color] = [
-		ICE_SHADOW_COLOR, ICE_COLOR, ICE_COLOR, ICE_COLOR, ICE_COLOR, ICE_SHADOW_COLOR, ICE_SHADOW_COLOR,
-	]
-	# A fractured shelf joins the bergs and covers the ocean's circular boundary.
-	# Keep its submerged edges anchored over the rock, while breaking up the crest.
-	var jitter := _lathe_jitter(rng, profile.size(), 0.0)
-	var ice_rng := RandomNumberGenerator.new()
-	ice_rng.seed = 1707
-	for segment in range(RIM_SEGMENTS):
-		var fracture := ice_rng.randf_range(-0.35, 0.65)
-		for row in [1, 2, 3, 4, 5]:
-			jitter[row][segment] = Vector2(
-				ice_rng.randf_range(-0.45, 0.45), fracture * (1.0 if row == 3 else 0.6))
-	var rim := Node3D.new()
-	rim.name = "FrozenRim"
-	var instance := MeshInstance3D.new()
-	instance.name = "IceShelf"
-	instance.mesh = _lathe(profile, colors, jitter, false)
-	instance.material_override = _vertex_color_material(0.85)
-	instance.layers = 1 | (1 << (PLANET_LAYER - 1))
-	rim.add_child(instance)
-	rim.add_child(_build_icebergs(ice_rng))
-	return rim
+func _build_mountain_range(falls: Array[Vector2]) -> MeshInstance3D:
+	# One continuous ring of terrain: ridged noise raises crags and knife-edge ridges along a crest
+	# that wanders between the shore and the outer cliff, slow noise lifts whole massifs and sinks
+	# saddles between them, and each waterfall cuts a pass out to the edge. Fixed seeds keep the
+	# skyline the same whenever the world rebuilds.
+	var ridges := FastNoiseLite.new()
+	ridges.seed = 1707
+	ridges.noise_type = FastNoiseLite.TYPE_PERLIN
+	ridges.fractal_type = FastNoiseLite.FRACTAL_RIDGED
+	ridges.fractal_octaves = 3
+	ridges.frequency = 0.12
+	var massifs := FastNoiseLite.new()
+	massifs.seed = 1708
+	massifs.noise_type = FastNoiseLite.TYPE_PERLIN
+	massifs.fractal_octaves = 2
+	massifs.frequency = 0.035
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1709
 
+	# About one disc unit per column along the shore, so a peak spans a handful of facets.
+	var segments := maxi(RIM_SEGMENTS, int(TAU * _disc_radius))
+	var row_step := (RANGE_OUTER - RANGE_INNER) / RANGE_ROWS
+	var points := []
+	for row in range(RANGE_ROWS + 1):
+		var ring := []
+		for segment in range(segments):
+			var u := RANGE_INNER + row * row_step
+			var angle := TAU * segment / segments
+			# Break up the grid, but keep the edges true: under the shallows and over the underside.
+			if row > 0 and row < RANGE_ROWS:
+				u += rng.randf_range(-0.3, 0.3) * row_step
+				angle += rng.randf_range(-0.35, 0.35) * TAU / segments
+			var x := cos(angle) * (_disc_radius + u)
+			var z := sin(angle) * (_disc_radius + u)
+			ring.append(Vector3(x, _range_height(x, z, u, angle, falls, ridges, massifs), z))
+		points.append(ring)
+	# The cliff carries on down the outside as a craggy skirt, so the range runs straight into
+	# the underside's rock instead of sitting on it like a separate layer.
+	for skirt in RANGE_SKIRT:
+		var ring := []
+		for segment in range(segments):
+			var angle := TAU * (segment + rng.randf_range(-0.3, 0.3)) / segments
+			var radius := _disc_radius + RANGE_OUTER + skirt.x + rng.randf_range(-0.35, 0.35)
+			ring.append(Vector3(cos(angle) * radius, skirt.y + rng.randf_range(-0.5, 0.5),
+				sin(angle) * radius))
+		points.append(ring)
 
-func _build_icebergs(rng: RandomNumberGenerator) -> MeshInstance3D:
-	# Irregularly spaced mountain groups: sharp peaks, tilted ridges and broad plateaus.
-	# The fixed ice seed keeps this distinctive skyline stable whenever the world rebuilds.
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	st.set_smooth_group(-1)
-	var count := maxi(24, int(TAU * _disc_radius / 5.8))
-	var spacing: Array[float] = []
-	var circumference := 0.0
-	for berg in range(count):
-		var span := rng.randf_range(0.65, 1.5)
-		spacing.append(span)
-		circumference += span
-	var distance := 0.0
-	for berg in range(count):
-		var angle := TAU * (distance + spacing[berg] * 0.5) / circumference
-		distance += spacing[berg]
-		var outward := Vector3(cos(angle), 0.0, sin(angle))
-		var tangent := Vector3(-sin(angle), 0.0, cos(angle))
-		var center := outward * (_disc_radius + rng.randf_range(-0.3, 1.4))
-		var width := rng.randf_range(3.1, 4.9) * spacing[berg]
-		var depth := rng.randf_range(1.8, 3.4)
-		# Slow height changes create high ranges and low passes, with local crags on top.
-		var range_height := sin(angle * 3.0 + 0.8) * 1.1 + sin(angle * 7.0 - 1.3) * 0.6
-		var height := rng.randf_range(2.5, 5.4) + range_height
-		var shape := rng.randi_range(0, 3)
-		var crest_width := rng.randf_range(0.28, 0.5)
-		var crest_depth := rng.randf_range(0.15, 0.35)
-		var crest_variation := 0.15
-		var crest_tilt := rng.randf_range(-0.18, 0.18)
-		var summit_height := 0.98
-		match shape:
-			0: # A few sharper summits punctuate the broader range.
-				height += rng.randf_range(0.8, 2.0)
-				crest_width = rng.randf_range(0.06, 0.16)
-				crest_depth = crest_width
-				summit_height = 1.12
-			1: # Long, sloping snow ridges.
-				crest_width = rng.randf_range(0.5, 0.72)
-				crest_depth = rng.randf_range(0.1, 0.22)
-				crest_tilt = rng.randf_range(0.12, 0.3) * (-1.0 if rng.randf() < 0.5 else 1.0)
-			2: # Low, broad table mountains with flatter snow caps.
-				height *= 0.8
-				crest_width = rng.randf_range(0.5, 0.75)
-				crest_depth = rng.randf_range(0.45, 0.65)
-				crest_variation = 0.04
-				crest_tilt = 0.0
-			3: # Broken, asymmetric shoulders and rounded crags.
-				crest_variation = 0.28
-		var ridge_center := center + tangent * rng.randf_range(-width * 0.25, width * 0.25)
-		ridge_center += outward * rng.randf_range(-0.6, 0.6)
-		var summit := ridge_center + Vector3.UP * height * summit_height
-		var base: Array[Vector3] = []
-		var shoulder: Array[Vector3] = []
-		var ridge: Array[Vector3] = []
-		var corners := rng.randi_range(5, 8)
-		var rotation := rng.randf_range(-0.3, 0.3)
-		for corner in range(corners):
-			var corner_angle := TAU * corner / corners + rotation
-			var spread := rng.randf_range(0.75, 1.25)
-			var offset := (tangent * cos(corner_angle) * width
-				+ outward * sin(corner_angle) * depth) * spread
-			base.append(center + offset + Vector3.DOWN * 0.35)
-			shoulder.append(center + offset * rng.randf_range(0.65, 0.9)
-				+ Vector3.UP * height * rng.randf_range(0.3, 0.65))
-			ridge.append(ridge_center + tangent * cos(corner_angle) * width * crest_width
-				+ outward * sin(corner_angle) * depth * crest_depth
-				+ Vector3.UP * height * (rng.randf_range(1.0 - crest_variation, 1.0)
-					+ cos(corner_angle) * crest_tilt))
-		var interior := center + Vector3.UP * height * 0.25
-		for corner in range(corners):
-			var next := (corner + 1) % corners
-			var face_color := ICE_SHADOW_COLOR.lerp(Color("#78b4c9"), rng.randf_range(0.1, 0.5))
-			_iceberg_face(st, base[corner], base[next], shoulder[next], interior, face_color)
-			_iceberg_face(st, base[corner], shoulder[next], shoulder[corner], interior, face_color)
-			var snow_color := ICE_COLOR.lerp(Color.WHITE, rng.randf_range(0.0, 0.7))
-			_iceberg_face(st, shoulder[corner], shoulder[next], ridge[next], interior, snow_color)
-			_iceberg_face(st, shoulder[corner], ridge[next], ridge[corner], interior, snow_color)
-			_iceberg_face(st, ridge[corner], ridge[next], summit, interior, snow_color)
-			_iceberg_face(st, base[next], base[corner], center + Vector3.DOWN * 0.35,
-				interior, ICE_SHADOW_COLOR)
+	for row in range(points.size() - 1):
+		var cliff := row >= RANGE_ROWS
+		for segment in range(segments):
+			var next := (segment + 1) % segments
+			var a: Vector3 = points[row][segment]
+			var b: Vector3 = points[row][next]
+			var c: Vector3 = points[row + 1][segment]
+			var d: Vector3 = points[row + 1][next]
+			# Alternate the diagonal so the facets don't line up into stripes.
+			if (row + segment) % 2 == 0:
+				_range_facet(st, a, b, d, cliff, massifs, rng)
+				_range_facet(st, a, d, c, cliff, massifs, rng)
+			else:
+				_range_facet(st, a, b, c, cliff, massifs, rng)
+				_range_facet(st, b, d, c, cliff, massifs, rng)
 	st.generate_normals()
 	var instance := MeshInstance3D.new()
-	instance.name = "Icebergs"
+	instance.name = "MountainRange"
 	instance.mesh = st.commit()
-	instance.material_override = _vertex_color_material(0.85)
+	instance.material_override = _vertex_color_material(0.9)
 	instance.layers = 1 | (1 << (PLANET_LAYER - 1))
 	return instance
 
 
-func _iceberg_face(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3,
+# Height of the range at (x, z), `u` disc units out from the ocean's edge.
+func _range_height(x: float, z: float, u: float, angle: float, falls: Array[Vector2],
+		ridges: FastNoiseLite, massifs: FastNoiseLite) -> float:
+	var massif := massifs.get_noise_2d(x, z)
+	# The slopes climb from the shallows toward a wandering crest, then hold their height and
+	# break off in a steep cliff at the outer edge, straight down onto the underside's wall.
+	var crest := 0.9 + massif * 0.9
+	var rise := smoothstep(RANGE_INNER, crest, u) if u < crest \
+		else 1.0 - pow(smoothstep(crest, RANGE_OUTER + 0.6, u), 2.5)
+	var crag := (ridges.get_noise_2d(x, z) + 1.0) * 0.5
+	var peak := (1.8 + 7.0 * crag * crag) * clampf(0.9 + massif * 0.9, 0.4, 1.5)
+	# Some of each peak still stands at the outer edge, so the cliff top is ragged, not a ledge.
+	var height := -0.6 + (RANGE_EDGE_Y + 0.6) * smoothstep(RANGE_OUTER - 1.2, RANGE_OUTER, u) \
+		+ pow(rise, 0.75) * peak
+	# Passes: a flat floor just above the sea, dropping off the cliff at the outer edge.
+	var pass_floor := minf(lerpf(-0.6, PASS_FLOOR, smoothstep(RANGE_INNER, -0.6, u)),
+		lerpf(PASS_FLOOR, RANGE_EDGE_Y, smoothstep(RANGE_OUTER - 0.7, RANGE_OUTER, u)))
+	for fall in falls:
+		var arc := absf(angle_difference(angle, fall.x)) * (_disc_radius + u)
+		height = lerpf(height, pass_floor,
+			1.0 - smoothstep(fall.y * 0.5 + 0.5, fall.y * 0.5 + 2.6, arc))
+	# Never dip below the sea where the ocean's circular edge would show.
+	return maxf(height, lerpf(-1.0, PASS_FLOOR - 0.02, smoothstep(-0.9, -0.2, u)))
+
+
+# Snow settles on high faces, and lower down on the flatter ones; steep faces stay bare rock.
+# `cliff` faces are the skirt down the outside, shading from mountain rock into the underside's.
+func _range_facet(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, cliff: bool,
+		massifs: FastNoiseLite, rng: RandomNumberGenerator) -> void:
+	var center := (a + b + c) / 3.0
+	if cliff:
+		var depth := clampf((RANGE_EDGE_Y - center.y) / (RANGE_EDGE_Y - RANGE_SKIRT[-1].y), 0.0, 1.0)
+		var rock := MOUNTAIN_ROCK_COLOR.lerp(ROCK_COLOR, depth).darkened(rng.randf_range(0.0, 0.15))
+		_facet(st, a, b, c, Vector3(0.0, center.y, 0.0), rock)
+		return
+	var normal := (b - a).cross(c - a).normalized()
+	var flatness := absf(normal.y)
+	# Sample the massif noise transposed so the snow line doesn't simply track the high ground.
+	var snow_line := 2.3 + massifs.get_noise_2d(center.z, center.x) * 1.6 + (0.8 - flatness) * 3.0
+	var color: Color
+	if flatness > 0.45 and center.y > snow_line:
+		color = SNOW_COLOR.lerp(Color.WHITE, rng.randf_range(0.0, 0.6))
+		if flatness < 0.7:
+			color = color.lerp(SNOW_SHADOW_COLOR, 0.55)
+	else:
+		color = MOUNTAIN_ROCK_COLOR.lerp(MOUNTAIN_HIGH_ROCK_COLOR, clampf(center.y / 4.5, 0.0, 1.0))
+		# Grassy foothills only on the sea side; the outer slopes fall away as bare cliff.
+		var inland := Vector2(center.x, center.z).length() < _disc_radius + 0.6
+		if inland and center.y < 0.9 and flatness > 0.8:
+			color = FOOTHILL_COLOR
+		color = color.darkened(rng.randf_range(0.0, 0.12) + (0.75 - flatness) * 0.15)
+	_facet(st, a, b, c, center + Vector3.DOWN, color)
+
+
+func _facet(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3,
 		interior: Vector3, color: Color) -> void:
-	# Godot's front faces wind clockwise; orient each irregular face away from the core.
+	# Godot's front faces wind clockwise; orient each face away from `interior`.
 	var outward := (b - a).cross(c - a).dot((a + b + c) / 3.0 - interior) > 0.0
 	st.set_color(color)
 	st.add_vertex(a)
@@ -561,12 +581,12 @@ func _iceberg_face(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3,
 func _build_underside(rng: RandomNumberGenerator) -> MeshInstance3D:
 	var r := _disc_radius
 	# A deep bowl: steep walls under the rim, then rounding into a craggy point, so the
-	# underside reads from the usual three-quarter view rather than hiding behind the ice.
+	# underside reads from the usual three-quarter view rather than hiding behind the mountains.
 	var depth := r * 0.8
 	var profile: Array[Vector2] = [
-		Vector2(r + 1.9, -0.9),
-		Vector2(r + 1.7, -depth * 0.1),
-		Vector2(r + 0.6, -depth * 0.22),
+		Vector2(r + RANGE_OUTER - 0.6, -2.0),
+		Vector2(r + RANGE_OUTER - 0.8, -depth * 0.1),
+		Vector2(r + 1.0, -depth * 0.22),
 		Vector2(r * 0.96, -depth * 0.36),
 		Vector2(r * 0.86, -depth * 0.5),
 		Vector2(r * 0.7, -depth * 0.64),
@@ -581,7 +601,7 @@ func _build_underside(rng: RandomNumberGenerator) -> MeshInstance3D:
 		ROCK_DEEP_COLOR,
 	]
 	var jitter := _lathe_jitter(rng, profile.size(), r * 0.045)
-	# Keep the top edge tucked under the ice and the tip closed.
+	# Keep the top edge tucked under the mountains' outer cliff and the tip closed.
 	for segment in range(RIM_SEGMENTS):
 		jitter[0][segment] = Vector2.ZERO
 		jitter[profile.size() - 1][segment] = Vector2.ZERO
@@ -597,21 +617,29 @@ func _build_waterfall(angle: float, width: float, fall_seed: float) -> MeshInsta
 	var tangent := Vector3(-sin(angle), 0.0, cos(angle))
 	var r := _disc_radius
 	var fall := r * 0.6
-	var steps := 14
+	var lip := r + RANGE_OUTER - 0.7
+	var surface := PASS_FLOOR + 0.06
+	var run_steps := 4
+	var fall_steps := 14
 
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# Rows along the ribbon with their UV.y: a short run out from the sea along the pass floor,
+	# then over the lip and down in a gentle outward arc.
 	var rows: Array[Vector3] = []
-	for i in range(steps + 1):
-		var t := float(i) / steps
-		# Spill over the crest, then fall with a gentle outward arc.
-		var spill := clampf(t * 6.0, 0.0, 1.0)
-		var out := r + 1.0 + spill * 1.6 + t * t * 2.5
-		var y := 2.1 - spill * 1.6 - t * fall
-		rows.append(outward * out + Vector3(0.0, y, 0.0))
-	for i in range(steps):
-		var t0 := float(i) / steps
-		var t1 := float(i + 1) / steps
+	var along: Array[float] = []
+	for i in range(run_steps):
+		var t := float(i) / run_steps
+		rows.append(outward * lerpf(r - 1.0, lip, t) + Vector3.UP * surface)
+		along.append(t * 0.06)
+	for i in range(fall_steps + 1):
+		var t := float(i) / fall_steps
+		var out := lip + sqrt(minf(t * 5.0, 1.0)) * 1.2 + t * t * 2.5
+		rows.append(outward * out + Vector3.UP * (surface - pow(t, 1.5) * fall))
+		along.append(0.06 + t * 0.94)
+	for i in range(rows.size() - 1):
+		var t0 := along[i]
+		var t1 := along[i + 1]
 		var a0 := rows[i] - tangent * width * 0.5
 		var b0 := rows[i] + tangent * width * 0.5
 		var a1 := rows[i + 1] - tangent * width * 0.5
