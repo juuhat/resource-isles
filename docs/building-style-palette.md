@@ -29,7 +29,7 @@ Low poly, flat-shaded miniature architecture with a frontier-workshop identity: 
 The player must tell buildings apart at a glance, and roofs don't help: from the game camera a roof hides what's under it, and one terracotta roof looks like another. So a production building is a workbench, not a house. Its working machine *is* the building:
 
 - **No full roof.** Height and silhouette come from the building's own work machine.
-- **One signature shape per building**, recognisable from across the map: the logger camp's giant axe sunk in a stump, the sawmill's huge upright blade, the quarry's crane, the mines' rock portal. If two buildings would be told apart only by color or a small prop, give one of them a different big shape.
+- **One signature shape per building**, recognisable from across the map: the logger camp's giant axe sunk in a stump, the sawmill's huge upright blade, the quarry's vertical spiral drill, the mines' rock portal. If two buildings would be told apart only by color or a small prop, give one of them a different big shape.
 - **Face the camera.** Turn the signature face toward the yard (Blender −Y), as the sawmill's blade is. Keep beams and walls from crossing in front of it.
 - **Lay stock so it reads.** Logs and lumber lie crosswise so their long sides show. Seen end-on from the high camera, they read as upright posts or crates.
 - **Same layout as before:** everything in the back of the tile, an open yard in front with the `WorkSpot` (see [Footprint and work space](#footprint-and-work-space)).
@@ -82,7 +82,7 @@ Author every asset under the same neutral lighting and let the game light it. Av
 | --- | --- | --- |
 | Logger camp | Giant axe sunk in a chopping stump | Crosswise log pile, teal winch |
 | Sawmill | Huge upright saw blade in an open timber frame | Shared PTO generator belted to the blade, logs and boards |
-| Quarry | Stepped, man-made stone cut | Tall simple crane, squared blocks |
+| Quarry | Spiral stone drill in a heavy open timber frame | Shared PTO generator and belt drive, squared stone block |
 | Iron mine | Braced opening and stone arch | Rust-colored ore and cart |
 | Coal mine | Dark low opening | Coal pile and stout supports |
 | Burner generator | Compact vertical furnace | Chimney and teal housing |
@@ -96,7 +96,7 @@ Author every asset under the same neutral lighting and let the game light it. Av
 
 These silhouettes must stay readable at the normal map zoom. In particular:
 - **Logger camp vs sawmill:** the camp gathers raw logs and has no saw; the sawmill owns the saw.
-- **Quarry vs stone deposit:** the quarry must read as man-made, with stepped cut faces and squared blocks. The deposit is natural, irregular boulders.
+- **Quarry vs stone deposit:** the quarry reads as a man-made drilling machine with timber uprights and a squared stone workpiece. The deposit is natural, irregular boulders.
 - **Quarry vs mines:** don't make them all the same shed or rock pile with a door.
 - **Iron mine vs coal mine:** today they are one model told apart only by small ore lumps. Give each its own big shape when they are reworked.
 
@@ -105,7 +105,7 @@ These silhouettes must stay readable at the normal map zoom. In particular:
 The boards get the style right but some of their designs break this standard. Don't copy these details:
 
 - **v2 logger camp and sawmill** are nearly identical (timber shed, orange roof, teal machine). Both are now workbenches instead (see [Workbench style](#workbench-style)).
-- **v2 quarry** is a crane next to faceted boulders, which reads the same as the stone cluster. Keep the current quarry model's stepped cut wall and stacked blocks, simplified to this standard.
+- **v2 quarry** is superseded by the stone-drill design: open timber frame, spiral bit, shared PTO generator, belt drive and front work spot.
 - **v2 windmill** has an attached house, which widens the footprint beyond the slim-tower target. Drop the house.
 - **v2 robot** keeps some rounded details. Use angular low-sided forms.
 
@@ -113,7 +113,8 @@ The boards get the style right but some of their designs break this standard. Do
 
 | Asset | Source | Gap to this standard |
 | --- | --- | --- |
-| Logger camp, sawmill, quarry, coal mine, iron mine | Scripted builds in `tools/build_*.py` on the shared `tools/lowpoly_kit.py` | Palette colors, no bevels, 8-sided cylinders, no base platforms. The logger camp and the sawmill are redesigned as workbenches at true tile scale, with work spots. Remaining for the quarry and mines: the same treatment, with prop density cut to the two-group rule (bolts, rivets, chips, lantern). |
+| Logger camp, sawmill, coal mine, iron mine | Scripted builds in `tools/build_*.py` on the shared `tools/lowpoly_kit.py` | Palette colors, no bevels, 8-sided cylinders, no base platforms. The logger camp and the sawmill are redesigned as workbenches at true tile scale, with work spots. Remaining for the mines: the same treatment, with prop density cut to the two-group rule (bolts, rivets, chips, lantern). |
+| Quarry | `tools/build_quarry.py`, at true tile scale with front work spot | Stone-drill workbench after the supplied reference: heavy timber frame, rotating spiral bit over a squared block, shared teal hand-PTO generator and belt drive. Two stock groups, no terrain base; 0.787 tiles wide and 0.69 tall. Socket alignment and powered motion checked by `tools/quarry_model_check.gd`. |
 | Windmill (`windmill2.glb`), crashed spaceship, pine forest, player robot, dog | Imported meshes with image textures | Furthest from the standard. Rework these first. |
 | Stone, iron and coal deposits | Scripted builds in `tools/build_deposit.py` (one run per variant: `-- stone`, `-- iron` or `-- coal`) at true tile scale, with footprint (no work spot: the robot harvests from the tile or any neighbour) | Meets the standard. Each is packed from the kit's flat-topped, straight-sided `block()`s (convex hulls, like its `rock()`), after the iron and coal concept board. Stone: a broad main block split open to lighter cut stone, a slab leaning on it, a lower block behind, and lower blocks, the broken-off chunk and rubble around its foot (0.704 tiles wide, 0.454 tall). Iron: a tall mound of grey blocks with bright rust-orange veins wedged between them, ore chunks and rubble at the foot (0.736 wide, 0.580 tall). Coal: a wide, low mound of black coal blocks under a flat grey cap slab, wrapped in grey blocks, coal lumps spilled in front (0.752 wide, 0.301 tall). Each tile turns its deposit up to 45° either way, fixed per cell. |
 | Dock | Scripted build in `tools/build_dock.py` at true tile scale over a line of three tiles (see [Building footprints](building-footprints.md)), with work and boat spots | Meets the standard. A stone quay and cargo crates on the shore tile; a crosswise-boarded pier on pilings over the coast tile, widening into a T-head with a mooring post and a teal beacon post with an amber lamp; the salvage skiff (`tools/build_salvage_skiff.py`) moored stern-to off the pier head on the third, water tile. |

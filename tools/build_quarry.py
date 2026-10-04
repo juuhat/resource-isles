@@ -1,125 +1,118 @@
-"""Blender --background --python tools/build_quarry.py: model, source and preview.
+"""Blender --background --python tools/build_quarry.py: stone drill quarry.
 
-Open-pit counterpart to the tunnel mines (tools/build_mine.py): a stepped cut-stone face,
-a derrick lifting a block, and the finished blocks stacked for pickup.
+Timber drill frame, spiral bit and shared hand-PTO generator at true tile scale.
+The front yard and socket alignment match the sawmill.
 """
+import math
 import random
 import sys
 from pathlib import Path
 
-from mathutils import Vector
-
-sys.dont_write_bytecode = True  # keep tools/ free of __pycache__
+sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from lowpoly_kit import PALETTE, reset_scene, material, box, cylinder, beam, boulder, export, render_preview
+import bpy
+from lowpoly_kit import (PALETTE, TILE, reset_scene, material, box, cylinder, beam,
+                         block, marker, export, render_preview)
+from build_shared_generator import build_shared_generator
 
 reset_scene()
 random.seed(11)
+wood = material('Timber', PALETTE['timber'])
+end = material('Cut wood', PALETTE['cut_wood'])
+dark = material('Iron', PALETTE['iron'])
+steel = material('Steel', PALETTE['steel'])
+stone = material('Stone', PALETTE['stone'])
+cut = material('Cut stone', PALETTE['stone_cut'])
+WORK_Y = -.30 * TILE
+DX, DY = -.28, .34
 
-wood=material('Timber',PALETTE['timber'])
-plank=material('Planks',PALETTE['plank'])
-end=material('Cut wood',PALETTE['cut_wood'])
-dark=material('Iron',PALETTE['iron'])
-steel=material('Steel',PALETTE['steel'])
-teal=material('Teal',PALETTE['teal'])
-cream=material('Amber',PALETTE['amber'])
-rock=material('Stone',PALETTE['stone'])
-rock2=material('Dark stone',PALETTE['stone_dark'])
-cut=material('Cut stone',PALETTE['stone_cut'])
-dust=material('Dust',PALETTE['dust'])
 
-def chip(loc,r,m=cut):
-    return boulder('Stone chip',loc,(r*2,r*1.7,r*1.3),m,subdiv=1,jitter=.25)
+def moving(obj, pivot):
+    bpy.context.view_layer.update()
+    world = obj.matrix_world.copy()
+    obj.parent = pivot
+    obj.matrix_world = world
+    return obj
 
-GROUND=.12  # layout height of the old paving; export() sinks the model by it
-# Stepped quarry face: three benches stepping down toward the front, each laid up from
-# horizontal bedding courses with staggered joints so it reads as layered rock, not columns.
-# Upper benches are weathered; the lowest, most recently worked one is fresh stone.
-BENCHES=[
-    # front to back: y range, top height, course materials bottom-up
-    ((-.12,.22),.50,[cut,cut]),
-    ((.22,.62),.94,[cut,rock]),
-    ((.62,1.02),1.36,[rock,rock2]),
-]
-below=0
-for (y0,y1),top,mats in BENCHES:
-    # Hidden core under the exposed face; its left end is the stepped side profile.
-    if below:
-        box('Bench core',(0,(y0+y1)/2,below/2),(2.04,y1-y0,below),rock2,.03)
-    for c,m in enumerate(mats):
-        z0=below+(top-below)*c/len(mats)
-        z1=below+(top-below)*(c+1)/len(mats)
-        # Each bed sits a touch further back than the one below: a slightly battered face.
-        setback=c*.03
-        x=-1.02
-        while x<1.0:
-            w=min(random.uniform(.55,1.0),1.02-x)
-            if 1.02-x-w<.3:
-                w=1.02-x
-            dy=random.uniform(-.025,.025)+setback/2
-            box('Bench bed',(x+w/2,(y0+y1)/2+dy,(z0+z1)/2),(w-.025,y1-y0-setback,z1-z0-.02),m,.035)
-            x+=w
-    # Worked ledges carry a pale layer of dust and chips so each step reads from above.
-    if top<1.0:
-        box('Ledge dust',(0,(y0+y1)/2+.03,top+.006),(1.96,y1-y0-.10,.02),dust,.008)
-    below=top
-# Weathered rim of natural rock the quarry is biting into.
-for loc,size in [((-.66,.90,1.38),(.80,.55,.40)),((.10,.94,1.42),(.95,.50,.44)),
-                 ((.76,.88,1.36),(.70,.55,.36)),((-1.00,.50,.92),(.34,.50,.40)),
-                 ((1.00,.46,.92),(.30,.50,.38))]:
-    boulder('Rim boulder',loc,size,rock2,floor=loc[2]-.1,top=.14)
-# Row of drill holes along the lowest bench: the next block about to be split off.
-for x in [.18,.32,.46,.60,.74]:
-    cylinder('Drill hole',(x,-.125,.46),(x,-.125,.52),.022,dark,8)
-box('Split line',(.46,-.127,.30),(.62,.012,.012),dark,0)
-# Half-lifted block on the lowest bench with an iron wedge driven in.
-box('Wedge',(.10,-.14,.49),(.03,.05,.08),steel,.005)
 
-# Stiff-leg derrick: mast, two back legs, a boom reaching over the floor.
-MAST=Vector((-.70,-.30,GROUND))
-TOP=MAST+Vector((0,0,1.62))
-cylinder('Derrick mast',MAST,TOP,.065,wood)
-box('Mast foot plate',(MAST.x,MAST.y,GROUND+.03),(.26,.26,.06),dark)
-for foot in [(-1.02,.20,GROUND),(-1.00,-.82,GROUND)]:
-    beam('Stiff leg',TOP-Vector((0,0,.08)),foot,.07,wood)
-    box('Leg anchor',(foot[0],foot[1],GROUND+.04),(.16,.16,.08),dark)
-box('Mast cap',TOP,(.16,.16,.10),dark,.01)
-cylinder('Top sheave',(TOP.x-.05,TOP.y,TOP.z+.06),(TOP.x+.05,TOP.y,TOP.z+.06),.06,end)
-BOOM_FOOT=MAST+Vector((0,0,.42))
-TIP=Vector((.20,-.30,1.46))
-beam('Derrick boom',BOOM_FOOT,TIP,.075,wood)
-box('Boom collar',BOOM_FOOT,(.17,.17,.10),dark,.01)
-beam('Topping cable',TOP+Vector((0,0,.05)),TIP,.018,steel)
-cylinder('Boom tip sheave',(TIP.x,TIP.y-.05,TIP.z),(TIP.x,TIP.y+.05,TIP.z),.055,end)
-# Load line down to a hook and a block of fresh stone in chains.
-HOOK=Vector((TIP.x,TIP.y,.98))
-cylinder('Load line',TIP,HOOK,.014,steel,6)
-box('Hook block',HOOK,(.08,.06,.09),dark,.01)
-for sx in [-1,1]:
-    beam('Lifting chain',HOOK,(TIP.x+sx*.13,TIP.y,.78),.016,dark)
-box('Lifted stone block',(TIP.x,TIP.y,.64),(.34,.26,.26),cut,.03)
+# Square uprights and ground sills, leaving the drill face open.
+for x in [-.66, .10]:
+    box('Ground sill', (x, .33, .045), (.16, .83, .09), wood)
+    box('Drill upright', (x, .46, .66), (.14, .14, 1.20), wood)
+    box('Post end', (x, .46, 1.265), (.14, .14, .03), end)
+    beam('Rear frame brace', (x, .68, .12), (x, .46, .85), .07, wood)
+box('Drill crosshead', (DX, DY, 1.22), (.96, .22, .16), wood)
+box('Rear tie', (DX, .55, .20), (.76, .09, .10), wood)
 
-# Teal winch at the mast foot drives the load line.
-box('Winch feet',(-.56,-.66,GROUND+.05),(.44,.34,.10),dark)
-box('Teal winch motor',(-.66,-.66,.33),(.26,.30,.30),teal,.05)
-for x in [-.74,-.66,-.58]:
-    box('Motor cooling rib',(x,-.82,.33),(.035,.025,.18),dark,.006)
-box('Motor switch',(-.66,-.82,.43),(.10,.03,.07),cream,.012)
-cylinder('Winch drum',(-.50,-.66,.30),(-.30,-.66,.30),.085,steel)
-for x in [-.50,-.30]:
-    cylinder('Drum flange',(x-.012,-.66,.30),(x+.012,-.66,.30),.12,wood)
-beam('Winch line',(-.40,-.66,.38),(MAST.x+.05,MAST.y,1.0),.016,steel)
+# Broad worked block directly beneath the bit, divided by a cut seam.
+for x in [DX - .145, DX + .145]:
+    box('Stone being drilled', (x, DY, .165), (.282, .46, .33), stone)
+cylinder('Bore shadow', (DX, DY, .329), (DX, DY, .333), .069, dark, 12)
 
-# Finished blocks stacked on a pallet, ready for the robot to haul.
-box('Pallet',(.58,-.60,GROUND+.04),(.78,.56,.06),plank,.01)
-for x in [.28,.58,.88]:
-    box('Pallet runner',(x,-.60,GROUND+.015),(.07,.56,.03),wood,.005)
-for x,z in [(.34,.25),(.58,.25),(.82,.25),(.46,.47),(.70,.47),(.58,.69)]:
-    box('Cut stone block',(x+random.uniform(-.01,.01),-.60,z),(.22,.34,.21),cut,.025)
-# Loose chips at the foot of the face.
-for x,y,z,r in [(-.35,-.30,.16,.06),(-.20,-.38,.15,.05),(.05,-.40,.15,.045),(-.48,-.20,.17,.07),
-                (.98,-.28,.16,.05),(.30,-.28,.15,.04)]:
-    chip((x,y,z),r)
+# Vertical spindle, chunky collars and a true three-turn helical cutting flight.
+drill = marker('DrillPivot', (DX, DY, .75))
+moving(cylinder('Drill spindle', (DX, DY, .34), (DX, DY, 1.36), .042, steel), drill)
+for z, radius, depth in [(.91, .12, .14), (1.075, .085, .12)]:
+    moving(cylinder('Spindle collar', (DX, DY, z-depth/2),
+                    (DX, DY, z+depth/2), radius, dark), drill)
+moving(cylinder('Top spindle cap', (DX, DY, 1.34), (DX, DY, 1.38), .075, dark), drill)
+verts, faces = [], []
+steps = 72
+for i in range(steps + 1):
+    t = i / steps
+    angle = t * math.tau * 3
+    z = .35 + t * .48
+    radius = .052 + t * .045
+    for r, dz in [(.038, -.012), (radius, -.012), (radius, .012), (.038, .012)]:
+        verts.append((DX + r*math.cos(angle), DY + r*math.sin(angle), z + dz))
+for i in range(steps):
+    for j in range(4):
+        a, b = i*4+j, i*4+(j+1)%4
+        faces.append((a, b, b+4, a+4))
+faces.extend([(3, 2, 1, 0), tuple(steps*4+j for j in range(4))])
+mesh = bpy.data.meshes.new('Spiral cutting flight mesh')
+mesh.from_pydata(verts, [], faces)
+mesh.update()
+flight = bpy.data.objects.new('Spiral cutting flight', mesh)
+bpy.context.collection.objects.link(flight)
+mesh.materials.append(dark)
+moving(flight, drill)
 
-export('quarry', join_label='Quarry', sink=GROUND)
-render_preview('quarry')
+# Socket .2175 right, .20 forward and .40 high from the robot's WorkSpot.
+GEN = (.2175, WORK_Y + .20 + .265, .15)
+build_shared_generator(GEN)
+for x in [GEN[0]-.18, GEN[0]+.18]:
+    box('Generator sleeper', (x, GEN[1]+.08, .045), (.11, .58, .09), wood)
+    box('Generator cradle', (x, GEN[1], .12), (.14, .34, .06), wood)
+
+# Flywheel belts to a cross shaft and right-angle gearbox above the drill.
+FX, PY, PZ, PR = GEN[0]+.375, DY, 1.075, .105
+pulley = marker('DrillPulleyPivot', (FX, PY, PZ))
+moving(cylinder('Drive pulley', (FX-.03, PY, PZ), (FX+.03, PY, PZ), PR, dark), pulley)
+moving(cylinder('Pulley hub', (FX+.03, PY, PZ), (FX+.05, PY, PZ), .045, end), pulley)
+moving(beam('Pulley spoke', (FX+.033, PY, PZ), (FX+.033, PY, PZ+PR*.85), .022, steel), pulley)
+cylinder('Cross shaft', (DX, PY, PZ), (FX, PY, PZ), .032, steel)
+box('Drill gearbox', (DX, PY, PZ), (.17, .17, .14), dark)
+box('Shaft bearing', (.10, PY, PZ), (.14, .13, .13), dark)
+beam('Pulley support', (.10, .46, .98), (FX, PY, 1.0), .065, wood)
+fy, fz, fr = GEN[1]+.015, GEN[2]+.25, .22
+dy, dz = PY-fy, PZ-fz
+base = math.atan2(dz, dy)
+spread = math.acos((fr-PR)/math.hypot(dy, dz))
+for side in [-1, 1]:
+    ny, nz = math.cos(base+side*spread), math.sin(base+side*spread)
+    beam('Drive belt', (FX, fy+fr*ny, fz+fr*nz),
+         (FX, PY+PR*ny, PZ+PR*nz), .035, dark)
+
+# Compact raw and finished stock groups clear of the front yard.
+for loc, size in [((-.78, .12, 0), (.27, .29, .25)),
+                  ((-.79, .40, 0), (.25, .27, .34)),
+                  ((-.65, .67, 0), (.27, .25, .20))]:
+    block('Raw stone', loc, size, stone)
+for x in [-.33, -.07]:
+    box('Finished stone', (x, .77, .11), (.24, .23, .22), cut)
+
+marker('Footprint', (-.12, .34, .69), (.80, .56, .69))
+marker('WorkSpot', (0, WORK_Y, 0))
+export('quarry', join_label='Quarry')
+render_preview('quarry', target_z=.50, ortho_scale=3.1, true_tile=True)

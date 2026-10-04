@@ -77,7 +77,9 @@ static func build_all() -> Array[BuildingDefinition]:
 	quarry.category = GameTypes.BuildingCategory.RESOURCES
 	quarry.texture = QUARRY_TEXTURE
 	quarry.model = QUARRY_MODEL
-	quarry.visual_size_tiles = Vector2(0.85, 0.85)
+	# Stone drill with a shared PTO socket aligned to the front WorkSpot.
+	quarry.true_tile_model = true
+	quarry.visual_size_tiles = Vector2(0.787, 0.787)
 	quarry.cost = {GameTypes.ResourceType.STONE: 6}
 	quarry.required_terrains = GameTypes.LAND_TERRAINS
 	# Same rule as the logger's camp, one terrain over: built on the grass rim of a

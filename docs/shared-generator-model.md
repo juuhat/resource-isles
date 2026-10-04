@@ -44,6 +44,11 @@ part's pivots survive. Place the root so `DockPoint` sits under the robot's righ
 
 - **Sawmill** ([builder](../tools/build_sawmill.py)): on a timber cradle at the front right of
   the yard, the flywheel belted to a cross shaft and gearbox that drive the blade.
+- **Quarry** ([builder](../tools/build_quarry.py)): on the same front-right cradle and hand
+  alignment, belted up to a cross shaft and right-angle gearbox driving a vertical spiral
+  stone drill. `DrillPivot` and `DrillPulleyPivot` turn with the generator while powered.
+  `tools/quarry_model_check.gd` checks the imported docking alignment, ground clearance and
+  powered motion, including the stationary socket entrance.
 
 The robot's Operate clip ([builder](../tools/build_player_robot.py)) holds its right forearm
 level with the `HeldPTO` spindle nose 0.345 native units (0.26 at game scale) ahead of the

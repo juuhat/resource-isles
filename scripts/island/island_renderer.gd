@@ -53,6 +53,8 @@ const POWER_INDICATOR_GAP_TILES := 0.12
 # the shared PTO generator (tools/build_shared_generator.py); SawBladePivot is the sawmill's.
 const POWERED_SPIN_PARTS := {
 	"SawBladePivot": [Vector3(0, 0, -1), 420.0],
+	"DrillPivot": [Vector3(0, 1, 0), 360.0],
+	"DrillPulleyPivot": [Vector3(1, 0, 0), 360.0],
 	"FlywheelPivot": [Vector3(1, 0, 0), 300.0],
 	"SocketRotor": [Vector3(0, 0, 1), 300.0],
 }
