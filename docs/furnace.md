@@ -24,9 +24,10 @@ Furnaces keep working while the player is on another island.
 
 Live Wire now unlocks only the Sawmill; early Operate remains the robot's mechanical power
 source. Rescue unlocks the Furnace independently of the milestone chain. **Light the Forge**
-follows Strike Iron and precedes the existing Supply Line milestone: rescue K9-DA, build
-one Furnace, and produce six iron ingots. It unlocks the Burner Generator and Windmill,
-preventing either from producing electricity before rescue and first smelting.
+follows Strike Iron: rescue K9-DA, build
+one Furnace, and produce six iron ingots. It unlocks the Burner Generator.
+**Power On** follows: build one Burner Generator to unlock the Windmill, then continue
+to the existing Supply Line milestone. Electricity remains gated behind rescue and first smelting.
 
 The Burner Generator now costs **6 iron ingots + 4 stone + 2 planks**. Its wood fuel and
 5 MW output are unchanged. Bring construction supplies by personal boat; a destination
@@ -35,7 +36,7 @@ automatic Supply Line tutorial with manual delivery remains a separate TODO.
 
 New building, resource, quest, and stat enum values are appended to preserve existing
 save IDs. Existing ingot inventory and Furnace production timers use the normal island
-save format. Older completed trade milestones do not silently complete Light the Forge:
+save format. Older completed trade milestones do not silently complete Light the Forge or Power On:
 those saves receive the new smelting lesson. Existing built generators are preserved;
 new generator construction follows the revised unlock and cost rules.
 

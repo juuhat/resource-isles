@@ -146,7 +146,7 @@ func _complete_skipped_milestones() -> void:
 	for i in last_completed:
 		# Older automatic-trade saves have no smelting history. Teach this new chain
 		# rather than silently granting the newly gated generators before rescue.
-		if quests[i].kind == GameTypes.QuestKind.MILESTONE and quests[i].id != GameTypes.QuestId.LIGHT_THE_FORGE:
+		if quests[i].kind == GameTypes.QuestKind.MILESTONE and quests[i].id not in [GameTypes.QuestId.LIGHT_THE_FORGE, GameTypes.QuestId.POWER_ON]:
 			_completed[quests[i].id] = true
 
 

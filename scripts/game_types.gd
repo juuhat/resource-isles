@@ -62,6 +62,7 @@ enum QuestId {
 	STRIKE_IRON,     # hand-mine iron on a frontier island -> the iron and coal mines
 	LIVE_WIRE,       # hand-power a building, stockpile wood + stone -> the sawmill
 	LIGHT_THE_FORGE,
+	POWER_ON,
 }
 
 # Loose pickups scattered on the ground that the robot collects by walking onto them.

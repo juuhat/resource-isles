@@ -147,9 +147,19 @@ static func build_all() -> Array[Quest]:
 			_objective("Smelt iron ingots", GameTypes.Stat.IRON_INGOTS_GATHERED, 6),
 		],
 		[
-			QuestReward.unlock_building(GameTypes.BuildingType.BURNER_GENERATOR, "Unlocks the Burner Generator"),
-			QuestReward.unlock_building(GameTypes.BuildingType.WINDMILL, "Unlocks the Windmill")
+			QuestReward.unlock_building(GameTypes.BuildingType.BURNER_GENERATOR, "Unlocks the Burner Generator")
 		]
+	))
+
+	quests.append(QuestScript.new(
+		GameTypes.QuestId.POWER_ON,
+		GameTypes.QuestKind.MILESTONE,
+		"Power On",
+		"Use your first six iron ingots, stone and planks to build a Burner Generator. "
+			+ "Keep wood in the island stock to fuel it, and let it drive the Furnace's bellows "
+			+ "so the robot can get back to exploring.",
+		[_objective("Build a Burner Generator", GameTypes.Stat.BURNER_GENERATORS_BUILT, 1)],
+		[QuestReward.unlock_building(GameTypes.BuildingType.WINDMILL, "Unlocks the Windmill")]
 	))
 
 	# The trade-route tutorial (docs/second-island-progression.md). A route needs a dock at both

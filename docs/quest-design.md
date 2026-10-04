@@ -24,7 +24,8 @@ quest, **Rescue K9-DA**, and a linear milestone chain:
 | Refine | Build a sawmill; gather 12 planks | Dock |
 | Set Sail | Build a dock | Reveal ring 1 |
 | Strike Iron | Gather 5 iron ore | Iron Mine and Coal Mine |
-| Light the Forge | Rescue K9-DA; build a Furnace; produce 6 iron ingots | Burner Generator and Windmill |
+| Light the Forge | Rescue K9-DA; build a Furnace; produce 6 iron ingots | Burner Generator |
+| Power On | Build a Burner Generator | Windmill |
 | The Supply Line | Establish a route; ship 20 goods | No mechanical reward; chain ends here |
 
 Rescue K9-DA now requires the actual Rescue action on the dog's island; simply reaching another
@@ -35,7 +36,7 @@ Gathering and construction objectives use global lifetime totals, not current in
 progress since a quest began. Spending materials does not reduce quest progress. Previously
 completed actions can satisfy a newly activated milestone immediately.
 
-The Windmill now unlocks with Light the Forge, alongside the Burner Generator. There are
+Light the Forge unlocks the Burner Generator. Power On teaches its construction and unlocks the Windmill. There are
 no dedicated objectives for building a windmill, proving a mine
 is automatically powered, or delivering a particular resource to a particular island.
 
