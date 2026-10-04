@@ -11,7 +11,7 @@ quest, **Rescue K9-DA**, and a linear milestone chain:
 
 | Milestone | Current objectives | Reward |
 | --- | --- | --- |
-| Recover Your Tools | Collect the axe, pickaxe, and hammer | Harvesting |
+| Recover Your Tools | Collect the axe, pickaxe, and wrench | Harvesting |
 | Break Ground | Gather 20 wood and 20 stone | Logger's Camp and Quarry |
 | Scale Up | Build a camp and quarry; gather 100 wood and 100 stone in total | Sawmill and Burner Generator |
 | Refine | Build a sawmill; gather 12 planks | Dock |

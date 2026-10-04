@@ -105,7 +105,15 @@ Because the lift is derived from the measured AABB, models with different origin
   built by `tools/build_burner_generator.py`). The dock covers two tiles and is a
   `true_tile_model`: fixed scale, origin placed directly on the ground, turned with its footprint.
   See [Building footprints](building-footprints.md).
-- **Still billboards:** the remaining buildings, ground items, and the dock boat. Swapping each
+- **Ground items:** the robot's three lost tools (`assets/models/items/axe.glb`, `pickaxe.glb`,
+  `wrench.glb`, built by `tools/build_robot_tools.py`) lie flat on their cells. Each keeps its
+  classic head (bearded axe, pick with point and chisel, open-end wrench) on a robot-built handle:
+  an iron socket plug with an amber status light that fits the robot's arm tool socket, teal
+  collars, a timber grip wrap and a cream head housing. They are 0.3 tiles long, about two
+  thirds of the 0.45-tile robot's height. `_spawn_item` places them at the fixed
+  true-tile scale and turns each to an angle derived from its cell. `ITEM_TEXTURES` stays as
+  the fallback for the axe and pickaxe (the wrench has no flat icon).
+- **Still billboards:** the remaining buildings and the dock boat. Swapping each
   is just dropping in an asset and setting `model` — the cost is the art, not code.
 
 ## Gotchas

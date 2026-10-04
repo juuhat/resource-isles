@@ -31,7 +31,13 @@ const ROWBOAT_TEXTURE := preload("res://assets/vehicles/rowboat.png")
 const ITEM_TEXTURES := {
 	GameTypes.ItemType.AXE: preload("res://assets/icons/axe.png"),
 	GameTypes.ItemType.PICKAXE: preload("res://assets/icons/pickaxe.png"),
-	GameTypes.ItemType.HAMMER: preload("res://assets/icons/hammer.png"),
+}
+# The robot's lost tools lying on the ground (tools/build_robot_tools.py), at true tile scale with
+# their origin on the ground at the centre of their bounds. ITEM_TEXTURES is the fallback.
+const ITEM_MODELS := {
+	GameTypes.ItemType.AXE: preload("res://assets/models/items/axe.glb"),
+	GameTypes.ItemType.PICKAXE: preload("res://assets/models/items/pickaxe.glb"),
+	GameTypes.ItemType.WRENCH: preload("res://assets/models/items/wrench.glb"),
 }
 
 const BOAT_SIZE_TILES := Vector2(0.8, 0.8)
@@ -862,6 +868,18 @@ func _instance_aabb(root: Node3D) -> AABB:
 
 
 func _spawn_item(cell: Vector2i, item_type: int) -> void:
+	var scene: PackedScene = ITEM_MODELS.get(item_type)
+	if scene != null:
+		var model := scene.instantiate() as Node3D
+		var model_scale := cell_size.x / TRUE_TILE_UNITS
+		model.scale = Vector3(model_scale, model_scale, model_scale)
+		model.position = _ground_anchor([cell])
+		# Dropped in the crash, so each lies at its own angle; derived from the cell so it stays
+		# put across refreshes.
+		model.rotation.y = deg_to_rad(float(absi(hash(cell)) % 360))
+		_objects_root.add_child(model)
+		return
+
 	var texture: Texture2D = ITEM_TEXTURES.get(item_type)
 	if texture == null:
 		return

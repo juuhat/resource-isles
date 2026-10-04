@@ -131,7 +131,7 @@ func _place_starter_tools(island: IslandData) -> void:
 
 	_shuffle(candidates)
 
-	var tools := [GameTypes.ItemType.AXE, GameTypes.ItemType.PICKAXE, GameTypes.ItemType.HAMMER]
+	var tools := [GameTypes.ItemType.AXE, GameTypes.ItemType.PICKAXE, GameTypes.ItemType.WRENCH]
 	for index in range(mini(tools.size(), candidates.size())):
 		island.place_item(candidates[index], tools[index])
 

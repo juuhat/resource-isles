@@ -42,7 +42,7 @@ static func build_all() -> Array[Quest]:
 		GameTypes.QuestKind.MILESTONE,
 		"Recover Your Tools",
 		"The crash scattered the robot's tools across the island. Walk over and "
-			+ "collect the axe, pickaxe, and hammer.",
+			+ "collect the axe, pickaxe, and wrench.",
 		[_objective("Recover your tools", GameTypes.Stat.TOOLS_COLLECTED, 3)],
 		[QuestReward.robot_upgrade_reward(GameTypes.RobotUpgrade.HARVESTING, "Unlocks harvesting")]
 	))

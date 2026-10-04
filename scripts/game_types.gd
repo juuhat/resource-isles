@@ -65,7 +65,7 @@ enum QuestId {
 enum ItemType {
 	AXE,
 	PICKAXE,
-	HAMMER,
+	WRENCH,
 }
 
 # What completing a quest grants.
@@ -197,7 +197,7 @@ static func item_display_name(item_type: int) -> String:
 			return "Axe"
 		ItemType.PICKAXE:
 			return "Pickaxe"
-		ItemType.HAMMER:
-			return "Hammer"
+		ItemType.WRENCH:
+			return "Wrench"
 		_:
 			return "Unknown"
