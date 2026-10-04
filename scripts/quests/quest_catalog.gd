@@ -53,8 +53,8 @@ static func build_all() -> Array[Quest]:
 		"Break Ground",
 		"Scavenge wood and chip out some stone by hand to learn how to work the land.",
 		[
-			_objective("Gather wood", GameTypes.Stat.WOOD_GATHERED, 20),
-			_objective("Gather stone", GameTypes.Stat.STONE_GATHERED, 20),
+			_objective("Gather wood", GameTypes.Stat.WOOD_GATHERED, 6),
+			_objective("Gather stone", GameTypes.Stat.STONE_GATHERED, 6),
 		],
 		[
 			QuestReward.unlock_building(GameTypes.BuildingType.LOGGER_CAMP, "Unlocks the Logger's Camp"),

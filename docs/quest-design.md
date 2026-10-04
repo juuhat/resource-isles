@@ -12,7 +12,7 @@ quest, **Rescue K9-DA**, and a linear milestone chain:
 | Milestone | Current objectives | Reward |
 | --- | --- | --- |
 | Recover Your Tools | Collect the axe, pickaxe, and wrench | Harvesting |
-| Break Ground | Gather 20 wood and 20 stone | Logger's Camp and Quarry |
+| Break Ground | Gather 6 wood and 6 stone | Logger's Camp and Quarry |
 | Scale Up | Build a camp and quarry; gather 100 wood and 100 stone in total | Sawmill and Burner Generator |
 | Refine | Build a sawmill; gather 12 planks | Dock |
 | Set Sail | Build a dock | Reveal ring 1 |
@@ -34,13 +34,10 @@ is automatically powered, or delivering a particular resource to a particular is
 
 ### 1. Shorten the first gathering lesson
 
-Try **5 wood and 5 stone** for Break Ground, following the playtest feedback. Tune construction
-costs and quest targets together so completing the lesson leaves the player able to build the
-next required structure without another long gathering stretch.
-
-Currently the Logger's Camp and Quarry cost 6 wood each, so 5 wood cannot pay for both. Decide
-whether the first construction quest requires one building or both, then set the budget around
-that choice. Five of each is a starting hypothesis for playtesting, not a settled economy.
+Break Ground now asks for **6 wood and 6 stone**, matching construction costs: the Logger's
+Camp costs 6 wood and the Quarry costs 6 stone. Completing the lesson leaves the player exactly
+able to build both extractors without another gathering stretch (quest progress is a lifetime
+total, so materials spent along the way still count). Validate this budget in playtesting.
 
 ### 2. Replace the 100-resource gate with a practical lesson
 
@@ -119,8 +116,8 @@ shipment. Keep both objectives reachable in the final milestone ordering.
 
 ## Decisions still needed
 
-- Is the first construction lesson one extractor or both? What costs make 5 wood/stone a
-  sufficient opening budget?
+- Is the first construction lesson one extractor or both? The 6 wood / 6 stone budget covers
+  both.
 - Is the Burner Generator mandatory to prove automatic power, or an optional early unlock?
 - How many planks should the opening require, and what spends them? Currently 12 planks gate
   the quest, but the Dock itself costs only wood and stone; the salvage skiff comes moored

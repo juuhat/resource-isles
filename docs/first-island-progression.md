@@ -71,8 +71,8 @@ Hand-mine stone ─┘         ▲
 ### Logger's Camp and Quarry are cut from island 1
 
 > **Superseded (current implementation).** The live quest chain now unlocks the **Logger's Camp
-> and Quarry on island 1**, granted together by the *Break Ground* milestone (gather 20 wood +
-> 20 stone) — see [`quest_catalog.gd`](../scripts/quests/quest_catalog.gd). The reasoning below
+> and Quarry on island 1**, granted together by the *Break Ground* milestone (gather 6 wood +
+> 6 stone) — see [`quest_catalog.gd`](../scripts/quests/quest_catalog.gd). The reasoning below
 > still holds *economically* (on a fixed-demand island, hand-gathering dominates passive camps),
 > so they remain **optional** time-savers, not forced beats — the Sawmill + Dock are the only
 > mandatory buildings. They were brought back as early unlocks to give the opening chain more to

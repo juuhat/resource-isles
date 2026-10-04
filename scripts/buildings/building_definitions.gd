@@ -78,7 +78,7 @@ static func build_all() -> Array[BuildingDefinition]:
 	quarry.texture = QUARRY_TEXTURE
 	quarry.model = QUARRY_MODEL
 	quarry.visual_size_tiles = Vector2(0.85, 0.85)
-	quarry.cost = {GameTypes.ResourceType.WOOD: 6}
+	quarry.cost = {GameTypes.ResourceType.STONE: 6}
 	quarry.required_terrains = GameTypes.LAND_TERRAINS
 	# Same rule as the logger's camp, one terrain over: built on the grass rim of a
 	# rocky outcrop and reaching in. Must touch a stone deposit, earns +1 per adjacent
