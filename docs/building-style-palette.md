@@ -7,6 +7,7 @@ Art direction proposal, 3 October 2026. This is a proposed asset standard; curre
 | Board | Status | Use |
 | --- | --- | --- |
 | [building-style-palette-v2-low-poly.png](../art/style/building-style-palette-v2-low-poly.png) | **Current** kit reference | Overall style, palette, prop density |
+| [iron-coal-deposits-v1.png](../art/concepts/iron-coal-deposits-v1.png) | **Current** for the resource deposits | Dense outcrops of chunky, flat-topped blocks: iron veined in rust orange, coal a black core under a grey cap slab. Stone (not on the board) follows the same style |
 | [logger-camp-v3-low-poly.png](../art/style/logger-camp-v3-low-poly.png) | Superseded | History only: the roofed logger camp, replaced by the [workbench style](#workbench-style) |
 | [building-style-palette-v1.png](../art/style/building-style-palette-v1.png) | Superseded | History only: the earlier painterly direction |
 
@@ -73,7 +74,7 @@ Use timber, stone, or cream for most of a building and teal for its machine or a
 
 Author every asset under the same neutral lighting and let the game light it. Avoid baked directional shadows, heavy ambient occlusion, and glossy surfaces.
 
-**Open decision:** tinted resource deposits currently render with banded toon shading and a dark inverted-hull outline (`IslandRenderer._paint_flat`), while building models use their imported materials with no outline. Pick one treatment for all map objects. The recommendation is no outlines, which matches this standard; the alternative is to apply the same outline to everything.
+**Decided: no outlines.** Every map object now uses its own imported materials with no outline. The resource deposits used to be flat-tinted with banded toon shading and a dark inverted-hull outline; that path was removed when they were rebuilt with the kit.
 
 ## Shape palette
 
@@ -88,7 +89,9 @@ Author every asset under the same neutral lighting and let the game light it. Av
 | Windmill | Slim cream tower | Broad sails and teal cap |
 | Dock | Horizontal timber pier | Posts and mooring |
 | Forest | Three to five conifers | Small open foreground clearing |
-| Stone deposit | Two to four faceted boulders | Ore patches or one broken face |
+| Stone deposit | Medium outcrop of grey blocks around one broad block | A broken face of lighter cut stone, a leaning slab |
+| Iron deposit | Tall, dense mound of packed grey blocks | Rust-orange ore veins down the cracks, ore chunks |
+| Coal deposit | Wide, low mound under a flat grey cap slab | Black coal block core, spilled coal |
 | Robot | Cream head/body silhouette | Teal panels, amber eyes |
 
 These silhouettes must stay readable at the normal map zoom. In particular:
@@ -111,12 +114,12 @@ The boards get the style right but some of their designs break this standard. Do
 | Asset | Source | Gap to this standard |
 | --- | --- | --- |
 | Logger camp, sawmill, quarry, coal mine, iron mine | Scripted builds in `tools/build_*.py` on the shared `tools/lowpoly_kit.py` | Palette colors, no bevels, 8-sided cylinders, no base platforms. The logger camp and the sawmill are redesigned as workbenches at true tile scale, with work spots. Remaining for the quarry and mines: the same treatment, with prop density cut to the two-group rule (bolts, rivets, chips, lantern). |
-| Windmill (`windmill2.glb`), crashed spaceship, pine forest, stone deposit, player robot, dog | Imported meshes with image textures | Furthest from the standard. Rework these first. |
+| Windmill (`windmill2.glb`), crashed spaceship, pine forest, player robot, dog | Imported meshes with image textures | Furthest from the standard. Rework these first. |
+| Stone, iron and coal deposits | Scripted builds in `tools/build_deposit.py` (one run per variant: `-- stone`, `-- iron` or `-- coal`) at true tile scale, with footprint (no work spot: the robot harvests from the tile or any neighbour) | Meets the standard. Each is packed from the kit's flat-topped, straight-sided `block()`s (convex hulls, like its `rock()`), after the iron and coal concept board. Stone: a broad main block split open to lighter cut stone, a slab leaning on it, a lower block behind, and lower blocks, the broken-off chunk and rubble around its foot (0.704 tiles wide, 0.454 tall). Iron: a tall mound of grey blocks with bright rust-orange veins wedged between them, ore chunks and rubble at the foot (0.736 wide, 0.580 tall). Coal: a wide, low mound of black coal blocks under a flat grey cap slab, wrapped in grey blocks, coal lumps spilled in front (0.752 wide, 0.301 tall). Each tile turns its deposit up to 45° either way, fixed per cell. |
 | Dock | Scripted build in `tools/build_dock.py` at true tile scale over a line of three tiles (see [Building footprints](building-footprints.md)), with work and boat spots | Meets the standard. A stone quay and cargo crates on the shore tile; a crosswise-boarded pier on pilings over the coast tile, widening into a T-head with a mooring post and a teal beacon post with an amber lamp; the salvage skiff (`tools/build_salvage_skiff.py`) moored stern-to off the pier head on the third, water tile. |
 | Burner generator | Scripted build in `tools/build_burner_generator.py` at true tile scale, with work spot | Meets the standard. A compact vertical furnace: stone firebox with a glowing mouth facing the yard, iron boiler drum and tall chimney; a steam pipe to the teal dynamo on the right, split firewood stacked on the left. 0.579 tiles wide, 0.602 tall. |
 | Icons and building sprites in `assets/icons`, `assets/buildings` | Painterly 2D with dark outlines | Re-render from approved models (see [Icon standard](#icon-standard)). |
 
-Iron and coal deposits currently reuse the stone deposit model with a flat tint. Give them their own silhouettes when they are authored.
 
 ## Scale standard
 
@@ -130,12 +133,12 @@ Let T = 128 world units, the current tile bounding width. Values below are initi
 | Roofed building | 0.58–0.68 | 0.65–0.85 |
 | Low quarry / mine | 0.58–0.70 | 0.35–0.60, crane up to 0.90 |
 | Forest cluster | 0.60–0.70 | 0.80–1.10 |
-| Rock cluster | 0.50–0.65 | 0.30–0.50 |
+| Rock deposit | 0.70–0.78 | 0.28–0.60 |
 | Windmill | Body 0.35–0.45; sails up to 0.75 | 1.00–1.25 |
 
 Unit scale is deliberately exaggerated for map readability; the style does not require a literal human-to-building scale. The robot is roughly half an ordinary roof's height, with a much narrower footprint.
 
-Today, most buildings render at 0.85T width and resource clusters at 0.90T, which leaves little access space. The logger camp (0.554T), authored at true tile scale, meets its workbench target. The sawmill (0.73T wide, 0.57T tall) is over it: the shared PTO generator, its flywheel and the log pile widen it, though everything still fits the tile and leaves the yard open. The robot now meets its height target (0.45T, down from 0.65T), but its arms make it about 0.31T wide, above the 0.20–0.24T target. Static models are scaled by width in `IslandRenderer._spawn_model`, and the robot by a hard-coded native height in `PlayerUnit._ready`. Setting both `visual_size_tiles` components to the same number does not enforce equal width and height. Measure actual bounds and enforce separate footprint and height targets. Uniform scale preserves proportions; reauthor assets that are too tall or wide instead of stretching them.
+Today, most buildings render at 0.85T width and the forest at 0.90T, which leaves little access space. The rock deposits, authored at true tile scale, are 0.70–0.75T wide. The logger camp (0.554T), authored at true tile scale, meets its workbench target. The sawmill (0.73T wide, 0.57T tall) is over it: the shared PTO generator, its flywheel and the log pile widen it, though everything still fits the tile and leaves the yard open. The robot now meets its height target (0.45T, down from 0.65T), but its arms make it about 0.31T wide, above the 0.20–0.24T target. Static models are scaled by width in `IslandRenderer._spawn_model`, and the robot by a hard-coded native height in `PlayerUnit._ready`. Setting both `visual_size_tiles` components to the same number does not enforce equal width and height. Measure actual bounds and enforce separate footprint and height targets. Uniform scale preserves proportions; reauthor assets that are too tall or wide instead of stretching them.
 
 The crashed ship renders at 1.6T width from a one-cell anchor. Treat it as a landmark and reserve space matching its actual visual extent.
 

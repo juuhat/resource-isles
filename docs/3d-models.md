@@ -84,7 +84,9 @@ Because the lift is derived from the measured AABB, models with different origin
    `assets/models/` (Godot writes the `.import` on next editor load).
 2. `preload` it in the relevant database and assign it to the definition's `model`:
    - Resource nodes → [`resource_node_database.gd`](../scripts/resources/resource_node_database.gd)
-     (see `forest.model = PINE_FOREST_MODEL`, `stone.model = STONE_DEPOSIT_MODEL`).
+     (see `forest.model = PINE_FOREST_MODEL`, and `_add_deposit` for the rock deposits).
+     Resource nodes take `true_tile_model` like buildings, plus `visual_yaw_variation` for a
+     per-cell heading.
    - Buildings → [`building_definitions.gd`](../scripts/buildings/building_definitions.gd)
      (see `crashed_spaceship.model = CRASHED_SPACESHIP_MODEL`).
 3. Tune the visuals on the definition:
@@ -99,8 +101,10 @@ Because the lift is derived from the measured AABB, models with different origin
 
 ## Current models vs billboards
 
-- **Models:** the robot (`player_model.glb`), both resource nodes (`pine_forest.glb`,
-  `stone_deposit.glb`), the crashed-spaceship building (`crashed_spaceship.glb`), and the dock
+- **Models:** the robot (`player_model.glb`), the forest (`pine_forest.glb`), the stone, iron
+  and coal deposits (`resources/<stone|iron|coal>_deposit.glb`, built by
+  `tools/build_deposit.py -- <variant>`; `true_tile_model`s with their heading varied per cell by
+  `visual_yaw_variation`), the crashed-spaceship building (`crashed_spaceship.glb`), and the dock
   (`dock.glb`, built by `tools/build_dock.py`), and the burner generator (`burner_generator.glb`,
   built by `tools/build_burner_generator.py`). The dock covers three tiles and is a
   `true_tile_model`: fixed scale, origin placed directly on the ground, turned with its footprint.

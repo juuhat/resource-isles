@@ -205,6 +205,91 @@ def boulder(name, loc, size, mat, subdiv=2, jitter=.16, floor=None, top=None):
     return finish(o, name, mat)
 
 
+def rock(name, loc, size, mat, cuts=(), cut_mat=None, crown=.62, lean=(0, 0), base=.86,
+         shoulder=(.5, .66), slant=(0, 0), spread=(.8, 1.05), twist=True, sides=6):
+    """Chunky natural rock standing on the ground at loc (x, y, ground z): the convex hull of a
+    jittered base ring, a wider shoulder ring and a smaller crown, so it reads as a few broad
+    planar facets with a flat underside (the board's stone cluster), not icosphere lumps. crown
+    and base are the top's and the foot's width as fractions of the shoulder's, and shoulder the
+    range its height is picked from, as a fraction of the rock's: a low crown makes a peaked
+    rock; base and crown near 1 with a high shoulder make an upright, flat-topped block (see
+    block()). lean shifts the top along (x, y), as a fraction of the rock's width and depth, for
+    a tilted slab; slant tips the top surface down toward +x / +y (negative: toward -x / -y), as
+    a fraction of the height. Each ring point's distance from the axis is jittered within spread.
+    With twist, each ring is turned half a step from the one below, for faceted, gem-cut sides;
+    without, the rings line up and the sides are straight prism faces, sides of them.
+
+    Each of cuts, a (point, normal) pair in world space, cleaves the rock by that plane, removes
+    the part on the normal's side and paints the fresh face cut_mat: a broken face, or an exposed
+    seam of ore. Uses the global random module, so seed it in the builder for repeatable shapes."""
+    w, d, h = size
+    spin = random.uniform(0, 2 * math.pi)
+    n = 6 if twist else sides
+    rings = [(n, 0, base), (n, random.uniform(*shoulder), 1.0), (4 if twist else n, 1, crown)]
+    if not twist:
+        angles = [spin + 2 * math.pi * (i + random.uniform(-.38, .38)) / n for i in range(n)]
+        # Pushed out part way toward the corner radius of an n-gon as wide as size across flats,
+        # so four-sided blocks are not much slimmer than six-sided ones.
+        reach = math.cos(math.pi / n) ** -.5
+        radii = [reach * random.uniform(*spread) for _ in range(n)]
+    points = []
+    for count, z, radius in rings:
+        for i in range(count):
+            if twist:
+                angle = spin + 2 * math.pi * (i + random.uniform(-.3, .3)) / count
+            else:
+                angle = angles[i]
+            r = radius * (random.uniform(*spread) if twist else radii[i])
+            zz = h * min(1, z + (random.uniform(-.12 if twist else -.02, 0) if z else 0))
+            tilt = zz / h
+            cx, cy = math.cos(angle) * r, math.sin(angle) * r
+            zz -= h * tilt * (slant[0] * cx + slant[1] * cy) / 2
+            points.append(Vector((cx * w / 2 + lean[0] * w * tilt, cy * d / 2 + lean[1] * d * tilt, zz)))
+        if twist:
+            spin += math.pi / count
+    bm = bmesh.new()
+    verts = [bm.verts.new(p) for p in points]
+    hull = bmesh.ops.convex_hull(bm, input=verts)
+    # A point can come back in both lists (e.g. two crown points landing on one spot).
+    leftover = list(dict.fromkeys(hull['geom_interior'] + hull['geom_unused']))
+    bmesh.ops.delete(bm, geom=leftover, context='VERTS')
+    normals = [Vector(n).normalized() for _, n in cuts]
+    for (point, _), normal in zip(cuts, normals):
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:],
+                               plane_co=Vector(point) - Vector(loc), plane_no=normal, clear_outer=True)
+        bmesh.ops.holes_fill(bm, edges=[e for e in bm.edges if e.is_boundary])
+    # Merge the hull's coplanar triangles back into broad faces.
+    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(1), verts=bm.verts[:], edges=bm.edges[:])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    for f in bm.faces:
+        if any(f.normal.dot(n) > .999 for n in normals):
+            f.material_index = 1
+    mesh = bpy.data.meshes.new(name + ' mesh')
+    bm.to_mesh(mesh)
+    bm.free()
+    o = bpy.data.objects.new(name, mesh)
+    o.location = loc
+    bpy.context.collection.objects.link(o)
+    finish(o, name, mat)
+    if cuts:
+        o.data.materials.append(cut_mat)
+    return o
+
+
+def block(name, loc, size, mat, tip=.35, **kwargs):
+    """Upright, flat-topped rock block, a straight-sided chunk of four to six faces, its top
+    tipped a random amount up to tip (as rock()'s slant). Packed together, blocks make a dense
+    outcrop rather than a cluster of boulders. Other keywords go to rock()."""
+    kwargs.setdefault('slant', (random.uniform(-tip, tip), random.uniform(-tip, tip)))
+    kwargs.setdefault('base', 1.0)
+    kwargs.setdefault('shoulder', (.8, .9))
+    kwargs.setdefault('crown', .86)
+    kwargs.setdefault('spread', (.8, 1.06))
+    kwargs.setdefault('twist', False)
+    kwargs.setdefault('sides', random.choice((4, 5, 5, 6)))
+    return rock(name, loc, size, mat, **kwargs)
+
+
 def marker(name, loc, half_size=None):
     """Exported empty the game can read as layout metadata, e.g. 'WorkSpot' (where the robot
     stands to work the building) or 'Footprint' (box empty whose scale is the solid

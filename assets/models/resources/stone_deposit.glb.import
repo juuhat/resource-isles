@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://bkl4ra2if63s5"
-path="res://.godot/imported/stone_deposit.glb-e21416d562fd6553b4229d61a7a5bb4c.scn"
+uid="uid://cgc8wefkgcrfv"
+path="res://.godot/imported/stone_deposit.glb-fc5fbb1723dcfb2b9d770453f4764457.scn"
 
 [deps]
 
-source_file="res://assets/models/stone_deposit.glb"
-dest_files=["res://.godot/imported/stone_deposit.glb-e21416d562fd6553b4229d61a7a5bb4c.scn"]
+source_file="res://assets/models/resources/stone_deposit.glb"
+dest_files=["res://.godot/imported/stone_deposit.glb-fc5fbb1723dcfb2b9d770453f4764457.scn"]
 
 [params]
 

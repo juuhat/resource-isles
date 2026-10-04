@@ -122,14 +122,14 @@ The project is configured as a Godot 4 project and currently uses the mobile ren
 Blender 5.0 is installed on the development machine at
 `C:\Program Files\Blender Foundation\Blender 5.0` (executable: `blender.exe`), so it can be used
 to generate 3D models from scripts. The `tools/build_*.py` scripts build a model headlessly and
-write the `.glb` to `assets/models/buildings/`, the `.blend` source to `art/blender/`, and a
+write the `.glb` to `assets/models/buildings/` (or `resources/`, `items/`, `boats/`), the `.blend` source to `art/blender/`, and a
 preview render to `art/previews/`:
 
 ```bash
 "C:\Program Files\Blender Foundation\Blender 5.0\blender.exe" --background --python tools/build_quarry.py
 ```
 
-The builders share their primitives (box, beam, cylinder, log, boulder, saw blade), export and
+The builders share their primitives (box, beam, cylinder, log, boulder, rock, saw blade), export and
 preview studio through `tools/lowpoly_kit.py`, which also holds the art-direction palette from
 [docs/building-style-palette.md](docs/building-style-palette.md) as linear RGB.
 
