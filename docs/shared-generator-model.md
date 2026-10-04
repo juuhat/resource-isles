@@ -42,12 +42,13 @@ part's pivots survive. Place the root so `DockPoint` sits under the robot's righ
 
 ## Fitted buildings
 
-- **Logger's Camp** ([builder](../tools/build_logger_camp.py)): a stationary forestry
-  cutter with an iron boom, hydraulic pistons and a teal horizontal circular-saw head. The shared
-  generator sits at the front-right operator spot, feeding the pedestal's hydraulic pump.
-  `HarvesterArmPivot` sweeps 24 degrees either side of its authored pose while powered;
-  the hydraulics and saw head move with it. `ForestBladePivot` spins the blade about its vertical axis; generator pivots spin independently.
-  `tools/logger_model_check.gd` checks docking, clearance, bounded motion and stopping.
+- **Logger's Camp** ([builder](../tools/build_logger_camp.py)): a powered chopping axe (trip
+  hammer) over a chopping block. The generator sits on the front-right cradle; its flywheel belts
+  back to a cross shaft and gearbox that turn a two-wiper cam under the helve's tappet.
+  `AxeHelvePivot` is authored raised and drops 26 degrees onto the round once per 1.6 s stroke
+  (`PoweredSpinner.add_chop`); `AxeCamPivot` turns half a revolution per stroke so a wiper
+  releases the tappet as each drop begins, and `AxePulleyPivot` spins with the drive.
+  `tools/logger_model_check.gd` checks docking, clearance, the stroke's bite and timing, and stopping.
 - **Sawmill** ([builder](../tools/build_sawmill.py)): on a timber cradle at the front right of
   the yard, the flywheel belted to a cross shaft and gearbox that drive the blade.
 - **Quarry** ([builder](../tools/build_quarry.py)): on the same front-right cradle and hand

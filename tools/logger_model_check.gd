@@ -1,7 +1,11 @@
 extends SceneTree
 
 # Godot --headless --path . --script res://tools/logger_model_check.gd
-# Checks imported geometry, robot docking and the renderer's powered motion wiring.
+# Checks imported geometry, robot docking and the renderer's powered chop wiring.
+
+# Top of the round on the chopping block, in model units (tools/build_logger_camp.py).
+const ROUND_TOP := .452
+
 
 func _initialize() -> void:
 	call_deferred("_check")
@@ -19,13 +23,7 @@ func _check() -> void:
 	var offset := dock.global_position - spot.global_position
 	assert(offset.distance_to(Vector3(.2175, .40, -.20)) < .01,
 		"Socket must meet the operating robot's right forearm")
-	var bounds := AABB()
-	var first := true
-	for node in model.find_children("*", "MeshInstance3D", true, false):
-		var mesh := node as MeshInstance3D
-		var local_bounds := model.global_transform.affine_inverse() * mesh.global_transform * mesh.get_aabb()
-		bounds = local_bounds if first else bounds.merge(local_bounds)
-		first = false
+	var bounds := _bounds(model, model.find_children("*", "MeshInstance3D", true, false))
 	assert(bounds.position.y >= -.001, "Feet rest on the tile")
 	assert(bounds.size.x < 1.7 and bounds.size.z < 1.5, "Leave room on a single tile")
 	assert(bounds.end.z < spot.position.z - .18, "Operator body clears the machine")
@@ -36,50 +34,76 @@ func _check() -> void:
 	renderer.island = island
 	renderer._add_powered_spinner(Vector2i.ZERO, model)
 	var spinner := model.get_child(model.get_child_count() - 1) as PoweredSpinner
-	assert(spinner != null and spinner._targets.size() == 3 and spinner._sweeps.size() == 1,
-		"Renderer wires the forest blade, arm sweep, flywheel and socket")
+	assert(spinner != null and spinner._targets.size() == 4 and spinner._chops.size() == 1,
+		"Renderer wires the axe stroke, cam, pulley, flywheel and socket")
 	spinner.set_process(false)
-	var arm := model.find_child("HarvesterArmPivot", true, false) as Node3D
-	assert(arm != null and arm.get_child_count() > 0, "Boom and hydraulics stay under the swivel")
-	var blade := model.find_child("ForestBladePivot", true, false) as Node3D
-	assert(blade != null and blade.get_parent() == arm, "Spinning blade follows the sweeping arm")
-	assert(blade.global_position.y - .012 > .39, "Blade clears the harvested log stack")
-	var rest := arm.transform
+	var helve := model.find_child("AxeHelvePivot", true, false) as Node3D
+	var cam := model.find_child("AxeCamPivot", true, false) as Node3D
+	assert(helve != null and helve.get_child_count() > 0, "Helve and head stay under the fulcrum")
+	assert(cam != null)
+	var head: Array[Node] = helve.find_children("*Steel*", "MeshInstance3D", true, false)
+	head.append_array(helve.find_children("*Iron*", "MeshInstance3D", true, false))
+	var generator := _bounds(model, model.find_child("SharedGenerator", true, false).find_children("*", "MeshInstance3D", true, false))
+	var rest := helve.transform
+	assert(_bounds(model, head).position.y > ROUND_TOP + .1, "An idle camp holds the axe raised")
+
 	var initial: Array[Basis] = []
 	for target in spinner._targets:
 		initial.append(target.basis)
 	spinner._process(.1)
 	for i in initial.size():
 		assert(spinner._targets[i].basis.is_equal_approx(initial[i]), "Unpowered parts stay still")
-	assert(arm.transform.is_equal_approx(rest), "Unpowered arm stays at its authored pose")
+	assert(helve.transform.is_equal_approx(rest), "Unpowered axe stays raised")
 	island.consumer_powered_states[Vector2i.ZERO] = true
 	spinner._process(.1)
 	for i in initial.size():
 		assert(not spinner._targets[i].basis.is_equal_approx(initial[i]), "Powered parts turn")
-	assert(not arm.transform.is_equal_approx(rest), "Powered arm sweeps")
-	# Run through several full cycles: bounded motion must not accumulate rotation or
-	# drag the machine's fixed socket around with the arm.
-	for frame in 600:
+	assert(not helve.transform.is_equal_approx(rest), "Powered axe starts its stroke")
+
+	# Several full strokes: the stroke stays bounded, the blade bites the round without
+	# passing through it, the head never swings into the generator, and the cam keeps time.
+	var lowest := INF
+	for frame in 400:
 		spinner._process(.02)
-		assert(absf(arm.rotation.y) <= deg_to_rad(24.01), "Cutter stays within its work area")
-		assert(arm.position.is_equal_approx(rest.origin), "Swivel base stays planted")
-		assert(blade.global_position.x + .255 < -.08,
-			"Sweeping blade clears the generator")
-		var blade_xz := Vector2(blade.global_position.x, blade.global_position.z)
-		var operator_edge := Vector2(clampf(blade_xz.x, -.22, .22), clampf(blade_xz.y, .44, .76))
-		assert(blade_xz.distance_to(operator_edge) > .275, "Sweep clears the operator's body")
+		var drop := rest.basis.inverse() * helve.basis
+		var angle := drop.get_euler().z
+		assert(angle <= .001 and angle >= -deg_to_rad(IslandRenderer.AXE_STRIKE_DEGREES) - .001,
+			"Axe moves only between raised and striking")
+		assert(helve.position.is_equal_approx(rest.origin), "Fulcrum stays planted")
+		var head_bounds := _bounds(model, head)
+		lowest = minf(lowest, head_bounds.position.y)
+		assert(not head_bounds.intersects(generator), "Axe head clears the generator")
+		var phase := float(spinner._chops[0].phase)
+		var cam_turn := fposmod(cam.rotation.z, PI)
+		assert(absf(angle_difference(cam_turn, phase * PI)) < .01 or absf(angle_difference(cam_turn, phase * PI)) > PI - .01,
+			"Cam turns half a revolution per stroke, in step")
+	assert(lowest < ROUND_TOP and lowest > ROUND_TOP - .02, "Blade bites into the round (lowest %.3f)" % lowest)
 	assert(dock.global_position.distance_to(spot.global_position + offset) < .001,
-		"Spinning the mechanism must not move the docking point")
+		"Running the mechanism must not move the docking point")
+
 	island.consumer_powered_states[Vector2i.ZERO] = false
 	spinner._process(2.0)
 	var stopped := spinner._targets[0].basis
-	var stopped_arm := arm.transform
+	var stopped_helve := helve.transform
 	spinner._process(.1)
-	assert(spinner._targets[0].basis.is_equal_approx(stopped), "Generator stops after coasting down")
-	assert(arm.transform.is_equal_approx(stopped_arm), "Harvester stops after coasting down")
-	print("Logger bounds ", bounds, " socket offset ", offset)
+	assert(spinner._targets[0].basis.is_equal_approx(stopped), "Machine stops after coasting down")
+	assert(helve.transform.is_equal_approx(stopped_helve), "Axe stops after coasting down")
+	print("Logger bounds ", bounds, " socket offset ", offset, " blade low ", lowest)
 	print("LOGGER_CAMP MODEL CHECK OK")
 	renderer.free()
 	model.free()
 	quit()
 
+
+# Exact bounds from the vertices: a rotated part's transformed AABB would overstate its reach.
+func _bounds(model: Node3D, meshes: Array) -> AABB:
+	var result := AABB()
+	var first := true
+	for node in meshes:
+		var mesh := node as MeshInstance3D
+		var to_model := model.global_transform.affine_inverse() * mesh.global_transform
+		for vertex in mesh.mesh.get_faces():
+			var point := to_model * vertex
+			result = AABB(point, Vector3.ZERO) if first else result.expand(point)
+			first = false
+	return result

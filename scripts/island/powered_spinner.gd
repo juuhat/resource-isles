@@ -1,8 +1,8 @@
 class_name PoweredSpinner
 extends Node
 
-# Spins or sweeps a power consumer's moving parts (blades, generator pivots and harvester
-# arms) only while the building is powered, easing up to speed and coasting down when the
+# Spins or chops a power consumer's moving parts (blades, generator pivots and the logger's
+# axe) only while the building is powered, easing up to speed and coasting down when the
 # power stops. Like BladeSpinner, it is added as a child of the spawned model, polls its
 # island's powered flag (set every frame by PowerManager, including the robot's Operate
 # hand-power) and is freed with the model on the next re-render.
@@ -10,6 +10,9 @@ extends Node
 # Seconds to reach full speed, and to coast back to a stop.
 const SPIN_UP_SECONDS := 0.6
 const SPIN_DOWN_SECONDS := 1.4
+# The chop stroke as fractions of its period: a fast drop, a pause in the wood, a slow lift.
+const CHOP_DROP_END := 0.12
+const CHOP_LIFT_START := 0.58
 
 var island: IslandData
 var anchor_cell := Vector2i(-1, -1)
@@ -17,7 +20,7 @@ var _targets: Array[Node3D] = []
 var _axes: Array[Vector3] = []
 var _speeds: Array[float] = []
 var _throttle := 0.0
-var _sweeps: Array[Dictionary] = []
+var _chops: Array[Dictionary] = []
 
 
 func add_target(target: Node3D, axis: Vector3, degrees_per_second: float) -> void:
@@ -27,13 +30,26 @@ func add_target(target: Node3D, axis: Vector3, degrees_per_second: float) -> voi
 
 
 func has_targets() -> bool:
-	return not _targets.is_empty() or not _sweeps.is_empty()
+	return not _targets.is_empty() or not _chops.is_empty()
 
 
-# Bounded motion for machines such as a harvester arm; keep its authored pose as the centre.
-func add_sweep(target: Node3D, axis: Vector3, amplitude_degrees: float, period_seconds: float) -> void:
-	_sweeps.append({target = target, axis = axis.normalized(), rest = target.transform,
-		amplitude = deg_to_rad(amplitude_degrees), period = maxf(period_seconds, .01), phase = 0.0})
+# Trip-hammer stroke for the logger's axe: the authored pose is the top of the stroke, and each
+# period it drops strike_degrees about axis, rests in the wood, then lifts back slowly. Phase
+# advances with the same throttle as the spinning parts, so a cam spun at a whole multiple of
+# the stroke stays in step with it.
+func add_chop(target: Node3D, axis: Vector3, strike_degrees: float, period_seconds: float) -> void:
+	_chops.append({target = target, axis = axis.normalized(), rest = target.transform,
+		strike = deg_to_rad(strike_degrees), period = maxf(period_seconds, .01), phase = 0.0})
+
+
+# 0 at the top of the stroke, 1 with the blade in the wood.
+static func chop_depth(phase: float) -> float:
+	if phase < CHOP_DROP_END:
+		var t := phase / CHOP_DROP_END
+		return t * t
+	if phase < CHOP_LIFT_START:
+		return 1.0
+	return 1.0 - smoothstep(CHOP_LIFT_START, 1.0, phase)
 
 
 func _process(delta: float) -> void:
@@ -46,10 +62,10 @@ func _process(delta: float) -> void:
 	for i in _targets.size():
 		if is_instance_valid(_targets[i]):
 			_targets[i].rotate_object_local(_axes[i], _speeds[i] * _throttle * delta)
-	for sweep in _sweeps:
-		var target := sweep.target as Node3D
+	for chop in _chops:
+		var target := chop.target as Node3D
 		if not is_instance_valid(target):
 			continue
-		sweep.phase = fmod(float(sweep.phase) + TAU * delta * _throttle / float(sweep.period), TAU)
-		target.transform = sweep.rest
-		target.rotate_object_local(sweep.axis, sin(float(sweep.phase)) * float(sweep.amplitude))
+		chop.phase = fmod(float(chop.phase) + delta * _throttle / float(chop.period), 1.0)
+		target.transform = chop.rest
+		target.rotate_object_local(chop.axis, chop_depth(float(chop.phase)) * float(chop.strike))

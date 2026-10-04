@@ -1,9 +1,13 @@
-"""Blender --background --python tools/build_logger_camp.py.
+"""Blender --background --python tools/build_logger_camp.py: powered chopping axe.
 
-Stationary forestry cutter: articulated iron boom, horizontal circular saw head,
-timber pedestal and shared hand-PTO generator. True tile scale, front toward -Y.
-HarvesterArmPivot keeps the hydraulic assembly together for a bounded powered
-sweep. ForestBladePivot spins the horizontal blade independently of the arm.
+A trip hammer at true tile scale, front toward -Y: a timber helve on a fulcrum carries a broad
+axe head over a chopping block, so the machine works its own wood wherever it stands. The
+shared hand-PTO generator belts up to a cross shaft and right-angle gearbox (as the quarry's
+drill), turning a two-wiper cam that lifts the helve by its tappet.
+
+AxeHelvePivot holds the helve and head, authored RAISED (the top of the stroke, where an idle
+camp rests); the game's chop drops it STRIKE_DEGREES onto the round. AxeCamPivot and
+AxePulleyPivot spin. One wiper is authored just releasing the tappet, the moment the drop begins.
 """
 import math
 import sys
@@ -12,9 +16,8 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bpy
-from mathutils import Vector
 from lowpoly_kit import (PALETTE, TILE, reset_scene, material, box, cylinder, beam,
-                         log, marker, export, render_preview)
+                         log, prism_y, marker, export, render_preview)
 from build_shared_generator import build_shared_generator
 
 reset_scene()
@@ -23,124 +26,129 @@ end = material('Cut wood', PALETTE['cut_wood'])
 plank = material('Planks', PALETTE['plank'])
 dark = material('Iron', PALETTE['iron'])
 steel = material('Steel', PALETTE['steel'])
-teal = material('Teal', PALETTE['teal'])
-cream = material('Cream', PALETTE['cream'])
-amber = material('Amber', PALETTE['amber'])
 WORK_Y = -.30 * TILE
-BASE = Vector((.32, .48, .30))
+AY = .36                  # plane the helve swings in
+BX = -.30                 # chopping block and axe head
+PX, PZ = -.76, .80        # fulcrum pin
+STRIKE_DEGREES = 26       # keep in step with IslandRenderer's chop
+CY, CR = AY - .09, .15    # cam plane, in front of the helve, and wiper reach
+RELEASE_DEGREES = 100     # wiper angle (from +X toward +Z) as it lets the tappet go
+TAPPET_X, TAPPET_W = -.55, .07
 
-# Broad sleepers and a small raised pedestal, rather than a terrain platform.
-for x in [BASE.x-.20, BASE.x+.20]:
-    box('Pedestal sleeper', (x, BASE.y, .055), (.14, .60, .11), wood)
-box('Pedestal cross tie', (BASE.x, BASE.y, .15), (.58, .40, .12), wood)
-cylinder('Fixed slew bearing', (BASE.x, BASE.y, .21), BASE, .26, dark, 12)
-arm = marker('HarvesterArmPivot', BASE)
 
-
-def moving(obj, parent=arm):
+def moving(obj, pivot):
     bpy.context.view_layer.update()
     world = obj.matrix_world.copy()
-    obj.parent = parent
+    obj.parent = pivot
     obj.matrix_world = world
     return obj
 
 
-def joint(name, point, radius):
-    p = Vector(point)
-    moving(cylinder(name+' cover', p+Vector((0, -.105, 0)),
-                    p+Vector((0, .105, 0)), radius, teal))
-    moving(cylinder(name+' pin', p+Vector((0, -.125, 0)),
-                    p+Vector((0, -.108, 0)), radius*.52, steel))
+def raised(x, z):
+    """Where a point authored in the strike pose sits once the helve is lifted."""
+    a = math.radians(STRIKE_DEGREES)
+    dx, dz = x - PX, z - PZ
+    return PX + dx*math.cos(a) - dz*math.sin(a), PZ + dx*math.sin(a) + dz*math.cos(a)
 
 
-def piston(name, a, b):
-    a, b = Vector(a), Vector(b)
-    mid = a.lerp(b, .58)
-    moving(cylinder(name+' barrel', a, mid, .042, dark))
-    moving(cylinder(name+' rod', mid, b, .021, steel))
-    for p in [a, b]:
-        moving(cylinder(name+' clevis', p-Vector((0, .04, 0)),
-                        p+Vector((0, .04, 0)), .047, teal))
+# Chopping block: a broad stump with a round stood on end, split by the last blow.
+cylinder('Chopping block', (BX, AY, 0), (BX, AY, .22), .19, wood, 8)
+cylinder('Block top', (BX, AY, .22), (BX, AY, .225), .165, end, 8)
+cylinder('Round bark', (BX, AY, .225), (BX, AY, .44), .13, wood, 8)
+cylinder('Round cut end', (BX, AY, .44), (BX, AY, .452), .11, end, 8)
+cylinder('Round heartwood', (BX, AY, .452), (BX, AY, .456), .04, plank, 8)
+box('Split seam', (BX, AY, .4545), (.20, .014, .006), dark)
 
+# Fulcrum: two posts on a sill.
+box('Fulcrum sill', (PX, AY, .045), (.17, .44, .09), wood)
+for y in [AY - .11, AY + .11]:
+    box('Fulcrum post', (PX, y, .45), (.10, .07, .82), wood)
+    box('Post end', (PX, y, .875), (.10, .07, .03), end)
 
-# Recognizable bent boom: tall shoulder, high elbow, short downward forearm.
-shoulder = Vector((.32, .48, .53))
-elbow = Vector((-.02, .48, 1.22))
-wrist = Vector((-.63, .23, .72))
-moving(cylinder('Rotating turret', BASE, BASE+Vector((0, 0, .12)), .225, teal, 12))
-moving(box('Boom foot', (.32, .48, .44), (.25, .24, .20), teal))
-moving(beam('Main boom', shoulder, elbow, .17, dark))
-moving(beam('Outer boom', elbow, wrist, .13, dark))
-joint('Shoulder', shoulder, .14)
-joint('Elbow', elbow, .13)
-joint('Wrist', wrist, .095)
-piston('Lift piston', (.51, .35, .44), (.11, .35, .99))
-piston('Reach piston', (.05, .50, 1.25), (-.51, .30, .86))
+# Helve and axe head, authored in the strike pose (bit in the round), then lifted.
+helve = marker('AxeHelvePivot', (PX, AY, PZ))
+moving(beam('Helve', (-.92, AY, PZ), (-.14, AY, PZ), .075, wood), helve)
+moving(cylinder('Fulcrum pin', (PX, AY - .16, PZ), (PX, AY + .16, PZ), .03, steel), helve)
+for x in [-.90, -.16]:
+    moving(box('Helve band', (x, AY, PZ), (.035, .09, .09), dark), helve)
+tappet_bottom = PZ - .0375 - .05
+moving(box('Cam tappet', (TAPPET_X, CY + .02, tappet_bottom + .025), (TAPPET_W, .11, .05), dark), helve)
+# Broad face toward the camera: a cheek around the helve flaring to a wide steel bit.
+cheek = [(BX - .06, PZ + .065), (BX + .06, PZ + .065), (BX + .06, PZ - .06), (BX + .13, .56),
+         (BX - .13, .56), (BX - .06, PZ - .06)]
+moving(prism_y('Axe head', cheek, AY - .05, AY + .05, dark), helve)
+bit = [(BX - .13, .56), (BX + .13, .56), (BX + .15, .45), (BX - .15, .45)]
+moving(prism_y('Axe bit', bit, AY - .03, AY + .03, steel), helve)
+helve.rotation_euler.y = -math.radians(STRIKE_DEGREES)
 
-# Low horizontal felling blade cuts across trunks as the boom sweeps.
-HX, HY = wrist.x, wrist.y
-moving(box('Saw drive housing', (HX, HY, .59), (.20, .19, .16), teal))
-moving(box('Head front cover', (HX, HY-.103, .59), (.13, .022, .08), cream))
-moving(box('Head status light', (HX+.074, HY-.115, .59), (.025, .016, .055), amber))
-moving(cylinder('Saw spindle', (HX, HY, .415), (HX, HY, .52), .038, steel))
-blade_pivot = moving(marker('ForestBladePivot', (HX, HY, .42)))
-n = 32
-verts = []
-for z in [.408, .432]:
-    for i in range(n):
-        angle = math.tau*i/n
-        r = .255 if i % 2 == 0 else .215
-        verts.append((HX+r*math.cos(angle), HY+r*math.sin(angle), z))
-faces = [tuple(reversed(range(n))), tuple(range(n, 2*n))]
-faces += [(i, (i+1)%n, (i+1)%n+n, i+n) for i in range(n)]
-mesh = bpy.data.meshes.new('Horizontal felling saw mesh')
-mesh.from_pydata(verts, [], faces)
-mesh.update()
-blade = bpy.data.objects.new('Forest cutting blade', mesh)
-bpy.context.collection.objects.link(blade)
-mesh.materials.append(steel)
-moving(blade, blade_pivot)
-moving(cylinder('Blade hub', (HX, HY, .432), (HX, HY, .465), .066, dark), blade_pivot)
-# One broad inset drive spoke makes the spinning face readable from the game camera.
-moving(box('Blade drive spoke', (HX+.125, HY, .435), (.15, .025, .005), dark), blade_pivot)
+# Two-wiper cam, placed so a wiper tip is at the tappet's trailing edge in the raised pose.
+release_x, release_z = raised(TAPPET_X - TAPPET_W/2, tappet_bottom)
+r = math.radians(RELEASE_DEGREES)
+CX, CZ = release_x - CR*math.cos(r), release_z - CR*math.sin(r)
+cam = marker('AxeCamPivot', (CX, CY, CZ))
+moving(cylinder('Cam hub', (CX, CY - .03, CZ), (CX, CY + .03, CZ), .045, dark, 8), cam)
+for degrees in [RELEASE_DEGREES, RELEASE_DEGREES + 180]:
+    a = math.radians(degrees)
+    tip = (CX + (CR - .022)*math.cos(a), CY, CZ + (CR - .022)*math.sin(a))
+    moving(beam('Cam wiper', (CX, CY, CZ), tip, .04, dark), cam)
+    moving(cylinder('Wiper roller', (tip[0], CY - .03, tip[2]), (tip[0], CY + .03, tip[2]), .022, steel, 6), cam)
 
-# Crosswise harvested logs, two below and one above, behind the working head.
-for y, z in [(.61, .105), (.83, .105), (.72, .285)]:
-    log('Harvested log', -.29, y, z, .74, .105, wood, end, plank, sides=7, axis='X')
-for x in [-.69, .12]:
-    box('Log rack sleeper', (x, .72, .025), (.08, .47, .05), wood)
-
-# Same operator and hand docking as the quarry/sawmill.
-GEN = (.2175, WORK_Y+.20+.265, .15)
+# Socket .2175 right, .20 forward and .40 high from the robot's WorkSpot.
+GEN = (.2175, WORK_Y + .20 + .265, .15)
 build_shared_generator(GEN)
-for x in [GEN[0]-.18, GEN[0]+.18]:
-    box('Generator sleeper', (x, GEN[1]+.08, .045), (.11, .58, .09), wood)
+for x in [GEN[0] - .18, GEN[0] + .18]:
+    box('Generator sleeper', (x, GEN[1] + .08, .045), (.11, .58, .09), wood)
     box('Generator cradle', (x, GEN[1], .12), (.14, .34, .06), wood)
-box('Hydraulic pump', (.32, .26, .29), (.23, .16, .18), teal)
-cylinder('Pump shaft', (.32, .045, .40), (.32, .25, .40), .035, steel)
-# Two coarse hoses run from the pump to the stationary slew bearing.
-for x in [.40, .47]:
-    cylinder('Hydraulic supply', (x, .27, .34), (x, .43, .25), .018, dark, 6)
 
-marker('Footprint', (-.10, .27, .67), (.79, .67, .67))
+# Flywheel belts back to a cross shaft behind the helve, then a gearbox turns the cam shaft.
+FX, SY, PR = GEN[0] + .375, .64, .10
+pulley = marker('AxePulleyPivot', (FX, SY, CZ))
+moving(cylinder('Drive pulley', (FX - .03, SY, CZ), (FX + .03, SY, CZ), PR, dark), pulley)
+moving(cylinder('Pulley hub', (FX + .03, SY, CZ), (FX + .05, SY, CZ), .045, end), pulley)
+moving(beam('Pulley spoke', (FX + .033, SY, CZ), (FX + .033, SY, CZ + PR*.85), .022, steel), pulley)
+cylinder('Cross shaft', (CX, SY, CZ), (FX, SY, CZ), .03, steel)
+cylinder('Cam shaft', (CX, CY, CZ), (CX, SY, CZ), .03, steel)
+box('Cam gearbox', (CX, SY, CZ), (.15, .15, .14), dark)
+box('Shaft bearing', (.46, SY, CZ), (.12, .12, .12), dark)
+for x in [CX, .46]:
+    box('Shaft post', (x, SY, (CZ - .07)/2), (.09, .09, CZ - .07), wood)
+fy, fz, fr = GEN[1] + .015, GEN[2] + .25, .22
+dy, dz = SY - fy, CZ - fz
+base = math.atan2(dz, dy)
+spread = math.acos((fr - PR)/math.hypot(dy, dz))
+for side in [-1, 1]:
+    ny, nz = math.cos(base + side*spread), math.sin(base + side*spread)
+    beam('Drive belt', (FX, fy + fr*ny, fz + fr*nz), (FX, SY + PR*ny, CZ + PR*nz), .035, dark)
+
+# Firewood: split halves by the block, and a crosswise log pile behind the machine.
+for x, y, turn in [(-.54, .06, .5), (-.18, .10, -.3)]:
+    piece = prism_y('Split half', [(-.09, 0), (.09, 0), (.065, .07), (0, .09), (-.065, .07)],
+                    -.10, .10, end)
+    piece.location = (x, y, 0)
+    piece.rotation_euler.z = turn
+for y, z in [(.80, .095), (.98, .095), (.89, .26)]:
+    log('Harvested log', -.28, y, z, .70, .095, wood, end, plank, sides=7, axis='X')
+
+marker('Footprint', (-.13, .27, .67), (.79, .70, .67))
 marker('WorkSpot', (0, WORK_Y, 0))
 
-# Merge moving meshes by material too, preserving the one swivel pivot.
-for mat in [wood, end, plank, dark, steel, teal, cream, amber]:
-    parts = [o for o in bpy.context.scene.objects if o.type == 'MESH'
-             and o.parent == arm and o.data.materials[0] == mat]
-    if not parts:
-        continue
-    bpy.ops.object.select_all(action='DESELECT')
-    for obj in parts:
-        obj.select_set(True)
-    bpy.context.view_layer.objects.active = parts[0]
-    if len(parts) > 1:
-        bpy.ops.object.join()
-    bpy.context.object.name = 'Harvester '+mat.name
+# Merge moving meshes per material under each pivot, keeping the pivots themselves.
+for pivot in [helve, cam, pulley]:
+    for mat in [wood, end, plank, dark, steel]:
+        parts = [o for o in bpy.context.scene.objects if o.type == 'MESH'
+                 and o.parent == pivot and o.data.materials[0] == mat]
+        if not parts:
+            continue
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in parts:
+            obj.select_set(True)
+        bpy.context.view_layer.objects.active = parts[0]
+        if len(parts) > 1:
+            bpy.ops.object.join()
+        bpy.context.object.name = pivot.name.removesuffix('Pivot') + ' ' + mat.name
 
-# Keep imported bounds aligned with the pivot's axes, rather than the first
-# diagonal boom segment's axes after joining.
+# Keep imported bounds aligned with the pivots' axes rather than a joined beam's. Only meshes:
+# the helve pivot's own lift must survive into the export.
 bpy.ops.object.select_all(action='DESELECT')
 for obj in bpy.context.scene.objects:
     if obj.type == 'MESH':

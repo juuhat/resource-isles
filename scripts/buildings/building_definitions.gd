@@ -52,9 +52,9 @@ static func build_all() -> Array[BuildingDefinition]:
 	logger_camp.category = GameTypes.BuildingCategory.RESOURCES
 	logger_camp.texture = LOGGER_CAMP_TEXTURE
 	logger_camp.model = LOGGER_CAMP_MODEL
-	# Stationary forest cutter, with shared hand-PTO socket and open front operator yard.
+	# Powered chopping axe over a block, with shared hand-PTO socket and open front operator yard.
 	logger_camp.true_tile_model = true
-	logger_camp.visual_size_tiles = Vector2(0.766, 0.766)
+	logger_camp.visual_size_tiles = Vector2(0.784, 0.784)
 	logger_camp.cost = {GameTypes.ResourceType.WOOD: 6}
 	logger_camp.required_terrains = [GameTypes.Terrain.GRASS]
 	# Must touch a forest, earns +1 per adjacent forest, but crowding other
@@ -213,8 +213,8 @@ static func build_all() -> Array[BuildingDefinition]:
 	sawmill.true_tile_model = true
 	sawmill.visual_size_tiles = Vector2(0.73, 0.73)
 	sawmill.cost = {
-		GameTypes.ResourceType.WOOD: 8,
-		GameTypes.ResourceType.STONE: 4,
+		GameTypes.ResourceType.WOOD: 10,
+		GameTypes.ResourceType.STONE: 10,
 	}
 	sawmill.required_terrains = [GameTypes.Terrain.GRASS]
 	# Refines raw logs into planks. Placed anywhere on grass — it pulls wood from
@@ -249,8 +249,8 @@ static func build_all() -> Array[BuildingDefinition]:
 	# Size of the billboard fallback only; the true-tile model sets its own scale.
 	dock.visual_size_tiles = Vector2(1.6, 1.6)
 	dock.cost = {
-		GameTypes.ResourceType.WOOD: 10,
-		GameTypes.ResourceType.STONE: 5,
+		GameTypes.ResourceType.PLANKS: 10,
+		GameTypes.ResourceType.STONE: 15,
 	}
 	definitions.append(dock)
 
