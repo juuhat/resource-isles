@@ -882,19 +882,8 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 		footprint = [anchor_cell]
 
 	if definition.model != null:
-		var model := _spawn_model(
-			definition.model,
-			footprint,
-			definition.visual_size_tiles,
-			definition.visual_offset_tiles,
-			definition.visual_rotation_y,
-			Color(0.0, 0.0, 0.0, 0.0),
-			definition.spin_node_name,
-			definition.spin_axis,
-			definition.spin_speed_degrees
-		)
+		var model := _spawn_building_model(definition, footprint, island.get_building_rotation(anchor_cell))
 		if model != null:
-			_fit_placed_model(model, definition, footprint, island.get_building_rotation(anchor_cell))
 			var spot := model.find_child("WorkSpot", true, false) as Node3D
 			if spot != null:
 				_work_spots[anchor_cell] = _local_position_in(spot, model)
@@ -913,6 +902,25 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 	sprite.position = _ground_anchor(footprint) + _offset_xz(definition.visual_offset_tiles)
 	_lift_to_ground(sprite)
 	_objects_root.add_child(sprite)
+
+
+# A building's model sized, placed and turned on its footprint, under _objects_root. Shared by
+# placed buildings and the placement ghost so the ghost shows exactly what will be built.
+func _spawn_building_model(definition: BuildingDefinition, footprint: Array, rotation: int) -> Node3D:
+	var model := _spawn_model(
+		definition.model,
+		footprint,
+		definition.visual_size_tiles,
+		definition.visual_offset_tiles,
+		definition.visual_rotation_y,
+		Color(0.0, 0.0, 0.0, 0.0),
+		definition.spin_node_name,
+		definition.spin_axis,
+		definition.spin_speed_degrees
+	)
+	if model != null:
+		_fit_placed_model(model, definition, footprint, rotation)
+	return model
 
 
 # Finishes a placed building's model after _spawn_model. A true_tile_model gets the kit's fixed
@@ -981,16 +989,17 @@ func _rebuild_preview() -> void:
 		_preview_root.add_child(marker)
 
 	var definition := building_manager.get_definition(placement_building_type)
-	if definition != null and definition.model != null and definition.true_tile_model:
-		# A see-through copy of the model, turned as it will be placed: a multi-tile shape
-		# reads its rotation from the model, which a flat billboard can't show.
-		var ghost_model := definition.model.instantiate() as Node3D
-		_preview_root.add_child(ghost_model)
-		ghost_model.rotation.y = deg_to_rad(definition.visual_rotation_y)
-		_fit_placed_model(ghost_model, definition, footprint, rotation)
-		for node in ghost_model.find_children("*", "GeometryInstance3D", true, false):
-			(node as GeometryInstance3D).transparency = 0.55
-			(node as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if definition != null and definition.model != null:
+		# A see-through copy of the model, sized and turned exactly as it will be placed (a
+		# multi-tile shape reads its rotation from the model, which a flat billboard can't show).
+		# Built under _objects_root like a placed building, then moved over; both roots sit at the
+		# renderer's origin, so reparenting keeps it in place.
+		var ghost_model := _spawn_building_model(definition, footprint, rotation)
+		if ghost_model != null:
+			ghost_model.reparent(_preview_root)
+			for node in ghost_model.find_children("*", "GeometryInstance3D", true, false):
+				(node as GeometryInstance3D).transparency = 0.55
+				(node as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	elif definition != null and definition.texture != null:
 		var ghost := _make_billboard(definition.texture, definition.visual_size_tiles, definition.visual_offset_tiles)
 		ghost.modulate = Color(1.0, 1.0, 1.0, 0.6)

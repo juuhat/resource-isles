@@ -52,7 +52,7 @@ fields:
 
 | Field | Meaning |
 | --- | --- |
-| `texture` | Flat 2D art. Used as the billboard, and as the fallback when no model is set. Also the build-menu icon for buildings. |
+| `texture` | Flat 2D art. Used as the billboard, and as the fallback when no model is set. Buildings with a model show a render of it in the build menu instead; the texture is the menu art only for buildings without one. |
 | `model` | Optional `PackedScene` (a `.glb`/`.gltf`). When set, the renderer instances it **instead of** the texture. |
 | `visual_size_tiles` | Target footprint in tiles. The model is uniformly scaled so its **width spans `visual_size_tiles.x * cell_size`**. `1.0` ≈ one hex. |
 | `visual_offset_tiles` | XZ nudge from the footprint center, in tiles. |
@@ -95,13 +95,14 @@ Because the lift is derived from the measured AABB, models with different origin
    - `visual_offset_tiles` — only if it needs to sit off-center.
 4. The renderer's existing `model != null` branch in `_spawn_resource` / `_spawn_building` picks
    it up automatically — no renderer changes needed. Keep the `texture` too: it stays as the
-   fallback and (for buildings) the menu icon.
+   fallback. The build menu, placement bar and placement ghost all switch to the model too.
 
 ## Current models vs billboards
 
 - **Models:** the robot (`player_model.glb`), both resource nodes (`pine_forest.glb`,
   `stone_deposit.glb`), the crashed-spaceship building (`crashed_spaceship.glb`), and the dock
-  (`dock.glb`, built by `tools/build_dock.py`). The dock covers two tiles and is a
+  (`dock.glb`, built by `tools/build_dock.py`), and the burner generator (`burner_generator.glb`,
+  built by `tools/build_burner_generator.py`). The dock covers two tiles and is a
   `true_tile_model`: fixed scale, origin placed directly on the ground, turned with its footprint.
   See [Building footprints](building-footprints.md).
 - **Still billboards:** the remaining buildings, ground items, and the dock boat. Swapping each

@@ -817,16 +817,18 @@ func _detail_row(icon: Texture2D, text: String, color: Color = TEXT) -> Control:
 
 # --- Art ---
 
+# A building's menu art is its 3D model, so the menu shows what will actually be built. The flat
+# texture is only a fallback for buildings that don't have a model yet.
 func _building_art(definition: BuildingDefinition) -> Texture2D:
-	if definition.texture != null:
-		return definition.texture
 	if definition.model != null:
 		return _model_thumbnail(definition)
+	if definition.texture != null:
+		return definition.texture
 	return BUILDINGS_ICON
 
 
-# Renders a model-only building (no flat art, e.g. the windmill) once into an offscreen
-# viewport, framed on its bounds from a three-quarter view, and reuses that texture.
+# Renders a building's model once into an offscreen viewport, framed on its bounds from a
+# three-quarter view, and reuses that texture.
 func _model_thumbnail(definition: BuildingDefinition) -> Texture2D:
 	if _thumbnails.has(definition.id):
 		return _thumbnails[definition.id]

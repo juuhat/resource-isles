@@ -43,7 +43,7 @@ Author multi-tile models with the low-poly kit at true tile scale and set `true_
 - Markers: `WorkSpot`, where the robot stands to work it (must be on a land tile; the robot walks to whichever footprint tile it falls on), `Footprint`, and `BoatSpot` (where a rowboat moors, used by the dock).
 - Preview it with `render_preview(true_tile=True, tiles=[...])`, one plinth per land tile centre, and `hex_tile()` for water or other preview tiles. [`tools/build_dock.py`](../tools/build_dock.py) is the reference.
 
-While placing, a true-tile model shows as a see-through ghost turned to the chosen rotation, over a green (or red) cap on each tile. Other buildings still use their flat billboard as the ghost.
+While placing, a building with a model shows it as a see-through ghost, sized and turned exactly as the placed building will be, over a green (or red) cap on each tile. Only buildings without a model fall back to their flat billboard.
 
 ## Example: a big end-game building
 

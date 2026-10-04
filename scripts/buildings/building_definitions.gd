@@ -14,6 +14,7 @@ const LOGGER_CAMP_MODEL := preload("res://assets/models/buildings/logger_camp.gl
 const QUARRY_TEXTURE := preload("res://assets/buildings/quarry.png")
 const QUARRY_MODEL := preload("res://assets/models/buildings/quarry.glb")
 const BURNER_GENERATOR_TEXTURE := preload("res://assets/buildings/burner_generator.png")
+const BURNER_GENERATOR_MODEL := preload("res://assets/models/buildings/burner_generator.glb")
 const SAWMILL_TEXTURE := preload("res://assets/buildings/sawmill.png")
 const SAWMILL_MODEL := preload("res://assets/models/buildings/sawmill.glb")
 const DOCK_TEXTURE := preload("res://assets/buildings/dock.png")
@@ -152,6 +153,10 @@ static func build_all() -> Array[BuildingDefinition]:
 	burner_generator.description = "Burns wood to power the whole island, freeing the robot from hand-operating buildings. Stalls when the wood runs out."
 	burner_generator.category = GameTypes.BuildingCategory.POWER
 	burner_generator.texture = BURNER_GENERATOR_TEXTURE
+	burner_generator.model = BURNER_GENERATOR_MODEL
+	# Authored at true tile scale (tools/build_burner_generator.py): 1.16 units wide / 2 units per
+	# tile, so the furnace sits in the back of its tile with an open yard in front.
+	burner_generator.visual_size_tiles = Vector2(0.579, 0.579)
 	burner_generator.cost = {
 		GameTypes.ResourceType.WOOD: 4,
 		GameTypes.ResourceType.STONE: 2,
@@ -235,7 +240,7 @@ static func build_all() -> Array[BuildingDefinition]:
 	dock.auto_rotate = true
 	# Authored at true tile scale (tools/build_dock.py), origin midway between the two tiles.
 	dock.true_tile_model = true
-	# Size of the 2D placement ghost only; the true-tile model sets its own scale.
+	# Size of the billboard fallback only; the true-tile model sets its own scale.
 	dock.visual_size_tiles = Vector2(1.6, 1.6)
 	dock.cost = {
 		GameTypes.ResourceType.WOOD: 10,
