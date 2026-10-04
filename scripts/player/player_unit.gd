@@ -34,6 +34,12 @@ const SELECT_SOUNDS: Array[AudioStream] = [
 # How quickly the model turns to face its travel direction (higher = snappier).
 @export var turn_speed := 12.0
 
+# Work swings (see set_work): the clip played while parked, and the tool node in the robot's
+# hand that only shows during it (tools/build_player_robot.py).
+const WORK_CLIPS := {"chop": "HeldAxe", "mine": "HeldPickaxe"}
+# How long a tool takes to pop into the hand when a swing starts.
+const EQUIP_TIME := 0.15
+
 var renderer: IslandRenderer
 var current_cell := Vector2i(-1, -1)
 var selected := false
@@ -46,6 +52,10 @@ var _model: Node3D
 var _animation_player: AnimationPlayer
 var _idle_animation := ""
 var _walk_animation := ""
+# Work kind ("chop", "mine") -> its clip name and its held tool node.
+var _work_animations := {}
+var _held_tools := {}
+var _work := ""
 var _marker: MeshInstance3D
 var _marker_material: StandardMaterial3D
 var _select_player: AudioStreamPlayer
@@ -154,6 +164,13 @@ func face_toward(world_target: Vector3, nudge_tiles := 0.0) -> void:
 	_rest_position = base + flat.normalized() * nudge_tiles * cell_size.x
 	_rest_yaw = atan2(flat.x, flat.z) + MODEL_YAW_OFFSET
 	_has_rest = true
+
+
+# Swing a tool while parked: "chop" (axe) or "mine" (pickaxe), or "" to stop. Walking still plays
+# the walk clip; the swing resumes once parked again.
+func set_work(kind: String) -> void:
+	_work = kind
+	_update_animation()
 
 
 func set_selected(value: bool) -> void:
@@ -283,15 +300,38 @@ func _setup_animations() -> void:
 			_idle_animation = animation_name
 		elif clip == "walk":
 			_walk_animation = animation_name
+		elif WORK_CLIPS.has(clip):
+			_work_animations[clip] = animation_name
 		else:
 			continue
 		_animation_player.get_animation(animation_name).loop_mode = Animation.LOOP_LINEAR
+	for kind in WORK_CLIPS:
+		var tool := _model.find_child(WORK_CLIPS[kind], true, false) as Node3D
+		if tool != null:
+			tool.visible = false
+			_held_tools[kind] = tool
 	_update_animation()
 
 
 func _update_animation() -> void:
 	if _animation_player == null:
 		return
-	var animation_name := _walk_animation if _moving else _idle_animation
+	var working := not _moving and _work_animations.has(_work)
+	var animation_name: String = _walk_animation if _moving else _idle_animation
+	if working:
+		animation_name = _work_animations[_work]
 	if not animation_name.is_empty() and _animation_player.current_animation != animation_name:
 		_animation_player.play(animation_name, 0.12)
+	for kind in _held_tools:
+		_show_tool(_held_tools[kind], working and kind == _work)
+
+
+# Pops a held tool into the hand (scaling up from nothing) or hides it.
+func _show_tool(tool: Node3D, shown: bool) -> void:
+	if tool.visible == shown:
+		return
+	tool.visible = shown
+	if shown:
+		tool.scale = Vector3.ONE * 0.01
+		var tween := create_tween().tween_property(tool, "scale", Vector3.ONE, EQUIP_TIME)
+		tween.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

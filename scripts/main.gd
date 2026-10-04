@@ -899,6 +899,8 @@ func _on_harvest_pressed() -> void:
 	harvest_cell = harvestable_cell
 	harvest_resource_type = definition.extracted_resource_type
 	_harvest_accum = 0.0
+	# Trees are chopped with the axe; stone, ore and coal are mined with the pickaxe.
+	player_unit.set_work("chop" if harvest_resource_type == GameTypes.ResourceType.WOOD else "mine")
 	_refresh_action_bar()
 
 
@@ -910,6 +912,8 @@ func _stop_harvesting() -> void:
 	harvest_cell = Vector2i(-1, -1)
 	harvest_resource_type = -1
 	_harvest_accum = 0.0
+	if player_unit != null:
+		player_unit.set_work("")
 
 
 func _on_operate_pressed() -> void:

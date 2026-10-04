@@ -32,32 +32,51 @@ and legs animate independently through parented nodes, which are preserved in th
   The antenna nods with each step and sways a beat behind the body.
   It is an in-place cycle; gameplay code provides translation and turning. The stance boot
   stays on the ground while the swing boot lifts.
+- **Chop:** 1.0-second loop swinging the axe: a slow wind-up overhead, a fast level blow into
+  the trunk with the body leaning and twisting into it, a recoil, and back to ready. The
+  antenna whips forward on impact.
+- **Mine:** 1.2-second loop with the pickaxe: a higher wind-up and a steeper blow down into
+  the rock, bending further in.
 
-Each pivot has Idle and Walk NLA tracks in Blender, exported into two combined clips. Idle is
-enabled in the saved Blender source; switch the matching tracks together to preview Walk.
-`PlayerUnit` finds the imported AnimationPlayer, loops both clips, and blends between them
-according to movement state. Harvesting and operating currently use the idle pose.
+The swings use the same axe and pickaxe as the ground pickups (`build_axe` and
+`build_pickaxe` from [tools/build_robot_tools.py](../tools/build_robot_tools.py)), each merged
+into one mesh, `HeldAxe` and `HeldPickaxe`. They sit in the robot's own right hand (the
+`LeftArmPivot`, named as seen from the front) on a `ToolPivot` wrist between the gripper fingers,
+which the swings rotate for the wrist snap. The key poses are in `SWINGS` in the builder.
+
+Each pivot has an NLA track per clip in Blender, exported into combined clips. Idle is enabled
+in the saved Blender source; switch the matching tracks together to preview another clip.
+`PlayerUnit` finds the imported AnimationPlayer, loops every clip, and blends between them.
+It hides both held tools at load. `set_work("chop")` or `set_work("mine")` plays that swing
+while parked and pops its tool into the hand. Walking plays the walk clip with the tool put
+away, and the swing resumes once parked again. `set_work("")` goes back to idle. `main.gd`
+starts the chop for trees and the mine for stone, ore and coal when harvesting begins, and
+stops it when harvesting ends. Operating still uses the idle pose.
 
 ## Files and rebuilding
 
 - [Builder](../tools/build_player_robot.py): deterministic geometry and animation source.
 - [Blender source](../art/blender/salvage_robot.blend): editable model, rig, clips, and studio.
-- [GLB](../assets/models/units/salvage_robot.glb): game asset with both animation clips.
+- [GLB](../assets/models/units/salvage_robot.glb): game asset with all four animation clips.
 - [Still preview](../art/previews/salvage_robot.png).
 - [Walk preview](../art/previews/salvage_robot_walk.gif).
+- Swing previews: ten side-on frames each in `art/previews/salvage_robot_chop/` and
+  `art/previews/salvage_robot_mine/`.
 
 Run Blender 5.0 with `--background --python tools/build_player_robot.py`. This exports the GLB,
-saves the Blender source, and renders the still plus twelve walk frames. Run
+saves the Blender source, and renders the still, twelve walk frames and the swing frames. Run
 `tools/assemble_robot_preview.py` with a Python environment containing Pillow to assemble
 the walk GIF. Reimport in Godot after rebuilding the asset.
 
 `tools/player_model_check.gd` checks imported clips, moving pivots, absence of root motion,
-and idle/walk transitions through an actual movement command without touching saves.
+and idle/walk transitions through an actual movement command without touching saves. It also
+checks the swings: each plays with only its own tool showing, the tool is put away while
+walking and returns once parked, and stopping work goes back to idle.
 The existing robot-access check also passed with the new model and building work spots.
 
 ## Next visual pass
 
 - Judge size, silhouette, and walk rhythm at normal gameplay zoom.
-- Add chopping, mining, building, operating, and rescue clips, with matching gameplay hooks.
+- Add building, operating, and rescue clips, with matching gameplay hooks.
 - Update the command-bar portrait to match the accepted robot design.
 - Refine proportions and personality after the first in-game playtest.

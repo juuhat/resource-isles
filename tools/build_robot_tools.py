@@ -14,6 +14,9 @@ Modelled upright (handle along +Z, details on the +Y face), then laid flat on th
 silhouette faces the camera. True tile scale (lowpoly_kit.TILE units per tile): every tool is
 TOOL_LENGTH_TILES long, its origin at the centre of its bounds on the ground, head toward -Y
 (Godot +Z). The game spawns it at the fixed true-tile scale and turns it per pickup.
+
+tools/build_player_robot.py imports build_axe and build_pickaxe to put the same tools in the
+robot's hand for its Chop and Mine clips; importing builds nothing on its own.
 """
 import math
 import sys
@@ -30,7 +33,6 @@ from lowpoly_kit import (ROOT, PALETTE, TILE, mix, reset_scene, material, box, c
 # Sized for the robot (0.45 tiles tall) to carry: about two thirds of its height.
 TOOL_LENGTH_TILES = .3
 
-reset_scene()
 cream = material('Tool shell cream', PALETTE['cream'])
 teal = material('Tool workshop teal', PALETTE['teal'])
 iron = material('Tool socket iron', PALETTE['iron'])
@@ -167,21 +169,28 @@ def lay_flat():
 
 
 TOOLS = [('axe', build_axe), ('pickaxe', build_pickaxe), ('wrench', build_wrench)]
-for name, build in TOOLS:
-    reset_scene()
-    build()
-    lay_flat()
-    export(name, folder='assets/models/items', join_label='Tool ' + name)
-    render_preview('tool_' + name, target_z=0, ortho_scale=1.1, true_tile=True,
-                   camera=(-1.4, -4.3, 4.5), resolution=600)
 
-# Group shot: the three tools on one tile as they might lie after the crash.
-reset_scene()
-for (name, _), (x, y, yaw) in zip(TOOLS, [(-.35, .15, 35), (.15, .3, -20), (.35, -.25, 70)]):
-    bpy.ops.import_scene.gltf(filepath=str(ROOT / 'assets/models/items' / (name + '.glb')))
-    for o in bpy.context.selected_objects:
-        if o.parent is None:
-            o.location = (x, y, 0)
-            o.rotation_euler = (0, 0, math.radians(yaw))
-render_preview('robot_tools', target_z=0, ortho_scale=2.0, true_tile=True,
-               camera=(-1.85, -5.7, 6.0), resolution=800)
+
+def main():
+    for name, build in TOOLS:
+        reset_scene()
+        build()
+        lay_flat()
+        export(name, folder='assets/models/items', join_label='Tool ' + name)
+        render_preview('tool_' + name, target_z=0, ortho_scale=1.1, true_tile=True,
+                       camera=(-1.4, -4.3, 4.5), resolution=600)
+
+    # Group shot: the three tools on one tile as they might lie after the crash.
+    reset_scene()
+    for (name, _), (x, y, yaw) in zip(TOOLS, [(-.35, .15, 35), (.15, .3, -20), (.35, -.25, 70)]):
+        bpy.ops.import_scene.gltf(filepath=str(ROOT / 'assets/models/items' / (name + '.glb')))
+        for o in bpy.context.selected_objects:
+            if o.parent is None:
+                o.location = (x, y, 0)
+                o.rotation_euler = (0, 0, math.radians(yaw))
+    render_preview('robot_tools', target_z=0, ortho_scale=2.0, true_tile=True,
+                   camera=(-1.85, -5.7, 6.0), resolution=800)
+
+
+if __name__ == '__main__':
+    main()

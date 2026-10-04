@@ -300,6 +300,9 @@ func _merged_aabb(node: Node3D) -> AABB:
 	var result := AABB()
 	var first := true
 	for mesh in node.find_children("*", "MeshInstance3D", true, false):
+		# Skips hidden parts, such as the robot's held tools outside a swing.
+		if not (mesh as MeshInstance3D).is_visible_in_tree():
+			continue
 		var box: AABB = (mesh as MeshInstance3D).global_transform * (mesh as MeshInstance3D).get_aabb()
 		result = box if first else result.merge(box)
 		first = false

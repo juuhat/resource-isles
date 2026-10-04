@@ -1,20 +1,24 @@
-"""Build the salvage robot, two looping clips, editable source, and studio previews.
+"""Build the salvage robot, its looping clips, editable source, and studio previews.
 
 Blender --background --python tools/build_player_robot.py
 Mechanical pivot rig: rigid parts, no deforming skin or texture dependency.
 Blender front -Y exports as Godot +Z; native standing height is 1.20 to the head top, with
 the antenna rising to 1.445 above that (the game scales by the 1.20 body height).
+Clips: Idle, Walk, and the harvesting swings Chop (axe) and Mine (pickaxe). The axe and pickaxe
+from tools/build_robot_tools.py sit in the robot's right hand as HeldAxe and HeldPickaxe; the
+game shows the one a swing needs and hides both otherwise.
 """
 import math
 import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lowpoly_kit import ROOT, PALETTE, mix, reset_scene, material, box, cylinder, prism_y, render_preview
+from build_robot_tools import build_axe, build_pickaxe
 
 reset_scene()
 cream = material('Robot shell cream', PALETTE['cream'])
@@ -121,11 +125,89 @@ for sign, side in [(-1, 'Left'), (1, 'Right')]:
     shell(side+' boot', (sign*.125, -.045, .05), .18, .26, .10, .018, dark, hip)
     block(side+' toe panel', (sign*.125, -.13, .075), (.145, .065, .045), teal, hip)
 
+# Held tools for the work clips. The robot faces -Y, so the arm at -X ('Left', named as seen
+# from the front) is its own right hand. ToolPivot is the wrist, between the gripper fingers.
+hand = arms[0]
+tool_pivot = pivot('ToolPivot', (-.29, -.02, .30), hand)
+HELD_LENGTH = .72  # butt to head top, a little over half the robot's height
+GRIP_Z = .22  # where the gripper holds the handle, in the tool's own units (butt at 0)
+
+
+def held_tool(name, build):
+    """Build a tool upright at the origin, merge it into one mesh and put it in the hand: handle
+    pointing forward (-Y), blade or point down, held at GRIP_Z."""
+    before = set(bpy.context.scene.objects)
+    build()
+    parts = [o for o in bpy.context.scene.objects if o not in before]
+    bpy.ops.object.select_all(action='DESELECT')
+    for o in parts:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = parts[0]
+    bpy.ops.object.join()
+    tool = bpy.context.object
+    tool.name = name
+    tool.data.transform(tool.matrix_world)
+    tool.matrix_world = Matrix.Identity(4)
+    zs = [v.co.z for v in tool.data.vertices]
+    scale = HELD_LENGTH / (max(zs) - min(zs))
+    # Tool space has the handle along +Z, the blade toward +X and the panel side on +Y; in the
+    # hand those face forward (-Y), down (-Z) and toward the body (+X).
+    turn = Matrix(((0, 1, 0, 0), (0, 0, -1, 0), (-1, 0, 0, 0), (0, 0, 0, 1)))
+    tool.data.transform(Matrix.Translation(tool_pivot.matrix_world.translation) @ turn
+                        @ Matrix.Scale(scale, 4) @ Matrix.Translation((0, 0, -GRIP_Z)))
+    tool.data.update()
+    return attach(tool, tool_pivot)
+
+
+held_tools = [held_tool('HeldAxe', build_axe), held_tool('HeldPickaxe', build_pickaxe)]
+
 bpy.context.view_layer.update()
-animated = [body, head, antenna, *arms, *legs]
+animated = [body, head, antenna, *arms, *legs, tool_pivot]
 rest = {obj.name: (obj.location.copy(), obj.rotation_euler.copy()) for obj in animated}
 scene = bpy.context.scene
 scene.render.fps = 30
+
+
+# Harvesting swings as key poses over one loop (t from 0 to 1), each with the easing into it:
+# ready, a slow wind-up overhead, a fast strike, a recoil, and back to ready. Radians. arm: the
+# tool arm's swing (negative raises it forward), arm_out: its sideways lift, wrist: ToolPivot
+# pitch (positive tips the head down), lean / twist / dip: the body, off: the other arm,
+# nod: head pitch, mast: the antenna whipping with the impact.
+_READY = dict(arm=-.9, arm_out=0, wrist=.6, lean=.05, twist=0, dip=0, off=-.2, nod=0, mast=0)
+SWINGS = {
+    # Level blows into the trunk, the axe horizontal at impact.
+    'Chop': [
+        (0, _READY, None),
+        (.42, dict(arm=-2.6, arm_out=-.5, wrist=-.3, lean=-.08, twist=-.18, dip=0, off=-.5,
+                   nod=-.06, mast=-.08), 'smooth'),
+        (.52, dict(arm=-.95, arm_out=.1, wrist=.95, lean=.2, twist=.14, dip=-.02, off=.25,
+                   nod=.1, mast=.05), 'in'),
+        (.62, dict(arm=-1.0, arm_out=.1, wrist=.85, lean=.17, twist=.12, dip=-.018, off=.2,
+                   nod=.08, mast=.3), 'out'),
+        (1, _READY, 'smooth'),
+    ],
+    # Higher wind-up and a steeper blow down into the rock, bending further in. The wind-ups swing
+    # the arm out so the tool clears the head.
+    'Mine': [
+        (0, _READY, None),
+        (.45, dict(arm=-2.75, arm_out=-.5, wrist=-.35, lean=-.1, twist=-.12, dip=0, off=-.45,
+                   nod=-.08, mast=-.1), 'smooth'),
+        (.55, dict(arm=-.5, arm_out=.08, wrist=.85, lean=.28, twist=.08, dip=-.03, off=.3,
+                   nod=.16, mast=.05), 'in'),
+        (.66, dict(arm=-.55, arm_out=.08, wrist=.78, lean=.25, twist=.07, dip=-.027, off=.25,
+                   nod=.13, mast=.35), 'out'),
+        (1, _READY, 'smooth'),
+    ],
+}
+_EASE = {'smooth': lambda u: u*u*(3-2*u), 'in': lambda u: u*u, 'out': lambda u: 1-(1-u)*(1-u)}
+
+
+def swing_pose(keys, t):
+    for (t0, a, _), (t1, b, ease) in zip(keys, keys[1:]):
+        if t <= t1:
+            u = _EASE[ease]((t-t0)/(t1-t0))
+            return {k: a[k] + (b[k]-a[k])*u for k in a}
+    return dict(keys[-1][1])
 
 
 def animate(clip, end_frame):
@@ -136,7 +218,18 @@ def animate(clip, end_frame):
         phase = 2*math.pi*(frame-1)/(end_frame-1)
         for obj in animated:
             obj.location, obj.rotation_euler = rest[obj.name]
-        if clip == 'Idle':
+        if clip in SWINGS:
+            pose = swing_pose(SWINGS[clip], (frame-1)/(end_frame-1))
+            hand.rotation_euler.x += pose['arm']
+            hand.rotation_euler.y += pose['arm_out']
+            tool_pivot.rotation_euler.x += pose['wrist']
+            body.rotation_euler.x += pose['lean']
+            body.rotation_euler.z += pose['twist']
+            body.location.z += pose['dip']
+            arms[1].rotation_euler.x += pose['off']
+            head.rotation_euler.x += pose['nod']
+            antenna.rotation_euler.x += pose['mast']
+        elif clip == 'Idle':
             body.location.z += .006*(1-math.cos(phase))
             head.rotation_euler.z = .09*math.sin(phase)
             head.rotation_euler.x = .025*math.sin(phase)
@@ -178,6 +271,8 @@ def animate(clip, end_frame):
 
 animate('Idle', 91)  # 3 seconds
 animate('Walk', 25)  # 0.8 seconds, in place
+animate('Chop', 31)  # 1.0 second per blow
+animate('Mine', 37)  # 1.2 seconds per blow
 scene.frame_start, scene.frame_end = 1, 91
 scene.frame_set(1)
 
@@ -195,18 +290,23 @@ bpy.ops.export_scene.gltf(filepath=str(asset_path), export_format='GLB', use_sel
                           export_force_sampling=True)
 print('SALVAGE_ROBOT exported:', asset_path)
 
-for obj in animated:
-    for track in obj.animation_data.nla_tracks:
-        track.mute = track.name != 'Idle'
+def solo(clip):
+    for obj in animated:
+        for track in obj.animation_data.nla_tracks:
+            track.mute = track.name != clip
+
+
+# The held tools only show in the swing previews, as in the game.
+for tool in held_tools:
+    tool.hide_render = True
+solo('Idle')
 render_preview('salvage_robot', target_z=.60, ortho_scale=1.9,
                camera=(-2.8, -5, 3.1), plinth_radius=.65, resolution=768)
 
 # A twelve-frame walk preview uses the same source rig, not a separate animation.
 frames_dir = ROOT/'art/previews/salvage_robot_walk'
 frames_dir.mkdir(parents=True, exist_ok=True)
-for obj in animated:
-    for track in obj.animation_data.nla_tracks:
-        track.mute = track.name != 'Walk'
+solo('Walk')
 scene.render.resolution_x = scene.render.resolution_y = 384
 scene.cycles.samples = 16
 for i, frame in enumerate(range(1, 25, 2)):
@@ -214,3 +314,20 @@ for i, frame in enumerate(range(1, 25, 2)):
     scene.render.filepath = str(frames_dir/f'{i:02}.png')
     bpy.ops.render.render(write_still=True)
 print('WALK preview frames:', frames_dir)
+
+# Swing previews: ten frames across each blow, held tool shown, from the tool side and a little
+# in front so the arc reads, framed wider for the wind-up.
+scene.camera.location = (-5.2, -1.6, 1.6)
+scene.camera.rotation_euler = (Vector((0, -.25, .62)) - scene.camera.location).to_track_quat('-Z', 'Y').to_euler()
+scene.camera.data.ortho_scale = 2.4
+for clip, tool, end_frame in [('Chop', held_tools[0], 31), ('Mine', held_tools[1], 37)]:
+    frames_dir = ROOT/'art/previews'/('salvage_robot_'+clip.lower())
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    solo(clip)
+    tool.hide_render = False
+    for i in range(10):
+        scene.frame_set(1 + round(i*(end_frame-1)/10))
+        scene.render.filepath = str(frames_dir/f'{i:02}.png')
+        bpy.ops.render.render(write_still=True)
+    tool.hide_render = True
+    print(clip.upper(), 'preview frames:', frames_dir)

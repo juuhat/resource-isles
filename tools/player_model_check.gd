@@ -50,6 +50,34 @@ func _check_model() -> void:
 	assert(player.current_cell == Vector2i(2, 1), "Animated player must finish the movement command")
 	assert(not player.is_moving())
 	assert(player._animation_player.current_animation == player._idle_animation)
+
+	# Harvesting swings: each plays its clip with only its own tool in hand, and walking or
+	# stopping puts the tool away.
+	var axe := model.find_child("HeldAxe", true, false) as Node3D
+	var pickaxe := model.find_child("HeldPickaxe", true, false) as Node3D
+	assert(axe != null and pickaxe != null, "Export must include the held tools")
+	assert(not axe.visible and not pickaxe.visible, "Tools stay hidden outside a swing")
+	for kind in ["chop", "mine"]:
+		assert(player._work_animations.has(kind), "%s clip must be found" % kind)
+		player.set_work(kind)
+		assert(player._animation_player.current_animation == player._work_animations[kind])
+		assert(axe.visible == (kind == "chop") and pickaxe.visible == (kind == "mine"))
+	var wrist := model.find_child("ToolPivot", true, false) as Node3D
+	player._animation_player.advance(0.2)
+	player._animation_player.seek(0.0, true)
+	var wrist_rest := wrist.transform
+	player._animation_player.seek(0.6, true)
+	assert(not wrist.transform.is_equal_approx(wrist_rest), "Mine must swing the tool")
+	player.follow_path([Vector2i(1, 1)] as Array[Vector2i])
+	player._update_animation()
+	assert(player._animation_player.current_animation == player._walk_animation)
+	assert(not pickaxe.visible, "Walking puts the tool away")
+	for i in 120:
+		player._process(1.0 / 60.0)
+	assert(pickaxe.visible, "The swing resumes once parked")
+	player.set_work("")
+	assert(player._animation_player.current_animation == player._idle_animation)
+	assert(not axe.visible and not pickaxe.visible)
 	player.queue_free()
 	renderer.queue_free()
 	await process_frame
