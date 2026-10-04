@@ -53,6 +53,7 @@ const POWER_INDICATOR_GAP_TILES := 0.12
 # the shared PTO generator (tools/build_shared_generator.py); SawBladePivot is the sawmill's.
 const POWERED_SPIN_PARTS := {
 	"SawBladePivot": [Vector3(0, 0, -1), 420.0],
+	"ForestBladePivot": [Vector3(0, 1, 0), 540.0],
 	"DrillPivot": [Vector3(0, 1, 0), 360.0],
 	"DrillPulleyPivot": [Vector3(1, 0, 0), 360.0],
 	"FlywheelPivot": [Vector3(1, 0, 0), 300.0],
@@ -974,6 +975,9 @@ func _add_powered_spinner(anchor_cell: Vector2i, model: Node3D) -> void:
 		var part := model.find_child(part_name, true, false) as Node3D
 		if part != null:
 			spinner.add_target(part, POWERED_SPIN_PARTS[part_name][0], POWERED_SPIN_PARTS[part_name][1])
+	var arm := model.find_child("HarvesterArmPivot", true, false) as Node3D
+	if arm != null:
+		spinner.add_sweep(arm, Vector3.UP, 24.0, 5.0)
 	if spinner.has_targets():
 		model.add_child(spinner)
 	else:

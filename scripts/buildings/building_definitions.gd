@@ -52,9 +52,9 @@ static func build_all() -> Array[BuildingDefinition]:
 	logger_camp.category = GameTypes.BuildingCategory.RESOURCES
 	logger_camp.texture = LOGGER_CAMP_TEXTURE
 	logger_camp.model = LOGGER_CAMP_MODEL
-	# Authored at true tile scale (tools/build_logger_camp.py): 1.11 units wide / 2 units per
-	# tile, so the camp sits in the back of its tile with an open yard in front.
-	logger_camp.visual_size_tiles = Vector2(0.554, 0.554)
+	# Stationary forest cutter, with shared hand-PTO socket and open front operator yard.
+	logger_camp.true_tile_model = true
+	logger_camp.visual_size_tiles = Vector2(0.766, 0.766)
 	logger_camp.cost = {GameTypes.ResourceType.WOOD: 6}
 	logger_camp.required_terrains = [GameTypes.Terrain.GRASS]
 	# Must touch a forest, earns +1 per adjacent forest, but crowding other
