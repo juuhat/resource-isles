@@ -1,5 +1,22 @@
 # To-do list
 
+## Rescue, metals, and manual shipping
+
+See [Rescue, first metals, and boat cargo](docs/rescue-metals-and-cargo.md) for the latest
+design direction. Numbers and the copper/drone unlock are proposed starting points.
+
+- [ ] Delay electricity until after the actual K9-DA rescue on island 2. Remove the island-1 Burner Generator reward and gate the Windmill; keep robot Operate as direct mechanical power beforehand.
+- [ ] Add a fuel-fired Furnace that needs no electricity or iron to build. Proposed cost: 12 stone + 4 wood; proposed smelting recipe: 2 iron ore + 1 coal -> 1 iron ingot. Unlock the Furnace after rescue and before ingot objectives.
+- [ ] Add iron ingots and change the Burner Generator construction recipe to use them. Proposed cost: 6 iron ingots + 4 stone + 2 planks; unlock it after the first smelting lesson.
+- [ ] Keep island 2's iron/coal/stone resources; introduce copper on another ring-1 island as the next exploration target. Design copper processing and its later uses in wiring/drone controls.
+- [ ] Make the robot's boat a unique, upgradeable personal vehicle. Prevent extra docks, dock moves/deletion, and save/load from creating duplicate personal boats; keep K9-DA's passenger space separate from cargo.
+- [x] Add a small personal-boat cargo hold (two resource slots of 20 units each), with island/boat icon slots and drag-and-drop transfers. Ask for stack size after dropping, defaulting to the maximum that fits. See [Boat cargo controls](docs/robot-built-boats.md#personal-boat-cargo).
+- [x] Allow personal-boat cargo transfers at any suitable reachable shoreline, without a Dock building. Unload starter supplies into a new island's stock before constructing its first buildings.
+- [x] Persist boat cargo through sailing, landing, and save/load; enforce stock and capacity limits without duplication or item loss. Checked by `tools/boat_cargo_check.gd`.
+- [ ] Replace the early automatic-route lesson with a manual construction-supply delivery to island 2; tune cargo capacity and recipes so the first furnace does not require tedious repeated trips.
+- [ ] Delay automatic trade routes until after manual hauling, proposed after copper. Make other ships autonomous cargo drones requiring docks at both endpoints; reserve player travel for the personal boat.
+- [ ] Reconcile old boat-tier, dock-bootstrap, quest, and power-ladder plans with this direction. Verify a fresh-game bootstrap with no pre-rescue generator and handle existing saves explicitly.
+
 ## Quest design
 
 See [Quest design review](docs/quest-design.md) for the current chain, proposed teaching sequence,
@@ -7,9 +24,9 @@ and unresolved budgets and unlock decisions. These recommendations are not yet i
 
 - [x] Replace the Scale Up 100-resource gate with a construction lesson: *Lay the Foundations* asks for one Logger's Camp and one Quarry.
 - [ ] Add objectives teaching manual Operate power followed by automatic power.
-- [ ] Make the first supply-line objective track wood actually delivered from home to the frontier colony.
+- [ ] Make the first supply-line objective track wood manually delivered by personal boat from home to the frontier colony; teach autonomous routes later.
 - [ ] Define the payoff after trade; unlock smelting before requiring ingots when the metal-production chain is added.
-- [ ] Resolve ring-1 coal availability against the chosen ring-2 coal-power progression and reconcile the older progression documents.
+- [ ] Reconcile the older power progression: ring-1 coal supports the first Furnace, while electricity waits for rescue and dedicated coal generation can arrive later.
 - [ ] Verify new quest objectives and unlocks with fresh games and existing saves.
 
 ## Player model

@@ -53,6 +53,7 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	var cells := island.get_building_footprint_cells(anchor)
 	var pier := cells[1]
 	var berth := cells[2]
+	var global_berth := WorldNavigation.local_to_world(game.world.current_coord, island, berth)
 	player.place_at(anchor)
 	expect(game._nearby_boat().is_empty(), "Cannot board from the quay two cells away")
 	var approach: Dictionary = game._plan_approach(berth, anchor)
@@ -63,7 +64,7 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	expect(not game._nearby_boat().is_empty(), "Pilot offered beside boat")
 	game._on_action_pressed(game.UnitAction.PILOT_BOAT)
 	await process_frame
-	expect(player.boat_id == 0 and player.current_cell == berth, "Board the boat")
+	expect(player.boat_id == 0 and player.current_cell == global_berth, "Board the boat")
 	expect(player._work == "operate" and player._model.get_parent() == player._vessel, "Robot powers helm aboard")
 	expect(renderer.find_children(IslandRenderer.MOORED_BOAT_NAME, "", true, false).is_empty(), "Launched boat no longer duplicated on dock")
 	if OS.get_cmdline_user_args().has("--screenshot"):
@@ -86,19 +87,20 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	if sea == Vector2i(-1, -1):
 		return
 	expect(game._command_unit_to(sea), "Command boat to water")
+	var global_sea := WorldNavigation.local_to_world(game.world.current_coord, island, sea)
 	var steps := 0
 	while player.is_moving() and steps < 1000:
 		player._process(0.5)
 		steps += 1
-	expect(player.current_cell == sea and not player.is_moving(), "Boat reaches water destination")
+	expect(player.current_cell == global_sea and not player.is_moving(), "Boat reaches water destination")
 	expect(is_equal_approx(player.position.y, renderer.get_water_center(sea).y), "Boat floats at surface")
 	game._disembark_boat()
 	expect(player.boat_id == 0, "Cannot disembark at sea")
-	var restored := IslandData.from_dict(island.to_dict(0.0), 0.0)
-	expect(restored.piloted_boat == 0 and restored.boats[0].cell == sea, "Boat position and occupant survive save")
-	expect(restored.buildings[anchor].boat_launched, "Launch state survives save")
+	var restored := WorldData.from_dict(game.world.to_dict(0.0), 0.0)
+	expect(restored.piloted_boat == 0 and restored.boats[0].cell == global_sea, "Boat position and occupant survive save")
+	expect(restored.get_current().buildings[anchor].boat_launched, "Launch state survives save")
 	game._spawn_player_unit()
-	expect(player.boat_id == 0 and player.current_cell == sea, "Reload resumes piloting")
+	expect(player.boat_id == 0 and player.current_cell == global_sea, "Reload resumes piloting")
 	expect(game._command_unit_to(berth), "Return boat to berth")
 	steps = 0
 	while player.is_moving() and steps < 1000:
@@ -107,9 +109,9 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	expect(game._command_unit_to(pier), "Choose pier as landing")
 	game._on_action_pressed(game.UnitAction.DISEMBARK)
 	expect(player.boat_id == -1 and player.current_cell == pier, "Disembark onto pier")
-	expect(island.boats[0].cell == berth and island.piloted_boat == -1, "Boat stays parked afloat")
+	expect(game.world.boats[0].cell == global_berth and game.world.piloted_boat == -1, "Boat stays parked afloat")
 	game._board_boat()
-	expect(player.boat_id == 0 and island.boats.size() == 1, "Reboard the same boat")
+	expect(player.boat_id == 0 and game.world.boats.size() == 1, "Reboard the same boat")
 	game._on_building_move_requested(GameTypes.BuildingType.DOCK, anchor, island)
 	game._cancel_building_move()
 	await process_frame
@@ -121,4 +123,4 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	expect(not Navigation.can_land(island, berth, pier), "Landing rejects resource obstacles")
 	island.resources.erase(pier)
 	game._on_building_delete_requested(anchor, island)
-	expect(player.boat_id == 0 and player.current_cell == berth, "Removing dock leaves piloted boat afloat")
+	expect(player.boat_id == 0 and player.current_cell == global_berth, "Removing dock leaves piloted boat afloat")

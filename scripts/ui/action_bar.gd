@@ -62,10 +62,15 @@ func _build_action_button(action: Dictionary) -> Button:
 
 	var button := Button.new()
 	button.icon = action.get("icon")
+	button.text = action.get("caption", "")
 	button.expand_icon = true
 	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
 	button.add_theme_constant_override("icon_max_width", ICON_MAX_WIDTH)
+	if not button.text.is_empty():
+		button.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+		button.add_theme_constant_override("icon_max_width", 48)
+		button.add_theme_font_size_override("font_size", 14)
 	button.custom_minimum_size = Vector2(BUTTON_SIZE, BUTTON_SIZE)
 	button.tooltip_text = action.get("label", "")
 	# Idle actions are slightly dimmed; active ones render full strength and get a cancel
@@ -102,6 +107,7 @@ func _build_ui() -> void:
 
 	# Portrait: bottom-right corner, mirror of the building-menu button on the left.
 	portrait = Button.new()
+	portrait.tooltip_text = "Select player and center camera"
 	portrait.icon = PORTRAIT_TEXTURE
 	portrait.expand_icon = true
 	portrait.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER

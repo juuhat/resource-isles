@@ -1,5 +1,11 @@
 # Meshy 3D Model Guide
 
+> **Current style:** Follow [Low Poly Workshop art direction](building-style-palette.md)
+> and [Icons and 2D art](icons-and-2d-art.md). The hand-painted / soft-bevel prompts and
+> legacy 2D-reference advice below are historical. Approved models now define the style:
+> angular flat faces, solid matte palette colors, no painted texture or outlines. Preserve
+> a legacy image's subject only where useful; do not reproduce its obsolete rendering style.
+
 Notes for generating Resource Isles 3D models with Meshy or similar image-to-3D / text-to-3D
 tools. The current game supports real 3D terrain and a 3D player model, while most buildings,
 resource nodes, and boats are still `Sprite3D` billboards. Generated models should be made so

@@ -22,7 +22,7 @@ Low poly, flat-shaded miniature architecture with a frontier-workshop identity: 
 - **Materials:** solid-color matte materials. No painted textures, wood grain, weathering, or scratches.
 - **Shading:** visible flat-face shading. Don't smooth or bevel away the facets.
 - **Bases:** no terrain tile, deck, or plinth under a building. The game's hex tile is the base.
-- **Robot and icons:** use the same low-sided geometry standard as the buildings.
+- **Robot and icons:** use the same low-sided geometry, matte material palette, and flat-face shading as the buildings. See [Icons and 2D art](icons-and-2d-art.md).
 
 ## Workbench style
 
@@ -120,7 +120,7 @@ The boards get the style right but some of their designs break this standard. Do
 | Stone, iron and coal deposits | Scripted builds in `tools/build_deposit.py` (one run per variant: `-- stone`, `-- iron` or `-- coal`) at true tile scale, with footprint (no work spot: the robot harvests from the tile or any neighbour) | Meets the standard. Each is packed from the kit's flat-topped, straight-sided `block()`s (convex hulls, like its `rock()`), after the iron and coal concept board. Stone: a broad main block split open to lighter cut stone, a slab leaning on it, a lower block behind, and lower blocks, the broken-off chunk and rubble around its foot (0.704 tiles wide, 0.454 tall). Iron: a tall mound of grey blocks with bright rust-orange veins wedged between them, ore chunks and rubble at the foot (0.736 wide, 0.580 tall). Coal: a wide, low mound of black coal blocks under a flat grey cap slab, wrapped in grey blocks, coal lumps spilled in front (0.752 wide, 0.301 tall). Each tile turns its deposit up to 45° either way, fixed per cell. |
 | Dock | Scripted build in `tools/build_dock.py` at true tile scale over a line of three tiles (see [Building footprints](building-footprints.md)), with work and boat spots | Meets the standard. A stone quay and cargo crates on the shore tile; a crosswise-boarded pier on pilings over the coast tile, widening into a T-head with a mooring post and a teal beacon post with an amber lamp; the salvage skiff (`tools/build_salvage_skiff.py`) moored stern-to off the pier head on the third, water tile. |
 | Burner generator | Scripted build in `tools/build_burner_generator.py` at true tile scale, with work spot | Meets the standard. A compact vertical furnace: stone firebox with a glowing mouth facing the yard, iron boiler drum and tall chimney; a steam pipe to the teal dynamo on the right, split firewood stacked on the left. 0.579 tiles wide, 0.602 tall. |
-| Icons and building sprites in `assets/icons`, `assets/buildings` | Painterly 2D with dark outlines | Re-render from approved models (see [Icon standard](#icon-standard)). |
+| Icons and building sprites in `assets/icons`, `assets/buildings` | Mostly legacy painterly 2D with dark outlines; Cargo now uses a cream-and-teal mechanical crate | Follow [Icons and 2D art](icons-and-2d-art.md): render from approved models or match their matte, angular style with model references. Legacy outlines and painted textures are superseded. |
 
 
 ## Scale standard
@@ -168,6 +168,14 @@ The movement changes needed to actually use work spots are tracked in [TODO.md](
 ## Icon standard
 
 Render icons from the approved models with a common isometric camera and neutral light. Use a transparent background, a generous safe margin, and consistent framing. Large build-menu icons may show the whole building. Tiny action and resource icons should use a simplified emblem (blade, log, boulder, lightning). Judge each icon at its actual UI size and simplify details that collapse into noise. Keep resource colors and machinery teal consistent with the map.
+
+**Updated 2026-10-04:** The same standard applies to all new 2D item art and UI icons,
+including generated raster assets. Manufactured equipment uses cream shells, teal panels,
+dark iron fittings, and sparse amber indicators, matching the robot and workshop models.
+Raw resources keep their own materials. No drawn outlines, painted grain, weathering,
+glossy shading, or decorative clutter. Use actual approved model previews as references
+when a direct render is unavailable. See [Icons and 2D art](icons-and-2d-art.md) for framing,
+small-size checks, the Cargo crate reference, and the raster prompt template.
 
 ## Asset prompt
 

@@ -3,7 +3,7 @@ extends RefCounted
 
 # A stock of resources owned by one thing. Each island has its own Inventory
 # (per-island inventory; no global pool — see docs/island-unlocks.md). Boat cargo
-# holds will reuse this same class once inter-island transfer lands.
+# holds reuse this class, with BoatCargo enforcing their slot and transfer limits.
 
 signal changed(resource_type: int, amount: int)
 

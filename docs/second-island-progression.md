@@ -1,5 +1,10 @@
 # Second Island Progression
 
+> **Latest direction (2026-10-04):** [Rescue, first metals, and boat cargo](rescue-metals-and-cargo.md)
+> supersedes the older automatic-route prerequisite and powered first Smelter below.
+> Island 2 retains iron/coal/stone; rescue unlocks a fuel-fired Furnace, then iron enables
+> the first generator. Personal-boat cargo supplies the colony before autonomous freight.
+
 See the [2026-10-04 quest design review](quest-design.md) for the proposed windmill unlock,
 targeted first shipment, and onward metal-production payoff. In particular, a Smelter unlock
 must precede any ingot objective; the older milestone table below needs revision before use.

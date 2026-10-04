@@ -49,6 +49,7 @@ const WORK_CLIPS := {"chop": "HeldAxe", "mine": "HeldPickaxe", "operate": "HeldP
 const EQUIP_TIME := 0.15
 
 var renderer: IslandRenderer
+var navigation: WorldNavigation
 var current_cell := Vector2i(-1, -1)
 var selected := false
 var boat_id := -1
@@ -115,8 +116,9 @@ func _ready() -> void:
 	add_child(_select_player)
 
 
-func setup(new_renderer: IslandRenderer) -> void:
+func setup(new_renderer: IslandRenderer, world_navigation: WorldNavigation = null) -> void:
 	renderer = new_renderer
+	navigation = world_navigation
 
 
 func place_at(cell: Vector2i) -> void:
@@ -135,7 +137,7 @@ func mount_boat(id: int, cell: Vector2i, yaw: float) -> void:
 	leave_boat()
 	boat_id = id
 	place_at(cell)
-	position = renderer.get_water_center(cell)
+	position = navigation.cell_center(cell) if navigation != null else renderer.get_water_center(cell)
 	_vessel = Node3D.new()
 	add_child(_vessel)
 	_vessel.rotation.y = yaw
@@ -240,7 +242,7 @@ func _update_marker() -> void:
 	_marker.visible = selected
 	_marker.position = Vector3(0.0, 0.6, 0.0)
 	if not _moving and renderer != null and current_cell != Vector2i(-1, -1):
-		var center := renderer.get_cell_center(current_cell)
+		var center := navigation.cell_center(current_cell) if boat_id != -1 and navigation != null else renderer.get_cell_center(current_cell)
 		_marker.position = Vector3(center.x - position.x, 0.6, center.z - position.z)
 
 
@@ -323,6 +325,8 @@ func _settle(delta: float) -> void:
 
 
 func _advance_to_next() -> void:
+	if boat_id != -1 and navigation != null and not _path.is_empty() and not navigation.can_sail(_path[0], boat_id):
+		_path.clear()
 	if _path.is_empty():
 		if _spot_cell != Vector2i(-1, -1):
 			# Last leg: straight into the building's work spot.
@@ -341,7 +345,7 @@ func _advance_to_next() -> void:
 	_pending_cell = _path.pop_front()
 	_target_world = renderer.get_cell_center(_pending_cell)
 	if boat_id != -1:
-		_target_world = renderer.get_water_center(_pending_cell)
+		_target_world = navigation.cell_center(_pending_cell) if navigation != null else renderer.get_water_center(_pending_cell)
 	_moving = true
 	_update_marker()
 

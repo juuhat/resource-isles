@@ -1,5 +1,9 @@
 # 3D Models
 
+The [Low Poly Workshop art direction](building-style-palette.md) and
+[Icons and 2D art](icons-and-2d-art.md) define the shared model/icon palette and style.
+New flat art should match approved model renders rather than legacy painted sprites.
+
 The player now uses the scripted cream-and-teal salvage robot with idle/walk clips. See
 [Player model](player-model.md) for its rig, source, previews, and rebuild instructions.
 

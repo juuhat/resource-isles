@@ -1,5 +1,9 @@
 # First Island Progression
 
+> **Latest direction (2026-10-04):** [Rescue, first metals, and boat cargo](rescue-metals-and-cargo.md)
+> delays all electricity generation until K9-DA is rescued on island 2. Earlier island-1
+> Burner Generator plans below are superseded; robot Operate remains the opening power source.
+
 See the [2026-10-04 quest design review](quest-design.md) for proposed changes to the opening
 budgets, Scale Up gate, and power lessons. That review distinguishes current behavior from
 recommendations; the older decisions below have not yet been reconciled with it.

@@ -107,6 +107,7 @@ const WATER_FADE_WIDTH := 650.0
 @export var show_grid := true
 
 var island: IslandData
+var world_data: WorldData
 var resource_node_database: ResourceNodeDatabase
 var building_manager: BuildingManager
 var hovered_cell := Vector2i(-1, -1)
@@ -802,14 +803,21 @@ func _rebuild_objects() -> void:
 	for anchor_cell in island.buildings.keys():
 		var building_type: int = island.buildings[anchor_cell].type
 		_spawn_building(anchor_cell, building_type)
-	for id in island.boats:
-		if id == island.piloted_boat:
+	var boat_data := world_data.boats if world_data != null else island.boats
+	for id in boat_data:
+		if id == (world_data.piloted_boat if world_data != null else island.piloted_boat):
 			continue
+		var boat_cell: Vector2i = boat_data[id].cell
+		if world_data != null:
+			var coord := world_data.coord_of(island)
+			boat_cell = WorldNavigation.world_to_local(coord, island, boat_cell)
+			if not island.is_in_bounds(boat_cell):
+				continue
 		var boat := SALVAGE_SKIFF_MODEL.instantiate() as Node3D
 		_objects_root.add_child(boat)
 		boat.scale = Vector3.ONE * cell_size.x / TRUE_TILE_UNITS
-		boat.position = get_water_center(island.boats[id].cell) - position
-		boat.rotation.y = float(island.boats[id].get("yaw", 0.0))
+		boat.position = get_water_center(boat_cell) - position
+		boat.rotation.y = float(boat_data[id].get("yaw", 0.0))
 
 
 func _spawn_resource(cell: Vector2i, resource_node_type: int) -> void:

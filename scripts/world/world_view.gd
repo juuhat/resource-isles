@@ -16,6 +16,8 @@ extends Node3D
 # routes picks through slot_at_ray.
 
 const IslandRendererScript := preload("res://scripts/island/island_renderer.gd")
+const Navigation := preload("res://scripts/world/world_navigation.gd")
+const FrontierFogShader := preload("res://assets/shaders/world_map/frontier_fog.gdshader")
 const DiscOceanShader := preload("res://assets/shaders/world_map/disc_ocean.gdshader")
 const WaterfallShader := preload("res://assets/shaders/world_map/waterfall.gdshader")
 const IslandFogShader := preload("res://assets/shaders/world_map/island_fog.gdshader")
@@ -89,6 +91,8 @@ var _surface: Node3D
 var _clouds: Node3D
 var _islands: Node3D
 var _fog: Node3D
+var _frontier_fog: MeshInstance3D
+var _sailing_hover: MeshInstance3D
 var _labels_root: Node3D
 var _routes: Node3D
 var _ocean_material: ShaderMaterial
@@ -163,6 +167,7 @@ func refresh() -> void:
 		_charted_radius = charted_radius
 		_ocean_material.set_shader_parameter("charted_radius", _charted_radius)
 		_build_clouds()
+		_build_frontier_fog()
 
 	_sync_islands()
 	_build_labels()
@@ -172,6 +177,64 @@ func refresh() -> void:
 # The renderer drawing the island at `coord`, or null if it is not revealed (or not generated).
 func renderer_for(coord: Vector2i) -> IslandRenderer:
 	return _renderers.get(coord)
+
+
+func show_sailing_hover(point: Vector3, color: Color) -> void:
+	if _sailing_hover == null:
+		_sailing_hover = MeshInstance3D.new()
+		add_child(_sailing_hover)
+		var surface := SurfaceTool.new()
+		surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var ring := HexGrid.hex_corners_3d(Vector3.ZERO, Navigation.CELL_SIZE)
+		for index in 6:
+			for vertex in [Vector3.ZERO, ring[index], ring[(index + 1) % 6]]:
+				surface.set_normal(Vector3.UP)
+				surface.add_vertex(vertex)
+		_sailing_hover.mesh = surface.commit()
+		var material := StandardMaterial3D.new()
+		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_sailing_hover.material_override = material
+	_sailing_hover.position = point + Vector3.UP * 0.7
+	_sailing_hover.material_override.albedo_color = color
+	_sailing_hover.visible = true
+
+
+func hide_sailing_hover() -> void:
+	if _sailing_hover != null:
+		_sailing_hover.visible = false
+
+
+# The foot of this continuous fog bank shares WorldNavigation's sailing boundary.
+func _build_frontier_fog() -> void:
+	if _frontier_fog != null:
+		_frontier_fog.free()
+	_frontier_fog = MeshInstance3D.new()
+	_frontier_fog.name = "SailingFrontierFog"
+	_fog.add_child(_frontier_fog)
+	var radius := (world.revealed_rings + 0.5) * RING_SPACING
+	var rings := [Vector2(radius - 128.0, Navigation.SEA_Y), Vector2(radius + 192.0, 420.0), Vector2(world_disc_radius(), 420.0)]
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for band in range(rings.size() - 1):
+		for segment in 192:
+			var a := TAU * segment / 192.0
+			var b := TAU * (segment + 1) / 192.0
+			var points: Array[Vector3] = []
+			for ring in [rings[band], rings[band + 1]]:
+				for angle in [a, b]:
+					points.append(Vector3(cos(angle) * ring.x, ring.y, sin(angle) * ring.x))
+			for index in [0, 2, 1, 1, 2, 3]:
+				surface.set_normal(Vector3.UP)
+				surface.add_vertex(points[index])
+	_frontier_fog.mesh = surface.commit()
+	_frontier_fog.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var material := ShaderMaterial.new()
+	material.shader = FrontierFogShader
+	material.set_shader_parameter("frontier_radius", radius)
+	material.set_shader_parameter("cloud_noise", DistortNoise)
+	_frontier_fog.material_override = material
 
 
 func set_show_grid(value: bool) -> void:
@@ -238,16 +301,15 @@ func set_hovered(coord: Vector2i) -> void:
 
 func set_current_coord(_coord: Vector2i) -> void:
 	for coord in _renderers:
-		(_renderers[coord] as IslandRenderer).set_explored(world.get_island(coord).visited)
+		(_renderers[coord] as IslandRenderer).set_explored(world.get_island(coord).visited or world.get_island(coord).sighted)
 	_style_labels()
 
 
 # Where a slot sits in the world (on the water plane).
 static func slot_position(coord: Vector2i) -> Vector3:
-	# Axial -> plane, scaled so a ring-1 slot is exactly RING_SPACING out.
-	var x := sqrt(3.0) * (coord.x + coord.y * 0.5)
-	var z := 1.5 * coord.y
-	return Vector3(x, 0.0, z) * (RING_SPACING / sqrt(3.0))
+	var center := Navigation.slot_center(coord)
+	center.y = 0.0
+	return center
 
 
 func _process(delta: float) -> void:
@@ -265,7 +327,7 @@ func _sync_islands() -> void:
 		if island != null and world.is_revealed(coord):
 			if not _renderers.has(coord):
 				_add_renderer(coord, island)
-			(_renderers[coord] as IslandRenderer).set_explored(island.visited)
+			(_renderers[coord] as IslandRenderer).set_explored(island.visited or island.sighted)
 			if _fog_banks.has(coord):
 				_lift_fog_bank(coord)
 		elif not _fog_banks.has(coord):
@@ -278,15 +340,17 @@ func _add_renderer(coord: Vector2i, island: IslandData) -> void:
 	var renderer: IslandRenderer = IslandRendererScript.new()
 	renderer.name = "Island_%d_%d" % [coord.x, coord.y]
 	renderer.setup(resource_node_database, building_manager)
+	renderer.world_data = world
 	renderer.show_grid = _show_grid
 	# In the tree first (its _ready builds the scene roots), then positioned so the island's grid
 	# centre sits on the slot, then rendered (the water shader needs the final world position).
 	_islands.add_child(renderer)
-	var center := IslandRendererScript.grid_center(island.width, island.height, renderer.cell_size)
-	var slot := slot_position(coord)
-	renderer.position = Vector3(slot.x - center.x, 0.0, slot.z - center.z)
+	var global_zero := Navigation.local_to_world(coord, island, Vector2i.ZERO)
+	var origin := Navigation.cell_center(global_zero) - HexGrid.cell_center_3d(Vector2i.ZERO, renderer.cell_size)
+	origin.y = 0.0
+	renderer.position = origin
 	renderer.render(island)
-	renderer.set_explored(island.visited)
+	renderer.set_explored(island.visited or island.sighted)
 	_renderers[coord] = renderer
 
 
@@ -413,6 +477,8 @@ func _build_planet() -> void:
 	var plane := PlaneMesh.new()
 	plane.size = Vector2.ONE * (_disc_radius * 2.0 + 2.0)
 	ocean.mesh = plane
+	# Just under local transparent water to avoid two coplanar surfaces at their overlap.
+	ocean.position.y = (Navigation.SEA_Y - 0.2 - SEA_LEVEL_Y) / DISC_SCALE
 	_ocean_material = ShaderMaterial.new()
 	_ocean_material.shader = DiscOceanShader
 	_ocean_material.set_shader_parameter("disc_radius", _disc_radius)

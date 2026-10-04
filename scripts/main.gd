@@ -12,11 +12,14 @@ const ProductionManagerScript := preload("res://scripts/buildings/production_man
 const PowerManagerScript := preload("res://scripts/buildings/power_manager.gd")
 const FloatingTextScript := preload("res://scripts/ui/floating_text.gd")
 const ActionBarScript := preload("res://scripts/ui/action_bar.gd")
+const BoatCargoPanelScript := preload("res://scripts/ui/boat_cargo_panel.gd")
+const BoatCargoScript := preload("res://scripts/player/boat_cargo.gd")
 const PlayerUnitScript := preload("res://scripts/player/player_unit.gd")
 const DogScript := preload("res://scripts/units/dog.gd")
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
 const BoatNavigationScript := preload("res://scripts/player/boat_navigation.gd")
+const WorldNavigationScript := preload("res://scripts/world/world_navigation.gd")
 const CameraRigScript := preload("res://scripts/camera_rig.gd")
 const WorldDataScript := preload("res://scripts/world/world_data.gd")
 const StatTrackerScript := preload("res://scripts/quests/stat_tracker.gd")
@@ -46,6 +49,7 @@ const POWER_ICON := preload("res://assets/icons/power.png")
 const PAW_ICON := preload("res://assets/icons/paw.png")
 const HAMMER_ICON := preload("res://assets/icons/hammer.png")
 const BOAT_ICON := preload("res://assets/vehicles/rowboat.png")
+const CARGO_ICON := preload("res://assets/icons/cargo_crate.png")
 
 const PLACEMENT_SOUND := preload("res://assets/audio/sfx/building_placement.wav")
 const StarfieldSkyShader := preload("res://assets/shaders/world_map/starfield_sky.gdshader")
@@ -58,6 +62,7 @@ enum UnitAction {
 	BUILD,
 	PILOT_BOAT,
 	DISEMBARK,
+	CARGO,
 }
 # Pixels the cursor may travel between left press and release before it counts
 # as a drag (pan) rather than a click.
@@ -89,6 +94,7 @@ var moving_building_type := NO_BUILDING
 var moving_rotation := 0
 var moving_boat_launched := false
 var world: WorldData
+var world_navigation := WorldNavigationScript.new()
 var current_island: IslandData
 var building_manager: BuildingManager
 var production_manager: ProductionManager
@@ -100,6 +106,8 @@ var resource_bar: ResourceBar
 var building_menu: BuildingMenu
 var building_info_panel: BuildingInfoPanel
 var action_bar: ActionBar
+var boat_cargo_panel: BoatCargoPanel
+var cargo_boat_id := -1
 var world_view: WorldView
 var player_unit: PlayerUnit
 var dog: Dog
@@ -195,6 +203,8 @@ func _ready() -> void:
 	# Every island on the disc exists from the start (unrevealed ones wait under the clouds).
 	# Also fills in slots an older save never generated.
 	_ensure_world_generated()
+	world_navigation.setup(world)
+	world_navigation.migrate_boats()
 	# Pick K9-DA's island and spot (or fill them in for an older save) before the map is drawn.
 	_ensure_dog_placed()
 	world_view.setup(world, resource_node_database, building_manager)
@@ -297,6 +307,7 @@ func _on_menu_opened() -> void:
 	building_menu.close_menu()
 	quest_log_view.close()
 	building_info_panel.hide_info()
+	boat_cargo_panel.close()
 
 
 func _on_menu_save_game() -> void:
@@ -342,6 +353,7 @@ func _update_autosave(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	_refresh_boat_cargo()
 	_update_autosave(delta)
 	world_view.set_overview_amount(camera_rig.overview_amount())
 
@@ -398,7 +410,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		world_view.set_show_grid(not renderer.show_grid)
 
 	if key_event.keycode == KEY_ESCAPE:
-		if quest_log_view.is_open():
+		if boat_cargo_panel.is_open():
+			boat_cargo_panel.close()
+		elif quest_log_view.is_open():
 			quest_log_view.close()
 		elif camera_rig.overview_amount() > 0.5:
 			camera_rig.exit_overview()
@@ -480,6 +494,7 @@ func _reveal_rings(count: int) -> void:
 	if dog_was_hidden and world.is_revealed(world.dog_coord) and not world.dog_rescued:
 		toast.show_message("K9-DA's signal detected! Press M to see which island it's coming from.")
 	_ensure_world_generated()
+	world_navigation.rebuild_regions()
 	world_view.refresh()
 	camera_rig.set_overview(world_view.overview_pivot(), world_view.overview_distance())
 	_save_game()
@@ -523,7 +538,18 @@ func _input(event: InputEvent) -> void:
 		if camera != null:
 			var origin := camera.project_ray_origin(event.position)
 			var direction := camera.project_ray_normal(event.position)
-			renderer.set_hovered_from_ray(origin, direction)
+			if player_unit.boat_id != -1 and player_unit.selected and selected_building_type == NO_BUILDING:
+				var cell := world_navigation.cell_from_ray(origin, direction)
+				var point := WorldNavigationScript.cell_center(cell)
+				var can_land := world_navigation.can_land(player_unit.current_cell, cell)
+				if can_land:
+					var region := world_navigation.region_at(cell)
+					point = world_view.renderer_for(region.coord).get_cell_center(region.cell)
+				var color := Color(0.3, 0.85, 0.95, 0.4) if world_navigation.can_sail(cell, player_unit.boat_id) else Color(1.0, 0.3, 0.25, 0.4)
+				world_view.show_sailing_hover(point, Color(0.3, 1.0, 0.55, 0.4) if can_land else color)
+			else:
+				world_view.hide_sailing_hover()
+				renderer.set_hovered_from_ray(origin, direction)
 			world_view.set_hovered(world_view.slot_at_ray(origin, direction))
 
 
@@ -534,6 +560,8 @@ func _handle_left_click(screen_position: Vector2) -> void:
 
 	if selected_building_type != NO_BUILDING:
 		_try_place_selected_building()
+		return
+	if player_unit.boat_id != -1 and _try_select_unit():
 		return
 
 	if _try_travel_to_clicked_island(screen_position):
@@ -600,6 +628,10 @@ func _setup_lighting() -> void:
 # building or resource node, so for one it walks to where it can work it instead (see
 # _plan_approach) and the target stays the clicked cell.
 func _command_unit_to_hovered() -> bool:
+	if player_unit != null and player_unit.boat_id != -1:
+		var camera := camera_rig.get_camera()
+		var mouse := get_viewport().get_mouse_position()
+		return _command_boat_to(world_navigation.cell_from_ray(camera.project_ray_origin(mouse), camera.project_ray_normal(mouse)))
 	return _command_unit_to(renderer.hovered_cell)
 
 
@@ -607,21 +639,7 @@ func _command_unit_to(cell: Vector2i) -> bool:
 	if player_unit == null or current_island == null:
 		return false
 	if player_unit.boat_id != -1:
-		if BoatNavigationScript.can_land(current_island, player_unit.current_cell, cell) and not player_unit.is_moving():
-			landing_cell = cell
-			_refresh_action_bar()
-			return true
-		var water_path := BoatNavigationScript.find_path(current_island, player_unit.next_cell(), cell, player_unit.boat_id)
-		if water_path.is_empty():
-			return false
-		landing_cell = Vector2i(-1, -1)
-		pending_action_cell = cell
-		if player_unit.is_moving():
-			player_unit.reroute(water_path)
-		else:
-			player_unit.follow_path(water_path)
-		_refresh_action_bar()
-		return true
+		return _command_boat_to(WorldNavigationScript.local_to_world(world.current_coord, current_island, cell))
 
 	# A building's tiles are all targets, even one standing in the water (the dock's pier).
 	if cell == Vector2i(-1, -1) or not (HexPathfinderScript.is_walkable(current_island, cell) or current_island.has_building(cell) or not _boat_at(cell).is_empty()):
@@ -651,6 +669,30 @@ func _command_unit_to(cell: Vector2i) -> bool:
 	operable_cell = Vector2i(-1, -1)
 	buildable_cell = Vector2i(-1, -1)
 	player_unit.follow_path(plan.path, plan.spot_cell, plan.spot_position)
+	_refresh_action_bar()
+	return true
+
+
+# Sailing commands always use the world lattice, including clicks between islands.
+func _command_boat_to(cell: Vector2i) -> bool:
+	if player_unit.boat_id == -1:
+		return false
+	if world_navigation.can_land(player_unit.current_cell, cell) and not player_unit.is_moving():
+		landing_cell = cell
+		_refresh_action_bar()
+		return true
+	if not world_navigation.inside_frontier(cell):
+		toast.show_message("The fog blocks passage — " + world_view.locked_island_hint(Vector2i(world.revealed_rings + 1, 0)))
+		return false
+	var path := world_navigation.find_path(player_unit.next_cell(), cell, player_unit.boat_id)
+	if path.is_empty():
+		return false
+	landing_cell = Vector2i(-1, -1)
+	pending_action_cell = cell
+	if player_unit.is_moving():
+		player_unit.reroute(path)
+	else:
+		player_unit.follow_path(path)
 	_refresh_action_bar()
 	return true
 
@@ -732,6 +774,8 @@ func _approach(path: Array[Vector2i], spot_cell := Vector2i(-1, -1), spot_positi
 func _is_working_position(target: Vector2i) -> bool:
 	if player_unit == null or target == Vector2i(-1, -1):
 		return false
+	if player_unit.boat_id != -1:
+		return false
 	var cell := player_unit.current_cell
 	# On or beside any tile of the target building, however many tiles it covers.
 	var target_cells: Array[Vector2i] = [target]
@@ -747,11 +791,14 @@ func _is_working_position(target: Vector2i) -> bool:
 # including the ones they're stepping into.
 func _is_unit_cell(cell: Vector2i) -> bool:
 	if current_island != null:
-		for id in current_island.boats:
-			if current_island.boats[id].cell == cell:
+		var global_cell := WorldNavigationScript.local_to_world(world.current_coord, current_island, cell)
+		for id in world.boats:
+			if world.boats[id].cell == global_cell:
 				return true
-	if player_unit != null and (cell == player_unit.current_cell or cell == player_unit.next_cell()):
+	if player_unit != null and player_unit.boat_id == -1 and (cell == player_unit.current_cell or cell == player_unit.next_cell()):
 		return true
+	if player_unit != null and player_unit.boat_id != -1:
+		return WorldNavigationScript.local_to_world(world.current_coord, current_island, cell) in [player_unit.current_cell, player_unit.next_cell()]
 	if dog != null and dog.visible and dog.renderer == renderer:
 		return cell == dog.current_cell or cell == dog.next_cell()
 	return false
@@ -763,7 +810,7 @@ func _is_unit_cell(cell: Vector2i) -> bool:
 func _reroute_unit() -> void:
 	if player_unit != null and player_unit.boat_id != -1:
 		if player_unit.is_moving() and pending_action_cell != Vector2i(-1, -1):
-			player_unit.reroute(BoatNavigationScript.find_path(current_island, player_unit.next_cell(), pending_action_cell, player_unit.boat_id))
+			player_unit.reroute(world_navigation.find_path(player_unit.next_cell(), pending_action_cell, player_unit.boat_id))
 		return
 	if player_unit == null or not player_unit.is_moving() or pending_action_cell == Vector2i(-1, -1):
 		return
@@ -780,6 +827,7 @@ func _reroute_unit() -> void:
 func _on_unit_entered_cell(cell: Vector2i) -> void:
 	if player_unit.boat_id != -1:
 		_store_boat_position()
+		_reveal_nearby_island(cell)
 		_autosave_dirty = true
 		return
 	if current_island == null or not current_island.has_item(cell):
@@ -843,7 +891,7 @@ func _is_actionable_cell(cell: Vector2i) -> bool:
 	if selected_building_type != NO_BUILDING:
 		return false
 	if player_unit.boat_id != -1:
-		return BoatNavigationScript.can_land(current_island, player_unit.current_cell, cell)
+		return world_navigation.can_land(player_unit.current_cell, WorldNavigationScript.local_to_world(world.current_coord, current_island, cell))
 	if not _boat_at(cell).is_empty():
 		return true
 	if current_island.is_under_construction(cell):
@@ -871,6 +919,7 @@ func _refresh_action_bar() -> void:
 		and current_island != null
 	):
 		if player_unit.boat_id != -1:
+			actions.append({id = UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = "Boat cargo — load or unload at the shore", active = false})
 			if _landing_tile() != Vector2i(-1, -1):
 				actions.append({id = UnitAction.DISEMBARK, icon = BOAT_ICON, label = "Disembark (right-click shore to choose landing)", active = false})
 			action_bar.set_actions(actions)
@@ -879,6 +928,7 @@ func _refresh_action_bar() -> void:
 			return
 		if not _nearby_boat().is_empty():
 			actions.append({id = UnitAction.PILOT_BOAT, icon = POWER_ICON, label = "Pilot boat — board and power the helm", active = false})
+			actions.append({id = UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = "Boat cargo — load or unload supplies", active = false})
 		var build := _build_action()
 		if not build.is_empty():
 			actions.append(build)
@@ -899,13 +949,15 @@ func _refresh_action_bar() -> void:
 		renderer.refresh_hover()
 
 
-# The portrait in the command bar is a second way to select the robot (besides clicking it
-# on the map). Selecting refreshes the bar so its actions for the current tile appear.
+# The portrait selects the robot and brings the camera back to its current position.
 func _on_portrait_select_requested() -> void:
 	if player_unit == null or player_unit.current_cell == Vector2i(-1, -1):
 		return
 
 	player_unit.set_selected(true)
+	if camera_rig.is_heading_to_overview() or camera_rig.overview_amount() > 0.0:
+		camera_rig.exit_overview()
+	camera_rig.center_on(player_unit.position)
 	_refresh_action_bar()
 
 
@@ -1010,6 +1062,8 @@ func _on_action_pressed(action_id: int) -> void:
 	if player_unit.is_moving():
 		return
 	match action_id:
+		UnitAction.CARGO:
+			_open_boat_cargo()
 		UnitAction.PILOT_BOAT:
 			_board_boat()
 		UnitAction.DISEMBARK:
@@ -1027,8 +1081,9 @@ func _on_action_pressed(action_id: int) -> void:
 func _boat_at(cell: Vector2i) -> Dictionary:
 	if current_island == null:
 		return {}
-	for id in current_island.boats:
-		if current_island.boats[id].cell == cell:
+	var global_cell := WorldNavigationScript.local_to_world(world.current_coord, current_island, cell)
+	for id in world.boats:
+		if world.boats[id].cell == global_cell:
 			return {id = id, cell = cell}
 	var anchor := current_island.get_building_anchor_cell(cell)
 	if anchor == Vector2i(-1, -1):
@@ -1050,6 +1105,67 @@ func _nearby_boat() -> Dictionary:
 	return {}
 
 
+func _launch_boat(boat: Dictionary) -> int:
+	var id: int = boat.id
+	if id == -1:
+		id = world.next_boat_id()
+		var building: Dictionary = current_island.buildings[boat.anchor]
+		var direction := renderer.get_water_center(boat.cell) - renderer.get_cell_center(building.cells[1])
+		world.boats[id] = {cell = WorldNavigationScript.local_to_world(world.current_coord, current_island, boat.cell), yaw = atan2(-direction.z, direction.x)}
+		building.boat_launched = true
+	return id
+
+
+func _open_boat_cargo() -> void:
+	if boat_cargo_panel.is_open():
+		boat_cargo_panel.close()
+		return
+	cargo_boat_id = player_unit.boat_id
+	if cargo_boat_id == -1:
+		var boat := _nearby_boat()
+		if boat.is_empty():
+			return
+		cargo_boat_id = _launch_boat(boat)
+		renderer.refresh()
+		_save_game()
+	boat_cargo_panel.show_cargo(BoatCargoScript.inventory(world.boats[cargo_boat_id]), _cargo_island(cargo_boat_id))
+
+
+# Resolve the shore beside the actual boat, not the last island the robot landed on.
+func _cargo_island(id: int) -> IslandData:
+	if player_unit.is_moving() or not world.boats.has(id):
+		return null
+	if player_unit.boat_id == id:
+		var shore := _landing_tile()
+		if shore != Vector2i(-1, -1):
+			return world.get_island(world_navigation.region_at(shore).coord)
+	elif player_unit.boat_id == -1:
+		var boat := _nearby_boat()
+		if not boat.is_empty() and boat.id == id:
+			return current_island
+	return null
+
+
+func _refresh_boat_cargo() -> void:
+	if boat_cargo_panel == null or not boat_cargo_panel.is_open():
+		return
+	if world == null or not world.boats.has(cargo_boat_id):
+		boat_cargo_panel.close()
+		return
+	boat_cargo_panel.update_context(BoatCargoScript.inventory(world.boats[cargo_boat_id]), _cargo_island(cargo_boat_id))
+
+
+func _on_cargo_transfer(resource: int, amount: int, loading: bool) -> void:
+	# Recheck the live location and stock: the boat may have moved since the panel opened.
+	var island := _cargo_island(cargo_boat_id)
+	if island == null:
+		return
+	var hold := BoatCargoScript.inventory(world.boats[cargo_boat_id])
+	if BoatCargoScript.transfer(hold, island.inventory, resource, amount, loading):
+		_refresh_boat_cargo()
+		_save_game()
+
+
 func _board_boat() -> void:
 	var boat := _nearby_boat()
 	if boat.is_empty():
@@ -1057,39 +1173,35 @@ func _board_boat() -> void:
 	_stop_harvesting()
 	_stop_operating()
 	_stop_constructing()
-	var id: int = boat.id
-	if id == -1:
-		id = 0
-		while current_island.boats.has(id):
-			id += 1
-		var building: Dictionary = current_island.buildings[boat.anchor]
-		var direction := renderer.get_water_center(boat.cell) - renderer.get_cell_center(building.cells[1])
-		current_island.boats[id] = {cell = boat.cell, yaw = atan2(-direction.z, direction.x)}
-		building.boat_launched = true
-	current_island.piloted_boat = id
-	var state: Dictionary = current_island.boats[id]
+	var id := _launch_boat(boat)
+	world.piloted_boat = id
+	var state: Dictionary = world.boats[id]
 	player_unit.mount_boat(id, state.cell, float(state.yaw))
+	# Keep the companion safely ashore until a boat-sized companion pose is authored.
+	if world.dog_rescued:
+		dog.halt()
 	pending_action_cell = Vector2i(-1, -1)
 	harvestable_cell = Vector2i(-1, -1)
 	operable_cell = Vector2i(-1, -1)
 	buildable_cell = Vector2i(-1, -1)
 	landing_cell = Vector2i(-1, -1)
+	renderer.clear_interaction()
 	renderer.refresh()
 	_refresh_action_bar()
 	_save_game()
 
 
 func _store_boat_position() -> void:
-	if player_unit != null and current_island != null and current_island.boats.has(player_unit.boat_id):
-		current_island.boats[player_unit.boat_id].cell = player_unit.current_cell
-		current_island.boats[player_unit.boat_id].yaw = player_unit.boat_yaw()
+	if player_unit != null and world != null and world.boats.has(player_unit.boat_id):
+		world.boats[player_unit.boat_id].cell = player_unit.current_cell
+		world.boats[player_unit.boat_id].yaw = player_unit.boat_yaw()
 
 
 func _landing_tile() -> Vector2i:
-	if BoatNavigationScript.can_land(current_island, player_unit.current_cell, landing_cell):
+	if world_navigation.can_land(player_unit.current_cell, landing_cell):
 		return landing_cell
 	for shore in HexGridScript.neighbors(player_unit.current_cell):
-		if BoatNavigationScript.can_land(current_island, player_unit.current_cell, shore):
+		if world_navigation.can_land(player_unit.current_cell, shore):
 			return shore
 	return Vector2i(-1, -1)
 
@@ -1101,13 +1213,44 @@ func _disembark_boat() -> void:
 	if shore == Vector2i(-1, -1):
 		return
 	_store_boat_position()
-	current_island.piloted_boat = -1
+	var destination := world_navigation.region_at(shore)
+	world.piloted_boat = -1
 	player_unit.leave_boat()
-	player_unit.place_at(shore)
+	world_view.hide_sailing_hover()
+	if destination.coord != world.current_coord:
+		_switch_to_island(destination.coord)
+	else:
+		player_unit.setup(renderer, world_navigation)
+	player_unit.place_at(destination.cell)
+	camera_rig.center_on(player_unit.position)
+	_sync_dog()
 	landing_cell = Vector2i(-1, -1)
 	renderer.refresh()
 	_refresh_action_bar()
 	_save_game()
+
+
+func _reveal_nearby_island(cell: Vector2i) -> void:
+	var region := world_navigation.region_at(cell)
+	if region.is_empty() or not world.is_revealed(region.coord):
+		return
+	if _discover_island(region.coord):
+		_save_game()
+
+
+# Coming close enough to reveal an island discovers it; landing only activates its economy.
+func _discover_island(coord: Vector2i) -> bool:
+	var island: IslandData = world.islands[coord]
+	if island.visited:
+		return false
+	island.sighted = true
+	island.visited = true
+	world_view.set_current_coord(world.current_coord)
+	if coord != WorldData.CENTER:
+		stat_tracker.add(GameTypes.Stat.ISLANDS_REACHED, 1)
+	if world.is_dog_stranded_on(coord):
+		toast.show_message("K9-DA's island discovered! Land and walk over to him to rescue him.")
+	return true
 
 
 # Bring K9-DA aboard: it starts following the robot, and the DOG_RESCUED stat completes the MAIN
@@ -1406,6 +1549,15 @@ func _resource_color(resource_type: int) -> Color:
 func _try_select_unit() -> bool:
 	if player_unit == null or player_unit.current_cell == Vector2i(-1, -1):
 		return false
+	if player_unit.boat_id != -1:
+		var camera := camera_rig.get_camera()
+		var mouse := get_viewport().get_mouse_position()
+		var cell := world_navigation.cell_from_ray(camera.project_ray_origin(mouse), camera.project_ray_normal(mouse))
+		if cell not in [player_unit.current_cell, player_unit.next_cell()]:
+			return false
+		player_unit.set_selected(true)
+		_refresh_action_bar()
+		return true
 
 	if renderer.hovered_cell != player_unit.current_cell:
 		return false
@@ -1416,6 +1568,7 @@ func _try_select_unit() -> bool:
 
 
 func _deselect_unit() -> void:
+	world_view.hide_sailing_hover()
 	if player_unit != null:
 		player_unit.set_selected(false)
 	_refresh_action_bar()
@@ -1502,9 +1655,7 @@ func _stock_bootstrap_supplies(island: IslandData) -> void:
 		island.inventory.add_amount(resource_type, dock_cost[resource_type])
 
 
-# Cycle through already-visited islands in generation order (wrapping). Islands
-# persist, so a revisited island keeps the buildings placed on it. No-op until a
-# second island has been visited.
+# Inspect the neighbouring visited island with the camera; the robot stays where it is.
 func _switch_to_adjacent_island(direction: int) -> void:
 	var coords := world.visited_coords()
 	if coords.size() <= 1:
@@ -1512,11 +1663,11 @@ func _switch_to_adjacent_island(direction: int) -> void:
 
 	var index := coords.find(world.current_coord)
 	var next_coord: Vector2i = coords[(index + direction + coords.size()) % coords.size()]
-	_switch_to_island(next_coord)
+	camera_rig.center_on(world_view.renderer_for(next_coord).get_map_center())
 
 
-# A left click on another island travels there; in the overview, picking any revealed island
-# (the current one included) also zooms back down into it. Returns true if the click was used.
+# An island click plans a real voyage while aboard. On foot, it explains how to board.
+# In the overview a sailing destination also returns to the play zoom.
 func _try_travel_to_clicked_island(screen_position: Vector2) -> bool:
 	var camera := camera_rig.get_camera()
 	if camera == null:
@@ -1534,14 +1685,39 @@ func _try_travel_to_clicked_island(screen_position: Vector2) -> bool:
 		toast.show_message("Uncharted island — " + world_view.locked_island_hint(coord))
 		return true
 
-	if coord != world.current_coord:
-		_switch_to_island(coord)
+	if player_unit.boat_id != -1 and (coord != world.current_coord or in_overview):
+		_sail_to_island(coord)
+	elif coord != world.current_coord:
+		toast.show_message("Board a boat at the shore or dock to sail here.")
 	elif not in_overview:
 		return false
 
 	if in_overview:
 		camera_rig.exit_overview()
 	return true
+
+
+func _sail_to_island(coord: Vector2i) -> bool:
+	if player_unit.boat_id == -1 or not world.has_island(coord) or not world.is_revealed(coord):
+		return false
+	player_unit.set_selected(true)
+	var island: IslandData = world.islands[coord]
+	var candidates: Array = []
+	for local in island.terrain:
+		var cell := WorldNavigationScript.local_to_world(coord, island, local)
+		if not world_navigation.can_sail(cell, player_unit.boat_id):
+			continue
+		for shore in HexGridScript.neighbors(cell):
+			if world_navigation.can_land(cell, shore):
+				candidates.append({cell = cell, shore = shore, distance = WorldNavigationScript._distance(player_unit.next_cell(), cell)})
+				break
+	candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.distance < b.distance)
+	for candidate in candidates:
+		if _command_boat_to(candidate.cell):
+			landing_cell = candidate.shore
+			return true
+	toast.show_message("No reachable landing on this island.")
+	return false
 
 
 # Make the island at `coord` the one the robot, resource bar and build tools work on. Every
@@ -1557,7 +1733,7 @@ func _switch_to_island(coord: Vector2i, instant := false) -> void:
 	_cancel_building_move()
 	if player_unit.boat_id != -1:
 		_store_boat_position()
-		current_island.piloted_boat = -1
+		world.piloted_boat = -1
 		player_unit.leave_boat()
 		renderer.refresh()
 
@@ -1574,24 +1750,18 @@ func _switch_to_island(coord: Vector2i, instant := false) -> void:
 	renderer.is_cell_occupied_by_unit = _is_unit_cell
 	renderer.is_cell_actionable = _is_actionable_cell
 	current_island = world.get_current()
-	# Landing on an island for the first time counts as discovering it. On K9-DA's island, point
-	# the player at the dog — the rescue itself is the robot's Rescue action beside it.
-	if not current_island.visited:
-		current_island.visited = true
-		if coord != WorldData.CENTER:
-			stat_tracker.add(GameTypes.Stat.ISLANDS_REACHED, 1)
-		if world.is_dog_stranded_on(coord):
-			toast.show_message("K9-DA is here! Walk the robot over to him and press Rescue.")
+	# Startup and legacy saves can enter an island before a sailing approach has discovered it.
+	_discover_island(coord)
 	resource_manager.set_inventory(current_island.inventory)
 	building_menu.refresh_stock()
 	building_info_panel.hide_info()
-	player_unit.setup(renderer)
+	player_unit.setup(renderer, world_navigation)
 	_spawn_player_unit()
 	_sync_dog()
 	resource_bar.refresh()
 	world_view.set_current_coord(coord)
 	_apply_selected_building()
-	camera_rig.center_on(renderer.get_map_center(), instant)
+	camera_rig.center_on(player_unit.position if player_unit.boat_id != -1 else renderer.get_map_center(), instant)
 
 	# Autosave at each settled island state — the natural checkpoint, and it also writes the
 	# initial save for a brand-new game (the starter island is entered through here too).
@@ -1611,9 +1781,9 @@ func _spawn_player_unit() -> void:
 	operable_cell = Vector2i(-1, -1)
 	buildable_cell = Vector2i(-1, -1)
 	player_unit.place_at(_find_unit_spawn_cell(current_island))
-	if current_island.boats.has(current_island.piloted_boat):
-		var saved_boat: Dictionary = current_island.boats[current_island.piloted_boat]
-		player_unit.mount_boat(current_island.piloted_boat, saved_boat.cell, float(saved_boat.yaw))
+	if world.boats.has(world.piloted_boat):
+		var saved_boat: Dictionary = world.boats[world.piloted_boat]
+		player_unit.mount_boat(world.piloted_boat, saved_boat.cell, float(saved_boat.yaw))
 	landing_cell = Vector2i(-1, -1)
 	_refresh_action_bar()
 
@@ -1703,6 +1873,9 @@ func _choose_dog_cell(island: IslandData, island_seed: int) -> Vector2i:
 # Put K9-DA where the rescue state says: beside the robot once rescued; otherwise waiting at its
 # spot, but only once its island has been landed on (unexplored islands show no detail).
 func _sync_dog() -> void:
+	if world.dog_rescued and player_unit.boat_id != -1:
+		dog.halt()
+		return
 	if world.dog_rescued:
 		dog.setup(renderer)
 		dog.follow(current_island, _find_dog_follow_cell(), player_unit)
@@ -1879,6 +2052,10 @@ func _add_ui() -> void:
 	action_bar.action_pressed.connect(_on_action_pressed)
 	action_bar.select_requested.connect(_on_portrait_select_requested)
 	add_child(action_bar)
+
+	boat_cargo_panel = BoatCargoPanelScript.new()
+	boat_cargo_panel.transfer_requested.connect(_on_cargo_transfer)
+	add_child(boat_cargo_panel)
 
 	quest_log_view = QuestLogViewScript.new()
 	quest_log_view.setup(quest_manager)

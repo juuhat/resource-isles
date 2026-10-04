@@ -4,7 +4,7 @@ extends RefCounted
 # Islands keyed by their world hex coordinate (axial Vector2i). The starter sits at CENTER.
 # Every slot on the disc is generated up front (main._ensure_world_generated) so the whole
 # archipelago exists as one world; unrevealed rings simply stay hidden under clouds, and an
-# island counts as discovered once the robot first lands on it (IslandData.visited).
+# island counts as discovered when the robot approaches close enough to reveal it (IslandData.visited).
 # Dictionaries preserve insertion order, so keys() doubles as generation order (used for
 # naming). See docs/island-unlocks.md.
 
@@ -22,6 +22,8 @@ const MIN_WORLD_RINGS := 4
 var islands: Dictionary = {}
 var current_coord := CENTER
 var revealed_rings := STARTING_REVEALED_RINGS
+var boats: Dictionary = {}
+var piloted_boat := -1
 # Standing boat links between islands, run by TradeManager. Saved with the world.
 var trade_routes: Array[TradeRoute] = []
 # The K9-DA rescue (the MAIN quest): the ring-1 island the dog is stranded on, the cell it waits
@@ -30,6 +32,13 @@ var trade_routes: Array[TradeRoute] = []
 var dog_coord := NO_COORD
 var dog_cell := Vector2i(-1, -1)
 var dog_rescued := false
+
+
+func next_boat_id() -> int:
+	var id := 0
+	while boats.has(id):
+		id += 1
+	return id
 
 
 func has_island(coord: Vector2i) -> bool:
@@ -54,7 +63,7 @@ func ordered_coords() -> Array:
 	return islands.keys()
 
 
-# Islands the robot has landed on, in generation order — the set [ and ] cycle through.
+# Discovered islands, in generation order — the set [ and ] inspect with the camera.
 func visited_coords() -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
 	for coord in islands:
@@ -168,6 +177,8 @@ func to_dict(reference_time: float) -> Dictionary:
 		revealed_rings = revealed_rings,
 		islands = serialized_islands,
 		trade_routes = serialized_routes,
+		boats = boats.duplicate(true),
+		piloted_boat = piloted_boat,
 		dog_coord = dog_coord,
 		dog_cell = dog_cell,
 		dog_rescued = dog_rescued,
@@ -178,6 +189,8 @@ static func from_dict(data: Dictionary, reference_time: float) -> WorldData:
 	var world := WorldData.new()
 	world.current_coord = data.get("current_coord", CENTER)
 	world.revealed_rings = int(data.get("revealed_rings", STARTING_REVEALED_RINGS))
+	world.boats = (data.get("boats", {}) as Dictionary).duplicate(true)
+	world.piloted_boat = int(data.get("piloted_boat", -1))
 	var serialized_islands: Dictionary = data.get("islands", {})
 	for coord in serialized_islands:
 		world.islands[coord] = IslandData.from_dict(serialized_islands[coord], reference_time)

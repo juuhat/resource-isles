@@ -1,5 +1,10 @@
 # Island Unlocks, the Dock, and the World Map
 
+> **Latest direction (2026-10-04):** [Rescue, first metals, and boat cargo](rescue-metals-and-cargo.md)
+> supersedes the multiple-player-boat and immediate automatic-trade bootstrap below.
+> Upgrade one unique personal boat, unload supplies at reachable shores without a dock,
+> and introduce autonomous freight later, with docks at both route endpoints.
+
 Design notes for how the player discovers, reaches, and unlocks new islands in Resource
 Isles. This is direction, not implementation.
 
@@ -240,13 +245,18 @@ Start tiny; do not build a sprawling tech UI up front.
    only; no travel yet.
 2. **DONE — Multi-island state** — [`WorldData`](../scripts/world/world_data.gd) holds every
    discovered `IslandData` plus a current-island pointer; `main.gd` renders/simulates the
-   current island and switches between persistent islands (Enter generates a new island and
-   travels to it; `[` / `]` cycle discovered islands, which keep their placed buildings).
+   active island and switches inventories on landing. `[` / `]` inspect visited islands
+   with the camera, without moving the robot. Islands keep their placed buildings.
    **Every island now simulates each frame** (production, power, fuel against its own
    inventory), not just the one on screen; see step 6.
-3. **Salvage skiff + one neighbor** — build a salvage skiff at the dock; reveal and travel to a single
-   ring-1 island. View-swap with a short sailing transition. The robot travels; the starter
-   island keeps producing.
+3. **DONE — Playable salvage skiff and ocean** — walk to a finished dock's pier and use
+   **Pilot boat** to power its helm. A shared world hex lattice joins the islands and sea;
+   right-click water to sail or click a revealed island to route to its shore. The boat
+   physically crosses the ocean with the robot aboard. Pan the camera freely, or click
+   the bottom-right player portrait to select and center on the robot. Use
+   **Disembark** beside open shore or a finished dock. Landing activates that inventory
+   and counts discovery; the boat stays afloat. World boat position and occupant survive
+   save/load at sea, and older local boat saves migrate without losing their location.
 4. **World map DONE (one seamless flat-disc world)** — the play area *is* the world map: the
    flat-disc planet from the [intro story](intro-story.md) at full game scale
    ([`world_view.gd`](../scripts/world/world_view.gd)) — one open sea inside a frozen mountain
@@ -255,22 +265,23 @@ Start tiny; do not build a sprawling tech UI up front.
    dead center, three island slots per ring. Every island on the disc is generated up front and
    has a slot: unrevealed destinations have soft blue-grey fog and a `?` marker. Revealing a
    ring fades the fog into muted island coastlines labelled "Unexplored"; resources, buildings,
-   shoreline water and plot lines appear after landing, together with the island's name.
+   shoreline water, plot lines and the island's name appear on approach, which counts discovery.
    Hovering a destination explains travel or its unlock requirement (the first ring needs the
    Dock / Set Sail quest; outer boat tiers are still planned). Decorative clouds are sparse.
    The camera ([`camera_rig.gd`](../scripts/camera_rig.gd))
    zooms continuously from the island out to the whole disc: neighbours come into view across
    the water, then the planet against the stars, where the charted rings get a navigator's grid
    and a gold frontier line and island names float over their slots. `M` jumps to that overview
-   (`Esc` zooms back). Clicking another revealed island travels there — the robot lands on it and
-   the camera glides across; clicking an unrevealed one explains its sailing requirement.
+   (`Esc` zooms back). Clicking a revealed island while aboard starts a physical voyage;
+   landing remains an explicit action. Clicking an unrevealed one explains its requirement.
+   A continuous fog wall covers the locked ocean as well as the islands; navigation uses
+   that same radius and cannot cross the fog. Ring rewards open more sea and islands together.
    Islands are keyed by hex
    coordinate in [`WorldData`](../scripts/world/world_data.gd), and an island counts as
-   discovered once the robot first lands on it (`IslandData.visited`). How many rings are
+   discovered once the robot approaches close enough to reveal it (`IslandData.visited`). How many rings are
    revealed lives on `WorldData` (`revealed_rings`, starting at `STARTING_REVEALED_RINGS`) and
    grows via `reveal_additional_rings()` — currently driven by quest rewards and a temporary `=`
-   debug key. Still to add: a real boat-tier system to drive that reveal, and an actual sailing
-   trip for the robot.
+   debug key. Still to add: a real boat-tier system to drive later reveals.
 5. **Boat tiers + rare-resource gating** — sailboat/ship reach outer rings; higher tiers cost
    earlier islands' rare resources; fuse with ship-module repair toward the win condition.
 6. **Per-island inventory storage DONE** ([`inventory.gd`](../scripts/resources/inventory.gd)

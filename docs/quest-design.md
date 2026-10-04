@@ -1,5 +1,11 @@
 # Quest design review — 2026-10-04
 
+> **Later design decision:** [Rescue, first metals, and boat cargo](rescue-metals-and-cargo.md)
+> takes precedence over the proposed teaching sequence below: rescue before electricity,
+> a fuel-fired Furnace before the iron-built Burner Generator, manual boat deliveries before
+> automatic trade, and proposed ring-1 copper for later drone freight. The implementation
+> snapshot below remains a record of current behavior.
+
 This records the current quest chain and the proposed next design pass. The recommendations
 below are not implemented or final balance decisions. Each milestone should teach one clear
 action, demonstrate its payoff, and unlock the next step before requiring it.

@@ -4,10 +4,10 @@ extends RefCounted
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 
 var island_name: String = ""
-# Whether the robot has ever landed here. Every island on the disc is generated up front, so
-# this (not existence) is what "discovered" means: it gates [ ] cycling and the first-landing
-# quest stat (see main._switch_to_island).
+# Whether the robot has approached close enough to reveal this island. The saved key remains
+# `visited` for compatibility; it gates camera inspection and the one-time discovery stat.
 var visited := false
+var sighted := false
 var inventory := Inventory.new()
 var width: int
 var height: int
@@ -16,6 +16,7 @@ var resources: Dictionary = {}
 var items: Dictionary = {}
 var scavenged_cells: Dictionary = {}
 var buildings: Dictionary = {}
+# Legacy local boats are read for migration to WorldData by WorldNavigation at startup.
 var boats: Dictionary = {}
 var piloted_boat := -1
 var building_next_production_times: Dictionary = {}
@@ -293,6 +294,7 @@ func to_dict(reference_time: float) -> Dictionary:
 	return {
 		island_name = island_name,
 		visited = visited,
+		sighted = sighted,
 		width = width,
 		height = height,
 		terrain = terrain.duplicate(),
@@ -315,6 +317,7 @@ static func from_dict(data: Dictionary, reference_time: float) -> IslandData:
 	island.island_name = data.get("island_name", "")
 	# Saves from before the shared world only ever held islands the robot had landed on.
 	island.visited = bool(data.get("visited", true))
+	island.sighted = bool(data.get("sighted", island.visited))
 	island.terrain = (data.get("terrain", {}) as Dictionary).duplicate()
 	island.resources = (data.get("resources", {}) as Dictionary).duplicate()
 	island.items = (data.get("items", {}) as Dictionary).duplicate()
