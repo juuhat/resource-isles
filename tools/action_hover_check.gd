@@ -2,8 +2,9 @@ extends SceneTree
 
 # Headless check for robot actions from the map:
 #   - with the robot selected, hovering a cell it can work (a resource node once harvesting is
-#     unlocked, a building that draws power) tints the tile green; open ground, a locked node,
-#     an unselected robot, and placement mode get the plain brightened hover;
+#     unlocked, a building that draws power once operating is) tints the tile green; open
+#     ground, a locked node or building, an unselected robot, and placement mode get the plain
+#     brightened hover;
 #   - right-clicking such a cell walks the robot over and starts the work on arrival (harvest
 #     with the chop swing, operate), and right-clicking it again leaves the work running.
 #
@@ -41,7 +42,7 @@ func _run() -> void:
 	game._refresh_action_bar()
 	_expect(not _is_green(game, tree), "A node isn't actionable before harvesting is unlocked")
 
-	_unlock_harvesting(game)
+	_unlock(game, GameTypes.RobotUpgrade.HARVESTING)
 	game._refresh_action_bar()
 	_expect(_is_green(game, tree), "Hovering a node the robot can harvest tints it green")
 	_expect(not _is_green(game, open), "Open ground gets the plain hover")
@@ -63,6 +64,9 @@ func _run() -> void:
 
 	var sawmill := _place_near(game, island, robot.current_cell, GameTypes.BuildingType.SAWMILL)
 	_expect(game._building_consumes_power(sawmill), "The sawmill draws power")
+	_expect(not _is_green(game, sawmill), "A building isn't actionable before operating is unlocked")
+	_unlock(game, GameTypes.RobotUpgrade.OPERATING)
+	game._refresh_action_bar()
 	_expect(_is_green(game, sawmill), "Hovering a building the robot can power tints it green")
 	_command(game, sawmill)
 	_walk(robot)
@@ -90,12 +94,12 @@ func _is_green(game: Node, cell: Vector2i) -> bool:
 	return tile.material_override == renderer._action_highlight_material(game.current_island.get_terrain(cell))
 
 
-func _unlock_harvesting(game: Node) -> void:
+func _unlock(game: Node, robot_upgrade: int) -> void:
 	var completed: Dictionary = game.quest_manager.completed_to_dict()
 	for quest in game.quest_manager.quests:
 		for reward in quest.rewards:
 			if reward.kind == GameTypes.RewardKind.ROBOT_UPGRADE \
-					and reward.robot_upgrade == GameTypes.RobotUpgrade.HARVESTING:
+					and reward.robot_upgrade == robot_upgrade:
 				completed[quest.id] = true
 	game.quest_manager.restore_completed(completed)
 

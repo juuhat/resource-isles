@@ -458,7 +458,7 @@ func _apply_reward(reward: QuestReward) -> void:
 	match reward.kind:
 		GameTypes.RewardKind.ROBOT_UPGRADE:
 			match reward.robot_upgrade:
-				GameTypes.RobotUpgrade.HARVESTING:
+				GameTypes.RobotUpgrade.HARVESTING, GameTypes.RobotUpgrade.OPERATING:
 					pass # Capability gate read via quest_manager.is_upgrade_active(); no imperative change.
 		GameTypes.RewardKind.REVEAL_WORLD_RINGS:
 			_reveal_rings(reward.ring_count)
@@ -775,16 +775,16 @@ func _start_action_at(target: Vector2i) -> void:
 		_on_build_pressed()
 	elif harvestable_cell == target and not is_harvesting and can_harvest:
 		_on_harvest_pressed()
-	elif operable_cell == target and not is_operating:
+	elif operable_cell == target and not is_operating and _can_operate():
 		_on_operate_pressed()
 	elif _can_rescue_dog() and target == world.dog_cell:
 		_on_rescue_pressed()
 
 
 # True for a cell the selected robot would start working on if right-clicked: a blueprint, a
-# resource node once harvesting is unlocked, a building that draws power, or the stranded K9-DA. The hover
-# tints it green (IslandRenderer.is_cell_actionable). Not while placing or moving a building,
-# where the right-click cancels instead.
+# resource node once harvesting is unlocked, a building that draws power once operating is
+# unlocked, or the stranded K9-DA. The hover tints it green (IslandRenderer.is_cell_actionable).
+# Not while placing or moving a building, where the right-click cancels instead.
 func _is_actionable_cell(cell: Vector2i) -> bool:
 	if player_unit == null or not player_unit.selected or current_island == null:
 		return false
@@ -795,7 +795,7 @@ func _is_actionable_cell(cell: Vector2i) -> bool:
 	if current_island.get_resource_node_type(cell) != -1:
 		return quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.HARVESTING)
 	if _building_consumes_power(cell):
-		return true
+		return _can_operate()
 	return world.is_dog_stranded_on(world.current_coord) and cell == world.dog_cell
 
 
@@ -868,6 +868,10 @@ func _harvest_action() -> Dictionary:
 
 
 func _operate_action() -> Dictionary:
+	# Hand-powering is locked until the first extractors stand (the "Lay the Foundations" quest).
+	if not _can_operate():
+		return {}
+
 	if operable_cell == Vector2i(-1, -1) or not _is_working_position(operable_cell):
 		return {}
 
@@ -931,6 +935,10 @@ func _building_consumes_power(cell: Vector2i) -> bool:
 
 	var definition := building_manager.get_definition(building_type)
 	return definition != null and definition.power_consumed > 0
+
+
+func _can_operate() -> bool:
+	return quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.OPERATING)
 
 
 func _on_action_pressed(action_id: int) -> void:
@@ -1008,13 +1016,14 @@ func _on_operate_pressed() -> void:
 	if operable_cell == Vector2i(-1, -1):
 		return
 
-	if not _building_consumes_power(operable_cell):
+	if not _can_operate() or not _building_consumes_power(operable_cell):
 		return
 
 	is_operating = true
 	operate_cell = current_island.get_building_anchor_cell(operable_cell)
 	# The hand PTO docks into the building's generator socket.
 	player_unit.set_work("operate")
+	stat_tracker.add(GameTypes.Stat.BUILDINGS_OPERATED, 1)
 	_refresh_action_bar()
 
 

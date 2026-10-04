@@ -131,6 +131,21 @@ func restore_completed(completed: Dictionary) -> void:
 	_completed = {}
 	for quest_id in completed:
 		_completed[int(quest_id)] = true
+	_complete_skipped_milestones()
+
+
+# The chain is linear, so a completed milestone implies every milestone before it. A save made
+# before a milestone was inserted earlier in the chain (e.g. Live Wire) would otherwise leave that
+# new one current and re-gate what the player already has. Marked silently, like the rest of a
+# restore: inserted milestones must only carry state-read rewards (unlocks), not one-shot effects.
+func _complete_skipped_milestones() -> void:
+	var last_completed := -1
+	for i in quests.size():
+		if quests[i].kind == GameTypes.QuestKind.MILESTONE and is_completed(quests[i].id):
+			last_completed = i
+	for i in last_completed:
+		if quests[i].kind == GameTypes.QuestKind.MILESTONE:
+			_completed[quests[i].id] = true
 
 
 func _on_stat_changed(_stat: int, _value: int) -> void:

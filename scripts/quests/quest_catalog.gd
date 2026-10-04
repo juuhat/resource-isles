@@ -72,6 +72,24 @@ static func build_all() -> Array[Quest]:
 			_objective("Build a Logger's Camp", GameTypes.Stat.LOGGER_CAMPS_BUILT, 1),
 			_objective("Build a Quarry", GameTypes.Stat.QUARRIES_BUILT, 1),
 		],
+		[QuestReward.robot_upgrade_reward(GameTypes.RobotUpgrade.OPERATING, "Unlocks powering buildings by hand")]
+	))
+
+	# Manual power before automatic power (docs/quest-design.md): the robot is the island's first
+	# power source, but only for the one machine it stands at. Stockpiling 20 + 20 makes the player
+	# switch between the camp and the quarry, which is the case for the Burner Generator it unlocks.
+	quests.append(QuestScript.new(
+		GameTypes.QuestId.LIVE_WIRE,
+		GameTypes.QuestKind.MILESTONE,
+		"Live Wire",
+		"The camp and quarry stand idle without power, and there's no generator yet. Until "
+			+ "there is, the robot is the power source: park at a machine and Operate it to run it. "
+			+ "Keep them working until you've built up a stockpile.",
+		[
+			_objective("Power a building", GameTypes.Stat.BUILDINGS_OPERATED, 1),
+			_objective("Gather wood", GameTypes.Stat.WOOD_GATHERED, 20),
+			_objective("Gather stone", GameTypes.Stat.STONE_GATHERED, 20),
+		],
 		[
 			QuestReward.unlock_building(GameTypes.BuildingType.SAWMILL, "Unlocks the Sawmill"),
 			QuestReward.unlock_building(GameTypes.BuildingType.BURNER_GENERATOR, "Unlocks the Burner Generator")

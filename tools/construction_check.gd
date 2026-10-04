@@ -4,7 +4,8 @@ extends SceneTree
 # first buildings, and walks a blueprint through its life: placing it reserves the footprint and pays
 # its cost but builds nothing (no production, no quest credit); the robot walks over and builds it on
 # its own; interrupting it keeps the progress, which survives a save round-trip; the Build action
-# resumes it; finishing it starts production and counts for Lay the Foundations. A cancelled
+# resumes it; finishing it counts for Lay the Foundations, and once that unlocks Operate, powering it
+# starts production. A cancelled
 # blueprint refunds its cost.
 #
 # The game writes user://savegame.sav as it plays, so any existing save is backed up first and
@@ -101,11 +102,18 @@ func _run() -> void:
 	assert(stats.get_value(GameTypes.Stat.LOGGER_CAMPS_BUILT) == 1, "Finishing counts as built")
 	assert(not game.is_constructing)
 	assert(_site_for(renderer, cell) == null, "The finished camp is drawn as a building")
-	# The camp needs power: the robot, still at its work spot, is offered Operate straight away.
+	# The camp needs power, but hand-powering waits on Lay the Foundations (the quarry isn't built).
 	robot.set_selected(true)
+	game._refresh_action_bar()
+	assert(game._operate_action().is_empty(), "Operate is locked until Lay the Foundations")
+	var completed: Dictionary = game.quest_manager.completed_to_dict()
+	completed[GameTypes.QuestId.FOUNDATIONS] = true
+	game.quest_manager.restore_completed(completed)
+	# Once unlocked, the robot, still at its work spot, is offered Operate straight away.
 	game._refresh_action_bar()
 	assert(not game._operate_action().is_empty(), "Operate is offered on the finished camp")
 	game._on_action_pressed(game.UnitAction.OPERATE)
+	assert(stats.get_value(GameTypes.Stat.BUILDINGS_OPERATED) == 1, "Operating counts for Live Wire")
 	await _frames(3)
 	assert(island.has_production_time(cell), "The powered camp starts its production cycle")
 	game._stop_operating()

@@ -13,7 +13,8 @@ quest, **Rescue K9-DA**, and a linear milestone chain:
 | --- | --- | --- |
 | Recover Your Tools | Collect the axe, pickaxe, and wrench | Harvesting |
 | Break Ground | Gather 6 wood and 6 stone | Logger's Camp and Quarry |
-| Lay the Foundations | Build a Logger's Camp and a Quarry | Sawmill and Burner Generator |
+| Lay the Foundations | Build a Logger's Camp and a Quarry | Operate (hand-power buildings) |
+| Live Wire | Operate a building; gather 20 wood and 20 stone | Sawmill and Burner Generator |
 | Refine | Build a sawmill; gather 12 planks | Dock |
 | Set Sail | Build a dock | Reveal ring 1 |
 | Strike Iron | Gather 5 iron ore | Iron Mine and Coal Mine |
@@ -27,7 +28,7 @@ progress since a quest began. Spending materials does not reduce quest progress.
 completed actions can satisfy a newly activated milestone immediately.
 
 The Windmill currently has no quest reward gating it, so it is available by default. There are
-no dedicated objectives for manually operating a building, building a windmill, proving a mine
+no dedicated objectives for building a windmill, proving a mine
 is automatically powered, or delivering a particular resource to a particular island.
 
 ## Changes needed next
@@ -55,6 +56,13 @@ Introduce **Operate** on a power-consuming building before unlocking the Burner 
 Let the player see that the robot can power one machine but is occupied while doing so. Then
 demonstrate that a fueled generator keeps production running while the robot leaves to do
 other work.
+
+Done (first half): Operate is now a Lay the Foundations reward, and the next milestone, **Live
+Wire**, asks the player to Operate a building (`Stat.BUILDINGS_OPERATED`) and reach 20 wood and
+20 stone gathered (lifetime totals, so Break Ground's 6 + 6 count). Stockpiling both makes the
+player shuttle the robot between the camp and the quarry, which sets up the Burner Generator it
+unlocks alongside the Sawmill. Still open: an objective proving the generator runs production
+while the robot is elsewhere.
 
 Add objective tracking for those actions. A lifetime resource total alone cannot prove that
 production came from the intended building or power source. Prefer an actual production event

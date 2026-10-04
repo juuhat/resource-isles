@@ -43,6 +43,10 @@ func _run() -> void:
 	var robot: PlayerUnit = game.player_unit
 	robot.entered_cell.connect(func(cell: Vector2i) -> void: _entered.append(cell))
 	_check_resource_from_neighbour(game, robot)
+	# Operate is a Lay the Foundations reward; the work-spot checks expect it on offer.
+	var completed: Dictionary = game.quest_manager.completed_to_dict()
+	completed[GameTypes.QuestId.FOUNDATIONS] = true
+	game.quest_manager.restore_completed(completed)
 	for building_type in [GameTypes.BuildingType.LOGGER_CAMP, GameTypes.BuildingType.SAWMILL]:
 		_check_work_spot(game, robot, building_type)
 	_check_placement_veto(game, robot)
