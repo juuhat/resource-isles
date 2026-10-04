@@ -5,9 +5,9 @@
 See [Rescue, first metals, and boat cargo](docs/rescue-metals-and-cargo.md) for the latest
 design direction. Numbers and the copper/drone unlock are proposed starting points.
 
-- [ ] Delay electricity until after the actual K9-DA rescue on island 2. Remove the island-1 Burner Generator reward and gate the Windmill; keep robot Operate as direct mechanical power beforehand.
-- [ ] Add a fuel-fired Furnace that needs no electricity or iron to build. Proposed cost: 12 stone + 4 wood; proposed smelting recipe: 2 iron ore + 1 coal -> 1 iron ingot. Unlock the Furnace after rescue and before ingot objectives.
-- [ ] Add iron ingots and change the Burner Generator construction recipe to use them. Proposed cost: 6 iron ingots + 4 stone + 2 planks; unlock it after the first smelting lesson.
+- [x] Delay electricity until after the actual K9-DA rescue on island 2. Remove the island-1 Burner Generator reward and gate the Windmill; keep robot Operate as direct mechanical power beforehand. Both generators now unlock from Light the Forge after rescue and first smelting.
+- [x] Add a fuel-fired Furnace with animated bellows driven by robot Operate or 2 MW; it needs no iron to build. Cost: 12 stone + 4 wood; recipe: 2 iron ore + 1 coal -> 1 iron ingot every 6 seconds. Unlock it after rescue and before ingot objectives. See [Furnace](docs/furnace.md) and `tools/furnace_check.gd`.
+- [x] Add iron ingots and change the Burner Generator construction recipe to use them. Cost: 6 iron ingots + 4 stone + 2 planks; unlock it after the first smelting lesson.
 - [ ] Keep island 2's iron/coal/stone resources; introduce copper on another ring-1 island as the next exploration target. Design copper processing and its later uses in wiring/drone controls.
 - [ ] Make the robot's boat a unique, upgradeable personal vehicle. Prevent extra docks, dock moves/deletion, and save/load from creating duplicate personal boats; keep K9-DA's passenger space separate from cargo.
 - [x] Add a small personal-boat cargo hold (two resource slots of 20 units each), with island/boat icon slots and drag-and-drop transfers. Ask for stack size after dropping, defaulting to the maximum that fits. See [Boat cargo controls](docs/robot-built-boats.md#personal-boat-cargo).
@@ -51,7 +51,7 @@ and unresolved budgets and unlock decisions. These recommendations are not yet i
 - [x] Replace the tool pickups' ground icons with readable 3D models. Make the axe, pickaxe, and hammer (now a wrench) look like equipment designed for the robot, using the game's salvage-tech style and teal accents.
 - [ ] Reduce the first gathering quest (Break Ground) from 20 wood and 20 stone. Try around 5 of each, and tune the targets and building costs together so the player has enough materials to build the next quest's buildings without another long gathering stretch. Currently, the Logger's Camp and Quarry cost 6 wood each, so 5 wood alone would not cover both.
 - [x] Use 3D building models in the placement preview, matching the model, size, and orientation of the finished building. Preserve valid/invalid placement feedback and make sure the preview matches the final footprint.
-- [ ] Gate the Windmill behind a quest instead of unlocking it by default. Add a milestone that introduces fuel-free coastal power and rewards the Windmill unlock; show the required quest in the build menu while it is locked.
+- [x] Gate the Windmill behind a quest instead of unlocking it by default. Light the Forge grants the unlock after rescue and smelting; the build menu shows that requirement. A dedicated coastal-wind teaching milestone remains a future refinement.
 - [x] Show a red 3D lightning-bolt power indicator above each unpowered building that requires power. Keep it readable at gameplay zoom, and remove it as soon as generator power or the robot's Operate action powers the building.
 
 ## Robot access and clipping

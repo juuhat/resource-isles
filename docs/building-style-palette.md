@@ -86,6 +86,7 @@ Author every asset under the same neutral lighting and let the game light it. Av
 | Iron mine | Braced opening and stone arch | Rust-colored ore and cart |
 | Coal mine | Dark low opening | Coal pile and stout supports |
 | Burner generator | Compact vertical furnace | Chimney and teal housing |
+| Furnace | Broad stone kiln with refractory mouth and short square flue | Animated accordion bellows, shared robot drive socket and flywheel, coal bin and ingot casting bench |
 | Windmill | Slim cream tower | Broad sails and teal cap |
 | Dock | Horizontal timber pier | Posts and mooring |
 | Forest | Three to five conifers | Small open foreground clearing |
@@ -166,6 +167,9 @@ To make the layout survive the game's width-based scaling, author at true tile s
 The movement changes needed to actually use work spots are tracked in [TODO.md](../TODO.md) under "Robot access and clipping".
 
 ## Icon standard
+
+The [Furnace](furnace.md) and iron-ingot inventory icon are now authored from this kit;
+the ingot icon is a transparent render of its simple trapezoidal 3D model.
 
 Render icons from the approved models with a common isometric camera and neutral light. Use a transparent background, a generous safe margin, and consistent framing. Large build-menu icons may show the whole building. Tiny action and resource icons should use a simplified emblem (blade, log, boulder, lightning). Judge each icon at its actual UI size and simplify details that collapse into noise. Keep resource colors and machinery teal consistent with the map.
 

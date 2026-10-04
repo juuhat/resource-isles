@@ -30,6 +30,7 @@ enum BuildingType {
 	WINDMILL,  # coastal power: more open water = more wind, crowding buildings = less
 	IRON_MINE, # island 2+ extractors (see docs/second-island-progression.md)
 	COAL_MINE,
+	FURNACE,
 }
 
 enum BuildingCategory {
@@ -59,7 +60,8 @@ enum QuestId {
 	SET_SAIL,       # build the dock -> reveal the first ring of islands
 	THE_SUPPLY_LINE, # dock a second island and run a trade route to it
 	STRIKE_IRON,     # hand-mine iron on a frontier island -> the iron and coal mines
-	LIVE_WIRE,       # hand-power a building, stockpile wood + stone -> the sawmill and generator
+	LIVE_WIRE,       # hand-power a building, stockpile wood + stone -> the sawmill
+	LIGHT_THE_FORGE,
 }
 
 # Loose pickups scattered on the ground that the robot collects by walking onto them.
@@ -95,6 +97,7 @@ enum ResourceType {
 	PLANKS,
 	IRON_ORE, # raw ore mined from an IRON_ORE node; smelted into iron later
 	COAL,      # raw coal mined from a COAL node; smelter reductant + power fuel
+	IRON_INGOT,
 }
 
 enum AdjacencyKind {
@@ -129,6 +132,8 @@ enum Stat {
 	COAL_MINES_BUILT,
 	DOG_RESCUED, # K9-DA picked up by the robot (the MAIN quest; 0 or 1)
 	BUILDINGS_OPERATED, # times the robot started hand-powering a building with Operate
+	IRON_INGOTS_GATHERED,
+	FURNACES_BUILT,
 }
 
 
@@ -192,6 +197,10 @@ static func stat_display_name(stat: int) -> String:
 			return "K9-DA rescued"
 		Stat.BUILDINGS_OPERATED:
 			return "Buildings operated"
+		Stat.IRON_INGOTS_GATHERED:
+			return "Iron ingots produced"
+		Stat.FURNACES_BUILT:
+			return "Furnaces built"
 		_:
 			return "Unknown"
 

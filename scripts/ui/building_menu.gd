@@ -738,10 +738,11 @@ func _stat_rows(definition: BuildingDefinition) -> Array[Control]:
 			definition.production_base_amount, output_unit,
 			_format_seconds(definition.production_interval_seconds),
 		]))
-	if definition.input_resource_type != -1:
-		rows.append(_detail_row(_resource_icon(definition.input_resource_type), "Uses %d %s per batch" % [
-			definition.input_amount,
-			ResourceManager.get_display_name_for_type(definition.input_resource_type),
+	var inputs := definition.get_production_inputs()
+	for resource in inputs:
+		rows.append(_detail_row(_resource_icon(resource), "Uses %d %s per batch" % [
+			inputs[resource],
+			ResourceManager.get_display_name_for_type(resource),
 		]))
 	if definition.power_generated > 0:
 		output_unit = "MW"

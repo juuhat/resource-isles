@@ -60,6 +60,8 @@ const POWER_INDICATOR_GAP_TILES := 0.12
 # half a revolution per stroke so a wiper lets the tappet go as each drop begins.
 const AXE_STRIKE_DEGREES := 26.0 # matches STRIKE_DEGREES in tools/build_logger_camp.py
 const AXE_CHOP_SECONDS := 1.6
+const BELLOWS_PERIOD_SECONDS := 1.6
+const BELLOWS_HEIGHT := 0.20 # native model units, tools/build_furnace.py
 const POWERED_SPIN_PARTS := {
 	"SawBladePivot": [Vector3(0, 0, -1), 420.0],
 	"AxeCamPivot": [Vector3(0, 0, 1), 180.0 / AXE_CHOP_SECONDS],
@@ -68,6 +70,7 @@ const POWERED_SPIN_PARTS := {
 	"DrillPulleyPivot": [Vector3(1, 0, 0), 360.0],
 	"FlywheelPivot": [Vector3(1, 0, 0), 300.0],
 	"SocketRotor": [Vector3(0, 0, 1), 300.0],
+	"BellowsCamPivot": [Vector3(1, 0, 0), 360.0 / BELLOWS_PERIOD_SECONDS],
 }
 
 const SAND_COLOR := Color("#e3bc83")
@@ -1060,6 +1063,10 @@ func _add_powered_spinner(anchor_cell: Vector2i, model: Node3D) -> void:
 	var helve := model.find_child("AxeHelvePivot", true, false) as Node3D
 	if helve != null:
 		spinner.add_chop(helve, Vector3(0, 0, -1), AXE_STRIKE_DEGREES, AXE_CHOP_SECONDS)
+	var bellows := model.find_child("BellowsBody", true, false) as Node3D
+	var bellows_top := model.find_child("BellowsTop", true, false) as Node3D
+	if bellows != null and bellows_top != null:
+		spinner.add_bellows(bellows, bellows_top, BELLOWS_HEIGHT, BELLOWS_PERIOD_SECONDS)
 	if spinner.has_targets():
 		model.add_child(spinner)
 	else:

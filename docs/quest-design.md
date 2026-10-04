@@ -20,20 +20,22 @@ quest, **Rescue K9-DA**, and a linear milestone chain:
 | Recover Your Tools | Collect the axe, pickaxe, and wrench | Harvesting |
 | Break Ground | Gather 6 wood and 6 stone | Logger's Camp and Quarry |
 | Lay the Foundations | Build a Logger's Camp and a Quarry | Operate (hand-power buildings) |
-| Live Wire | Operate a building; gather 20 wood and 20 stone | Sawmill and Burner Generator |
+| Live Wire | Operate a building; gather 20 wood and 20 stone | Sawmill |
 | Refine | Build a sawmill; gather 12 planks | Dock |
 | Set Sail | Build a dock | Reveal ring 1 |
 | Strike Iron | Gather 5 iron ore | Iron Mine and Coal Mine |
+| Light the Forge | Rescue K9-DA; build a Furnace; produce 6 iron ingots | Burner Generator and Windmill |
 | The Supply Line | Establish a route; ship 20 goods | No mechanical reward; chain ends here |
 
 Rescue K9-DA now requires the actual Rescue action on the dog's island; simply reaching another
-island does not complete it. It runs independently of the milestones.
+island does not complete it. It runs independently of the milestones and now unlocks the
+Furnace. See [Furnace](furnace.md) for recipes, power gates, and existing-save behavior.
 
 Gathering and construction objectives use global lifetime totals, not current inventory or
 progress since a quest began. Spending materials does not reduce quest progress. Previously
 completed actions can satisfy a newly activated milestone immediately.
 
-The Windmill currently has no quest reward gating it, so it is available by default. There are
+The Windmill now unlocks with Light the Forge, alongside the Burner Generator. There are
 no dedicated objectives for building a windmill, proving a mine
 is automatically powered, or delivering a particular resource to a particular island.
 

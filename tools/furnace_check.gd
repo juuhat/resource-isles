@@ -1,0 +1,232 @@
+extends SceneTree
+
+const FURNACE := GameTypes.BuildingType.FURNACE
+const ORE := GameTypes.ResourceType.IRON_ORE
+const COAL := GameTypes.ResourceType.COAL
+const INGOT := GameTypes.ResourceType.IRON_INGOT
+const GameScene := preload("res://game.tscn")
+var failures := 0
+
+func _initialize() -> void:
+	call_deferred("_run")
+
+func expect(condition: bool, message: String) -> void:
+	if not condition:
+		failures += 1
+		push_error("FAILED: " + message)
+
+func _run() -> void:
+	_check_production()
+	_check_quests()
+	_check_model()
+	await _check_scene()
+	print("Furnace: PASS" if failures == 0 else "Furnace: FAIL (%d)" % failures)
+	quit(0 if failures == 0 else 1)
+
+func _check_production() -> void:
+	var manager := BuildingManager.new()
+	var production := ProductionManager.new()
+	production.setup(manager)
+	var power := PowerManager.new()
+	power.setup(manager)
+	var island := IslandData.new(3, 3)
+	for y in 3:
+		for x in 3:
+			island.set_terrain(Vector2i(x, y), GameTypes.Terrain.GRASS)
+	var cell := Vector2i(1, 1)
+	expect(manager.try_place(cell, FURNACE, island, 0, true), "Furnace blueprint fits land without a deposit")
+	island.inventory.add_amount(ORE, 6)
+	island.inventory.add_amount(COAL, 3)
+	production.update(island, 0)
+	production.update(island, 10)
+	expect(not island.has_production_time(cell) and island.inventory.get_amount(INGOT) == 0, "Blueprint does not smelt")
+	island.complete_construction(cell)
+	power.update(island, 0)
+	expect(power.total_generated == 0 and power.total_consumed == 2, "Bellows require power")
+	production.update(island, 0)
+	production.update(island, 10)
+	expect(island.inventory.get_amount(INGOT) == 0 and island.inventory.get_amount(ORE) == 6, "Idle Furnace preserves inputs")
+	power.update(island, 0, cell)
+	expect(island.is_consumer_powered(cell) and power.total_consumed == 0, "Robot drives bellows without electricity")
+	production.update(island, 0)
+	production.update(island, 5)
+	expect(island.inventory.get_amount(INGOT) == 0, "Waits a full batch interval")
+	production.update(island, 6)
+	expect(island.inventory.get_amount(INGOT) == 1 and island.inventory.get_amount(ORE) == 4 and island.inventory.get_amount(COAL) == 2, "Consumes ore and coal for one ingot")
+	island.inventory.set_amount(COAL, 0)
+	production.update(island, 12)
+	expect(island.inventory.get_amount(ORE) == 4 and island.inventory.get_amount(INGOT) == 1, "Missing coal does not waste ore")
+	island.inventory.add_amount(COAL, 1)
+	production.update(island, 12.1)
+	expect(island.inventory.get_amount(INGOT) == 2, "Resumes when coal arrives")
+	island.inventory.set_amount(ORE, 0)
+	island.inventory.add_amount(COAL, 1)
+	production.update(island, 19)
+	expect(island.inventory.get_amount(COAL) == 1 and island.inventory.get_amount(INGOT) == 2, "Missing ore does not waste coal")
+	island.inventory.add_amount(ORE, 2)
+	production.update(island, 19.1)
+	var restored := IslandData.from_dict(island.to_dict(19.1), 100)
+	expect(restored.inventory.get_amount(INGOT) == 3 and restored.get_building_type(cell) == FURNACE, "Ingot inventory and Furnace survive save round trip")
+	production.update(restored, 105)
+	expect(restored.inventory.get_amount(INGOT) == 3, "Save preserves remaining batch time")
+	power.update(island, 20)
+	production.update(island, 30)
+	expect(island.inventory.get_amount(INGOT) == 3, "Stopping Operate pauses smelting")
+	expect(manager.try_place(Vector2i(2, 2), GameTypes.BuildingType.BURNER_GENERATOR, island), "Place generator")
+	island.inventory.add_amount(GameTypes.ResourceType.WOOD, 10)
+	island.inventory.add_amount(ORE, 2)
+	island.inventory.add_amount(COAL, 1)
+	power.update(island, 30)
+	production.update(island, 30)
+	expect(island.is_consumer_powered(cell) and island.inventory.get_amount(INGOT) == 4, "Generator takes over bellows")
+	# Existing single-input recipes still work, and still respect power.
+	var saw := Vector2i.ZERO
+	expect(manager.try_place(saw, GameTypes.BuildingType.SAWMILL, island), "Place existing sawmill")
+	island.inventory.set_amount(GameTypes.ResourceType.WOOD, 2)
+	production.update(island, 20)
+	expect(not island.has_production_time(saw), "Unpowered sawmill remains paused")
+	island.set_consumer_powered(saw, true)
+	production.update(island, 20)
+	production.update(island, 23)
+	expect(island.inventory.get_amount(GameTypes.ResourceType.PLANKS) == 1 and island.inventory.get_amount(GameTypes.ResourceType.WOOD) == 0, "Single-input sawmill recipe still works")
+
+func _check_quests() -> void:
+	var stats := StatTracker.new()
+	var quests := QuestManager.new()
+	quests.setup(stats)
+	expect(not quests.is_building_unlocked(FURNACE), "Furnace locked before rescue")
+	expect(not quests.is_building_unlocked(GameTypes.BuildingType.WINDMILL), "Windmill cannot bypass rescue")
+	for entry in [
+		[GameTypes.Stat.TOOLS_COLLECTED, 3], [GameTypes.Stat.WOOD_GATHERED, 100],
+		[GameTypes.Stat.STONE_GATHERED, 100], [GameTypes.Stat.LOGGER_CAMPS_BUILT, 1],
+		[GameTypes.Stat.QUARRIES_BUILT, 1], [GameTypes.Stat.BUILDINGS_OPERATED, 1],
+		[GameTypes.Stat.SAWMILLS_BUILT, 1], [GameTypes.Stat.PLANKS_GATHERED, 12],
+		[GameTypes.Stat.DOCKS_BUILT, 1], [GameTypes.Stat.IRON_ORE_GATHERED, 5]]:
+		stats.add(entry[0], entry[1])
+	expect(quests.get_current_milestone().id == GameTypes.QuestId.LIGHT_THE_FORGE, "Smelting lesson precedes automatic trade")
+	expect(not quests.is_building_unlocked(GameTypes.BuildingType.BURNER_GENERATOR), "Early milestones no longer grant electricity")
+	stats.add(GameTypes.Stat.DOG_RESCUED, 1)
+	expect(quests.is_building_unlocked(FURNACE) and not quests.is_building_unlocked(GameTypes.BuildingType.BURNER_GENERATOR), "Rescue unlocks Furnace before generator")
+	stats.record_building_built(FURNACE)
+	stats.record_resource_gained(INGOT, 6)
+	expect(quests.is_completed(GameTypes.QuestId.LIGHT_THE_FORGE), "Furnace and ingots complete smelting lesson")
+	expect(quests.is_building_unlocked(GameTypes.BuildingType.BURNER_GENERATOR), "First ingots unlock generator")
+	var burner := BuildingManager.new().get_definition(GameTypes.BuildingType.BURNER_GENERATOR)
+	expect(burner.cost.get(INGOT) == 6, "Generator construction requires ingots")
+	var legacy := QuestManager.new()
+	legacy.restore_completed({GameTypes.QuestId.THE_SUPPLY_LINE: true})
+	expect(not legacy.is_completed(GameTypes.QuestId.LIGHT_THE_FORGE) and not legacy.is_building_unlocked(GameTypes.BuildingType.BURNER_GENERATOR), "Old trade saves do not silently skip smelting")
+
+func _check_model() -> void:
+	var definition := BuildingManager.new().get_definition(FURNACE)
+	var model := definition.model.instantiate() as Node3D
+	root.add_child(model)
+	expect(definition.true_tile_model and model.find_child("WorkSpot", true, false) != null, "Imported Furnace has construction work spot and fixed scale")
+	var bounds := AABB()
+	var first := true
+	for mesh in model.find_children("*", "MeshInstance3D", true, false):
+		var part: AABB = model.global_transform.affine_inverse() * mesh.global_transform * mesh.get_aabb()
+		bounds = part if first else bounds.merge(part)
+		first = false
+	expect(bounds.size.x < 1.5 and bounds.size.z < 1.2 and bounds.position.y >= -0.001, "Model stays inside tile and rests on ground")
+	var body := model.find_child("BellowsBody", true, false) as Node3D
+	var top := model.find_child("BellowsTop", true, false) as Node3D
+	expect(body != null and top != null and model.find_child("DockPoint", true, false) != null, "Articulated bellows and robot socket exist")
+	if body != null and top != null:
+		var island := IslandData.new(1, 1)
+		island.set_terrain(Vector2i.ZERO, GameTypes.Terrain.GRASS)
+		BuildingManager.new().try_place(Vector2i.ZERO, FURNACE, island)
+		var spinner := PoweredSpinner.new()
+		model.add_child(spinner)
+		spinner.set_process(false)
+		spinner.island = island
+		spinner.anchor_cell = Vector2i.ZERO
+		spinner.add_bellows(body, top, 0.20, 1.6)
+		var rest_scale := body.scale
+		var rest_top := top.position
+		spinner._process(1)
+		expect(body.scale.is_equal_approx(rest_scale), "Unpowered bellows stay still")
+		island.set_consumer_powered(Vector2i.ZERO, true)
+		spinner._process(0.6)
+		expect(body.scale.y < rest_scale.y and top.position.y < rest_top.y, "Bellows contract with moving top")
+		var low := body.scale.y
+		spinner._process(1.0)
+		expect(body.scale.y > low, "Bellows expand again")
+		island.set_consumer_powered(Vector2i.ZERO, false)
+		spinner._process(2)
+		var stopped := body.scale
+		spinner._process(1)
+		expect(body.scale.is_equal_approx(stopped), "Bellows stop when power ends")
+	root.remove_child(model)
+	model.free()
+
+func _check_scene() -> void:
+	var had_save := FileAccess.file_exists(SaveManager.SAVE_PATH)
+	var saved := FileAccess.get_file_as_bytes(SaveManager.SAVE_PATH) if had_save else PackedByteArray()
+	SaveManager.delete_save()
+	var game := GameScene.instantiate()
+	root.add_child(game)
+	await process_frame
+	game.quest_manager.restore_completed({GameTypes.QuestId.FOUNDATIONS: true})
+	game.stat_tracker.add(GameTypes.Stat.DOG_RESCUED, 1)
+	var cell := Vector2i(-1, -1)
+	for candidate in game.current_island.terrain:
+		if game.building_manager.can_place(candidate, FURNACE, game.current_island) and not game._is_unit_cell(candidate):
+			cell = candidate
+			break
+	expect(cell != Vector2i(-1, -1), "Find Furnace placement in real scene")
+	if cell != Vector2i(-1, -1):
+		game.current_island.inventory.set_amount(GameTypes.ResourceType.WOOD, 4)
+		game.current_island.inventory.set_amount(GameTypes.ResourceType.STONE, 12)
+		game.selected_building_type = FURNACE
+		game.building_manager.get_definition(FURNACE).build_seconds = 0.1
+		game.renderer.hovered_cell = cell
+		expect(game._try_place_selected_building(), "Unlocked Furnace can enter robot construction")
+		expect(game.current_island.is_under_construction(cell) and game.resource_manager.get_amount(GameTypes.ResourceType.STONE) == 0, "Blueprint reserves construction materials")
+		for step in 300:
+			if not game.player_unit.is_moving():
+				break
+			game.player_unit._process(0.25)
+		expect(game.is_constructing, "Robot reaches Furnace work spot and starts construction")
+		game._update_construction(0.2)
+		expect(game.current_island.is_building_complete(cell) and game.stat_tracker.get_value(GameTypes.Stat.FURNACES_BUILT) == 1, "Robot completes Furnace and records quest credit")
+		game.renderer.refresh()
+		var furnace_spinner: PoweredSpinner = null
+		for node in game.renderer.find_children("*", "", true, false):
+			if node is PoweredSpinner and node.anchor_cell == cell:
+				furnace_spinner = node
+		expect(furnace_spinner != null, "Renderer attaches powered Furnace animation")
+		if furnace_spinner != null:
+			expect(furnace_spinner._bellows.size() == 1 and furnace_spinner._targets.size() == 3, "Bellows, cam, flywheel and drive socket are wired")
+		game.current_island.inventory.set_amount(ORE, 12)
+		game.current_island.inventory.set_amount(COAL, 6)
+		game.current_island.set_next_production_time(cell, 0)
+		game.power_manager.update(game.current_island, 1)
+		game.production_manager.update(game.current_island, 1)
+		expect(game.current_island.inventory.get_amount(INGOT) == 0, "Real Furnace waits for power")
+		game._on_operate_pressed()
+		expect(game.is_operating and game.operate_cell == cell, "Furnace offers robot Operate")
+		game.power_manager.update(game.current_island, 1, game.operate_cell)
+		game.production_manager.update(game.current_island, 1)
+		expect(game.stat_tracker.get_value(GameTypes.Stat.IRON_INGOTS_GATHERED) == 1, "Real production records ingot stat")
+		game.building_info_panel.show_building(FURNACE, cell, game.current_island)
+		var labels := ""
+		for label in game.building_info_panel.detail_box.find_children("*", "Label", true, false):
+			labels += label.text + " "
+		expect(labels.contains("Iron Ore") and labels.contains("Coal"), "Building panel displays both batch ingredients")
+		if OS.get_cmdline_user_args().has("--screenshot"):
+			root.size = Vector2i(1400, 900)
+			game.building_menu.clear_selection()
+			game.camera_rig.center_on(game.renderer.get_cell_center(cell), true)
+			game.camera_rig._distance = 550
+			game.camera_rig._target_distance = 550
+			for frame in 30:
+				await process_frame
+			root.get_texture().get_image().save_png("res://.godot/furnace_preview.png")
+	root.remove_child(game)
+	game.free()
+	await process_frame
+	SaveManager.delete_save()
+	if had_save:
+		var file := FileAccess.open(SaveManager.SAVE_PATH, FileAccess.WRITE)
+		file.store_buffer(saved)

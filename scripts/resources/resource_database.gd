@@ -17,6 +17,7 @@ const WOOD_ICON := preload("res://assets/icons/wood_log.png")
 const STONE_ICON := preload("res://assets/icons/stone.png")
 const PLANKS_ICON := preload("res://assets/icons/wood_plank.png")
 const COAL_ICON := preload("res://assets/icons/coal_ore.png")
+const IRON_INGOT_ICON := preload("res://assets/icons/iron_ingot.png")
 
 # Lazily built, then cached for the rest of the run. Keyed by ResourceType.
 static var _definitions: Dictionary = {}
@@ -64,6 +65,13 @@ static func _build() -> void:
 		Color("#5a5a64"),
 		COAL_ICON,
 		GameTypes.Stat.COAL_GATHERED
+	))
+	_add(ResourceDefinitionScript.new(
+		GameTypes.ResourceType.IRON_INGOT,
+		"Iron Ingot",
+		Color("#89938d"),
+		IRON_INGOT_ICON,
+		GameTypes.Stat.IRON_INGOTS_GATHERED
 	))
 
 

@@ -22,6 +22,7 @@ const DOCK_MODEL := preload("res://assets/models/buildings/dock.glb")
 const WINDMILL_MODEL := preload("res://assets/models/buildings/windmill2.glb")
 const IRON_MINE_MODEL := preload("res://assets/models/buildings/iron_mine.glb")
 const COAL_MINE_MODEL := preload("res://assets/models/buildings/coal_mine.glb")
+const FURNACE_MODEL := preload("res://assets/models/buildings/furnace.glb")
 
 # Lazily built, then cached for the rest of the run. Keyed by BuildingType.
 static var _cached: Dictionary = {}
@@ -156,6 +157,23 @@ static func build_all() -> Array[BuildingDefinition]:
 	coal_mine.power_consumed = 2
 	definitions.append(coal_mine)
 
+	var furnace := BuildingDefinitionScript.new()
+	furnace.id = GameTypes.BuildingType.FURNACE
+	furnace.display_name = "Furnace"
+	furnace.description = "Coal heats the kiln; power drives its bellows. Operate it by hand for the first ingots, then let a generator take over."
+	furnace.category = GameTypes.BuildingCategory.PROCESSING
+	furnace.model = FURNACE_MODEL
+	furnace.true_tile_model = true
+	furnace.visual_size_tiles = Vector2(0.70, 0.70)
+	furnace.cost = {GameTypes.ResourceType.STONE: 12, GameTypes.ResourceType.WOOD: 4}
+	furnace.required_terrains = GameTypes.LAND_TERRAINS
+	furnace.production_resource_type = GameTypes.ResourceType.IRON_INGOT
+	furnace.production_base_amount = 1
+	furnace.production_interval_seconds = 6.0
+	furnace.production_inputs = {GameTypes.ResourceType.IRON_ORE: 2, GameTypes.ResourceType.COAL: 1}
+	furnace.power_consumed = 2
+	definitions.append(furnace)
+
 	# The pre-fuel power bootstrap is no longer a building: the robot itself is the
 	# tier-0 power source. Parking on any power-consuming building and using the Operate
 	# verb hand-powers it for free while the robot stays (see main.gd / power_manager.gd).
@@ -171,8 +189,9 @@ static func build_all() -> Array[BuildingDefinition]:
 	# tile, so the furnace sits in the back of its tile with an open yard in front.
 	burner_generator.visual_size_tiles = Vector2(0.579, 0.579)
 	burner_generator.cost = {
-		GameTypes.ResourceType.WOOD: 4,
-		GameTypes.ResourceType.STONE: 2,
+		GameTypes.ResourceType.IRON_INGOT: 6,
+		GameTypes.ResourceType.STONE: 4,
+		GameTypes.ResourceType.PLANKS: 2,
 	}
 	burner_generator.required_terrains = [GameTypes.Terrain.GRASS]
 	# Burns wood to hold a steady output. Stalls (0 MW) the moment wood runs out.

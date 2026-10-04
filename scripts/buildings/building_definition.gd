@@ -68,6 +68,9 @@ var production_interval_seconds: float = 0.0
 # stock). A processor (e.g. a sawmill) stalls until it can afford one batch.
 var input_resource_type: int = -1
 var input_amount: int = 0
+# Additional processors can declare a whole batch here (e.g. ore + coal). The legacy
+# single input remains supported for the sawmill; get_production_inputs combines them.
+var production_inputs: Dictionary = {}
 
 # Power (MW): a constant rate, not a stockpile. Generators add power_generated
 # while running; producers draw power_consumed while powered.
@@ -83,3 +86,9 @@ var fuel_interval_seconds: float = 0.0
 
 # Constructed with no arguments; every field is set by name at the call site (see
 # building_definitions.gd) so each line reads as "this property = this value".
+
+func get_production_inputs() -> Dictionary:
+	var inputs := production_inputs.duplicate()
+	if input_resource_type != -1 and input_amount > 0:
+		inputs[input_resource_type] = int(inputs.get(input_resource_type, 0)) + input_amount
+	return inputs

@@ -21,6 +21,7 @@ var _axes: Array[Vector3] = []
 var _speeds: Array[float] = []
 var _throttle := 0.0
 var _chops: Array[Dictionary] = []
+var _bellows: Array[Dictionary] = []
 
 
 func add_target(target: Node3D, axis: Vector3, degrees_per_second: float) -> void:
@@ -30,7 +31,13 @@ func add_target(target: Node3D, axis: Vector3, degrees_per_second: float) -> voi
 
 
 func has_targets() -> bool:
-	return not _targets.is_empty() or not _chops.is_empty()
+	return not _targets.is_empty() or not _chops.is_empty() or not _bellows.is_empty()
+
+
+# The accordion scales vertically from a fixed base; its rigid top follows the same stroke.
+func add_bellows(body: Node3D, top: Node3D, height: float, period_seconds: float) -> void:
+	_bellows.append({body = body, top = top, rest_scale = body.scale, rest_top = top.position,
+		height = height, period = maxf(period_seconds, .01), phase = 0.0})
 
 
 # Trip-hammer stroke for the logger's axe: the authored pose is the top of the stroke, and each
@@ -69,3 +76,13 @@ func _process(delta: float) -> void:
 		chop.phase = fmod(float(chop.phase) + delta * _throttle / float(chop.period), 1.0)
 		target.transform = chop.rest
 		target.rotate_object_local(chop.axis, chop_depth(float(chop.phase)) * float(chop.strike))
+	for bellows in _bellows:
+		var body := bellows.body as Node3D
+		var top := bellows.top as Node3D
+		if not is_instance_valid(body) or not is_instance_valid(top):
+			continue
+		bellows.phase = fmod(float(bellows.phase) + delta * _throttle / float(bellows.period), 1.0)
+		var expansion := 0.7 + 0.3 * cos(TAU * float(bellows.phase))
+		body.scale = bellows.rest_scale
+		body.scale.y *= expansion
+		top.position = bellows.rest_top + Vector3(0, float(bellows.height) * (expansion - 1.0), 0)

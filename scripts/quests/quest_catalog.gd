@@ -30,9 +30,7 @@ static func build_all() -> Array[Quest]:
 			+ "neighbouring island. Build a Dock, sail to the island where his signal is coming "
 			+ "from, then walk up to him and bring him aboard.",
 		[_objective("Rescue K9-DA", GameTypes.Stat.DOG_RESCUED, 1)],
-		# No mechanical reward — the payoff is the story beat (and the dock itself is
-		# unlocked by the REFINE milestone below, not here, to avoid a circular gate).
-		([] as Array[QuestReward])
+		[QuestReward.unlock_building(GameTypes.BuildingType.FURNACE, "Unlocks the Furnace")]
 	))
 
 	# --- The linear milestone chain (one active at a time, in this order) ---
@@ -77,7 +75,7 @@ static func build_all() -> Array[Quest]:
 
 	# Manual power before automatic power (docs/quest-design.md): the robot is the island's first
 	# power source, but only for the one machine it stands at. Stockpiling 20 + 20 makes the player
-	# switch between the camp and the quarry, which is the case for the Burner Generator it unlocks.
+	# switch between the camp and the quarry. Electricity waits for rescue and smelting.
 	quests.append(QuestScript.new(
 		GameTypes.QuestId.LIVE_WIRE,
 		GameTypes.QuestKind.MILESTONE,
@@ -91,8 +89,7 @@ static func build_all() -> Array[Quest]:
 			_objective("Gather stone", GameTypes.Stat.STONE_GATHERED, 20),
 		],
 		[
-			QuestReward.unlock_building(GameTypes.BuildingType.SAWMILL, "Unlocks the Sawmill"),
-			QuestReward.unlock_building(GameTypes.BuildingType.BURNER_GENERATOR, "Unlocks the Burner Generator")
+			QuestReward.unlock_building(GameTypes.BuildingType.SAWMILL, "Unlocks the Sawmill")
 		]
 	))
 
@@ -134,6 +131,24 @@ static func build_all() -> Array[Quest]:
 		[
 			QuestReward.unlock_building(GameTypes.BuildingType.IRON_MINE, "Unlocks the Iron Mine"),
 			QuestReward.unlock_building(GameTypes.BuildingType.COAL_MINE, "Unlocks the Coal Mine")
+		]
+	))
+
+	quests.append(QuestScript.new(
+		GameTypes.QuestId.LIGHT_THE_FORGE,
+		GameTypes.QuestKind.MILESTONE,
+		"Light the Forge",
+		"Rescue K9-DA to unlock the Furnace. Bring wood by boat, build the stone kiln, "
+			+ "and feed it iron ore and coal. Operate its bellows by hand to smelt six ingots "
+			+ "for your first Burner Generator.",
+		[
+			_objective("Rescue K9-DA", GameTypes.Stat.DOG_RESCUED, 1),
+			_objective("Build a Furnace", GameTypes.Stat.FURNACES_BUILT, 1),
+			_objective("Smelt iron ingots", GameTypes.Stat.IRON_INGOTS_GATHERED, 6),
+		],
+		[
+			QuestReward.unlock_building(GameTypes.BuildingType.BURNER_GENERATOR, "Unlocks the Burner Generator"),
+			QuestReward.unlock_building(GameTypes.BuildingType.WINDMILL, "Unlocks the Windmill")
 		]
 	))
 

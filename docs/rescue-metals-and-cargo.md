@@ -1,5 +1,9 @@
 # Rescue, first metals, and boat cargo — 2026-10-04
 
+Implementation update: [Furnace](furnace.md) records the delivered stone kiln, ingot recipe,
+iron-built Burner Generator, rescue/smelting power gates, and save behavior. Personal-boat
+cargo is also implemented; copper, autonomous drones and the manual-delivery quest remain TODOs.
+
 Current design direction from the playtest discussion. These are implementation TODOs,
 not changes already made to gameplay. This direction supersedes older plans for an
 island-1 Burner Generator, immediate automatic trade routes, and multiple player boats.
@@ -18,7 +22,7 @@ Suggested teaching sequence:
 
 1. Sail to island 2, discover iron and coal, and rescue K9-DA.
 2. Unlock and build a stone Furnace; bring construction supplies by personal boat.
-3. Smelt the first iron ingots with coal, without requiring electricity.
+3. Smelt the first iron ingots with coal and robot-operated bellows, before generated electricity.
 4. Build an iron-based Burner Generator and demonstrate unattended production.
 5. Explore another ring-1 island for copper.
 6. Unlock autonomous freight after the player has learned to haul supplies manually.
@@ -30,7 +34,7 @@ gathering and Operate must suffice to bootstrap the whole chain.
 | Proposed recipe | Ingredients | Notes |
 | --- | --- | --- |
 | Furnace construction | 12 stone + 4 wood | Stone body, wooden bellows/supports; no iron construction prerequisite. |
-| Iron ingot | 2 iron ore + 1 coal | Fuel-fired processing; consumes no electricity. |
+| Iron ingot | 2 iron ore + 1 coal | Coal heat; bellows require robot Operate or 2 MW. |
 | Burner Generator construction | 6 iron ingots + 4 stone + 2 planks | First generator; keep its existing wood fuel for now. |
 
 Use Furnace as the name for this first smelting building. Decide whether a later electric

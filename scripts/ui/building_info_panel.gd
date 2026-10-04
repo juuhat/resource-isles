@@ -208,14 +208,16 @@ func _build_production(building_type: int, anchor_cell: Vector2i, island: Island
 
 func _build_input(building_type: int) -> void:
 	var definition := building_manager.get_definition(building_type)
-	if definition == null or definition.input_resource_type == -1:
+	if definition == null:
 		return
 
-	_add_icon_line(
-		_resource_icon(definition.input_resource_type),
-		"Consumes %d / %.0fs" % [definition.input_amount, definition.production_interval_seconds],
-		ResourceManager.get_display_name_for_type(definition.input_resource_type),
-	)
+	var inputs := definition.get_production_inputs()
+	for resource in inputs:
+		_add_icon_line(
+			_resource_icon(resource),
+			"Consumes %d %s / %.0fs" % [inputs[resource], ResourceManager.get_display_name_for_type(resource), definition.production_interval_seconds],
+			ResourceManager.get_display_name_for_type(resource),
+		)
 
 
 func _build_power(building_type: int, anchor_cell: Vector2i, island: IslandData) -> void:
