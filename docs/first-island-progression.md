@@ -1,5 +1,9 @@
 # First Island Progression
 
+See the [2026-10-04 quest design review](quest-design.md) for proposed changes to the opening
+budgets, Scale Up gate, and power lessons. That review distinguishes current behavior from
+recommendations; the older decisions below have not yet been reconciled with it.
+
 Design notes for the player's opening island in Resource Isles — what it teaches, what
 buildings belong on it, and why. This is direction; parts of it propose **changes** to the
 current implementation (notably folding the Manual Generator into the robot) and are flagged

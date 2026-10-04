@@ -1,5 +1,9 @@
 # Second Island Progression
 
+See the [2026-10-04 quest design review](quest-design.md) for the proposed windmill unlock,
+targeted first shipment, and onward metal-production payoff. In particular, a Smelter unlock
+must precede any ingot objective; the older milestone table below needs revision before use.
+
 > **Current power-ladder note:** This document predates the newer chosen power spine:
 > `Ring 0 Robot + Wood Burner -> Ring 1 Coastal Windmill -> Ring 2 Coal Generator -> Ring 3 Oil -> Late Nuclear`.
 > It still describes the older ring-1 iron+coal colony. Treat the coal-specific parts below as

@@ -1,11 +1,31 @@
 # To-do list
 
+## Quest design
+
+See [Quest design review](docs/quest-design.md) for the current chain, proposed teaching sequence,
+and unresolved budgets and unlock decisions. These recommendations are not yet implemented.
+
+- [ ] Replace the Scale Up 100-resource gate with a construction/production lesson, and resolve whether one or both extractors are required.
+- [ ] Add objectives teaching manual Operate power followed by automatic power.
+- [ ] Make the first supply-line objective track wood actually delivered from home to the frontier colony.
+- [ ] Define the payoff after trade; unlock smelting before requiring ingots when the metal-production chain is added.
+- [ ] Resolve ring-1 coal availability against the chosen ring-2 coal-power progression and reconcile the older progression documents.
+- [ ] Verify new quest objectives and unlocks with fresh games and existing saves.
+
 ## Player model
 
 - [x] Create a first cream-and-teal salvage robot model with an editable mechanical pivot rig and idle/walk clips; integrate movement-driven animation switching. See [Player model](docs/player-model.md).
 - [ ] Playtest the new robot's proportions, visibility, and walk rhythm at gameplay zoom.
 - [ ] Add harvesting, building, operating, and rescue animations with gameplay hooks.
 - [ ] Update the robot command-bar portrait to match the accepted model.
+
+## Robot construction
+
+- [ ] Make construction a robot task: choose a building in the build menu, place a blueprint, then automatically command the robot to walk to a reachable work spot and build it. Avoid requiring a second Build click for every placement.
+- [ ] Reserve construction materials when placing the blueprint and return them if it is cancelled. Reserve the footprint and show a transparent 3D building preview until construction finishes.
+- [ ] Use a short construction time. Leave interrupted blueprints and their progress in place, provide a Build action in the robot's command bar to resume them, and persist blueprints, reserved materials, and progress through save/load.
+- [ ] Start the completed building's power consumption and production only after construction finishes. Count quest construction objectives on completion rather than blueprint placement.
+- [ ] Teach blueprint placement and completed robot construction in an early quest, followed by Operate. Keep moving completed buildings instant for now so layout experimentation stays easy.
 
 ## Playtest feedback — 2026-10-03
 
