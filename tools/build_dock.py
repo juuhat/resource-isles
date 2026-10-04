@@ -1,24 +1,27 @@
 """Blender --background --python tools/build_dock.py: model, source and preview.
 
 Dock (docs/building-style-palette.md): a horizontal timber pier, the one building that stands
-out in the water. It covers two tiles (BuildingDefinition.footprint): a stone quay and cargo on
-a sandy shore tile, and the pier on pilings over the coast tile beside it, widening into a T-head
-with a mooring post and a teal beacon post with an amber lamp. The rowboat ties up at the
-'BoatSpot' marker.
+out in the water. It covers a line of three tiles (BuildingDefinition.footprint): a stone quay
+and cargo on a sandy shore tile, the pier on pilings over the coast tile beside it, widening
+into a T-head with a mooring post and a teal beacon post with an amber lamp, and the berth on the
+water tile beyond, where the salvage skiff (tools/build_salvage_skiff.py) lies stern to the pier
+head with its bow out to sea. The renderer moors the skiff at the 'BoatSpot' marker; it is not
+part of this model.
 
 Authored at true tile scale (lowpoly_kit.TILE = 2 units per tile) for the footprint at rotation
-0: the shore tile (the anchor) centred at x = -1 and the coast tile to its east at x = +1. The
-origin is the centroid of the two tile centres, on the shore tile's ground, where the renderer
-puts it (BuildingDefinition.true_tile_model); it turns the model with the footprint. The pilings
-stand on the coast seabed, below the sand. The robot's work spot is on the shore at the pier's
-root, looking out along it.
+0: the shore tile (the anchor) centred at x = -2, the coast tile east of it at x = 0 and the
+berth at x = +2. The origin is the centroid of the tile centres (the coast tile's centre), on the
+shore tile's ground, where the renderer puts it (BuildingDefinition.true_tile_model); it turns
+the model with the footprint. The pilings stand on the coast seabed, below the sand. The robot's
+work spot is on the shore at the pier's root, looking out along it.
 """
 import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True  # keep tools/ free of __pycache__
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from lowpoly_kit import (PALETTE, TILE, reset_scene, material, box, cylinder, marker, hex_tile, export,
+import bpy
+from lowpoly_kit import (ROOT, PALETTE, TILE, reset_scene, material, box, cylinder, marker, hex_tile, export,
                          render_preview)
 
 reset_scene()
@@ -101,13 +104,30 @@ latch = box('Case latch', (-1.02, .52, .28 + .175), (.06, .20, .014), dark)
 case.rotation_euler.z = latch.rotation_euler.z = .45
 
 # Layout metadata for the game: the solid footprint, where the robot works from, and where the
-# rowboat moors.
+# skiff moors: its origin (waterline, mid-hull) on the berth tile, stern a hand's width off the
+# fender beam, bow (+X) out to sea.
 marker('Footprint', (.25, 0, .5), (1.45, .72, .5))
 marker('WorkSpot', (SHORE_X - .30, 0, 0))
-marker('BoatSpot', (.85, .80, WATER_Z))
+marker('BoatSpot', (HEAD_X1 + .07 + .15 + .85, 0, WATER_Z))
+
+# Everything above is laid out around the midpoint of the shore and coast tiles. The berth
+# makes the footprint three tiles, so shift it all west half a tile: the origin becomes the
+# coast tile's centre, the centroid of the three.
+for o in bpy.context.scene.objects:
+    if o.parent is None:
+        o.location.x -= T / 2
 
 export('dock', join_label='Dock')
 
-# Preview only: the coast tile the pier stands over, at the game's water height.
-hex_tile('Preview water tile', (SEA_X, 0), -.16, WATER_Z, material('Preview water', (.05, .23, .30)))
-render_preview('dock', target_z=.2, ortho_scale=5.0, true_tile=True, tiles=[(SHORE_X, 0)])
+# Preview only: the coast and berth tiles at the game's water height, with the skiff moored.
+water = material('Preview water', (.05, .23, .30))
+for x in (0, T):
+    hex_tile('Preview water tile', (x, 0), -.16, WATER_Z, water)
+berth = bpy.context.scene.objects['BoatSpot'].location.copy()
+bpy.ops.object.select_all(action='DESELECT')
+bpy.ops.import_scene.gltf(filepath=str(ROOT / 'assets/models/boats/salvage_skiff.glb'))
+for o in bpy.context.selected_objects:
+    if o.parent is None:
+        o.location += berth
+render_preview('dock', target_z=.2, ortho_scale=7.0, camera=(-1.0, -5.7, 6.0), true_tile=True,
+               tiles=[(-T, 0)])

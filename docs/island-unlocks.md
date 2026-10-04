@@ -53,10 +53,10 @@ requires.
   water:
 
   ```text
-  rowboat -> sailboat -> ship -> (later tiers)
+  salvage skiff -> sailboat -> ship -> (later tiers)
   ```
 
-  Distance equals difficulty (a Civ/Anno idea): the rowboat only reaches the nearest islands;
+  Distance equals difficulty (a Civ/Anno idea): the salvage skiff only reaches the nearest islands;
   rougher, richer islands need a better hull. Each tier doubles as the in-fiction step toward
   the rebuilt ship.
 
@@ -66,7 +66,7 @@ The unlock for the next island is a **capability + a need**, not a price tag:
 
 | Layer | Role | Why it works |
 | --- | --- | --- |
-| **Boat tier** (tech) | rowboat -> sailboat -> ship; each reaches farther / rougher water | The real gate. Diegetic, tied to the dock you already build. Distance = difficulty. |
+| **Boat tier** (tech) | salvage skiff -> sailboat -> ship; each reaches farther / rougher water | The real gate. Diegetic, tied to the dock you already build. Distance = difficulty. |
 | **Resource cost** (per boat) | each boat tier costs resources, and higher tiers cost the *rare resources from earlier new islands* | Restores weight to cost: the tier-2 boat needs island-1's rare material, so the player cannot skip ahead. |
 | **Discovery** (pull) | a locked island appears on the world map only once a reachable boat tier exists | "Map fills in as you progress" feel — milestone flavor without an arbitrary achievement gate. |
 
@@ -84,7 +84,7 @@ starter island sits at the center**. Islands are arranged in concentric **rings*
      o     o     o
   o    ( ring 1 )    o
      o    [S]    o          [S] = starter island (center)
-  o     o     o     o       ring 1 = rowboat range
+  o     o     o     o       ring 1 = skiff range
      o     o     o          ring 2 = sailboat range, rougher water, richer
         ( ring 2 )
 ```
@@ -192,7 +192,7 @@ afford (built alongside the second island's dock) is intentionally **very weak**
 enough to bootstrap but not to run an economy. Throughput is the progression lever.
 
 This gives boat tiers / route upgrades a **second axis** beyond *reach* (which ring): *capacity*
-(route throughput). `rowboat` = trickle, `sailboat` = more, `ship` = real trade volume. Reach
+(route throughput). `salvage skiff` = trickle, `sailboat` = more, `ship` = real trade volume. Reach
 and throughput scale together up the tier ladder.
 
 ### Bootstrap: the dock is the first building on a new island
@@ -244,7 +244,7 @@ Start tiny; do not build a sprawling tech UI up front.
    travels to it; `[` / `]` cycle discovered islands, which keep their placed buildings).
    **Every island now simulates each frame** (production, power, fuel against its own
    inventory), not just the one on screen; see step 6.
-3. **Rowboat + one neighbor** — build a rowboat at the dock; reveal and travel to a single
+3. **Salvage skiff + one neighbor** — build a salvage skiff at the dock; reveal and travel to a single
    ring-1 island. View-swap with a short sailing transition. The robot travels; the starter
    island keeps producing.
 4. **World map DONE (one seamless flat-disc world)** — the play area *is* the world map: the

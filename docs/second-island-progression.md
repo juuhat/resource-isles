@@ -11,7 +11,7 @@ must precede any ingot objective; the older milestone table below needs revision
 > wind and non-coal frontier resources.
 
 Design notes for the player's **second** island in Resource Isles — the first stop off the
-starter rock (ring 1, rowboat range). This is direction, not implementation. Where island 1
+starter rock (ring 1, salvage skiff range). This is direction, not implementation. Where island 1
 teaches *"you are the economy,"* island 2 teaches **automation, power pressure, and the first
 trade route** — the systems island 1 deliberately withheld.
 

@@ -20,7 +20,7 @@ for where the automation / power / trade-route systems this doc defers actually 
 
 The first island is small and **deliberately resource-scarce** — only a few forests and a few
 stone deposits. The win goal for the island is narrow: gather enough to build the **Dock** and
-a **Rowboat** and sail to the next island. So what is the right progression, and how manual
+a **Salvage Skiff** and sail to the next island. So what is the right progression, and how manual
 should it be?
 
 ## The Guiding Principle (why automation does *not* belong on island 1)
@@ -54,19 +54,19 @@ hard gates; let it stay small and hand-driven.
 
 ### The Sawmill is the one forced building
 
-The boat (Rowboat) is gated behind **planks**, and planks only come from the **Sawmill**. So
+The boat (the Salvage Skiff) is gated behind **planks**, and planks only come from the **Sawmill**. So
 the Sawmill is the single mandatory building on island 1 — the one structure the player *must*
 construct to leave.
 
 ```text
 Hand-chop wood  ─┐
-                 ├─►  Sawmill (forced: planks gate the boat)  ──► planks ──► Rowboat
+                 ├─►  Sawmill (forced: planks gate the boat)  ──► planks ──► Salvage Skiff
 Hand-mine stone ─┘         ▲
                            └── needs power
 ```
 
 - **Dock** = raw wood + stone (cheap; the *capability* that opens sea travel).
-- **Rowboat** = planks (forces the Sawmill, and therefore the wood supply + power sub-problem).
+- **Salvage Skiff** = planks (forces the Sawmill, and therefore the wood supply + power sub-problem).
 
 ### Logger's Camp and Quarry are cut from island 1
 
@@ -165,7 +165,7 @@ ongoing and the freed robot finally has somewhere else to be.
    the dependency chain (dock needs stone → Quarry → power → operate) forces the player through
    automation + power before leaving. Contrived and contradicts "hand-mine stone"; **recommended
    against** unless the tutorial framing demands it.
-2. **Rowboat cost in planks** — how many planks gate the boat? Tune so the Sawmill is clearly
+2. **Salvage Skiff cost in planks** — how many planks gate the boat? Tune so the Sawmill is clearly
    worth building but island 1 stays a short on-ramp.
 3. **Does the robot-as-power source add to the island pool, or only to the building it stands
    on?** On a one-generator island it does not matter; revisit if multiple operable buildings

@@ -3,12 +3,12 @@ extends SceneTree
 # Headless check for multi-tile building footprints (docs/building-footprints.md):
 #   - HexGrid turns an axial shape about its anchor on both row parities: a three-tile triangle
 #     stays three mutually adjacent tiles at every rotation, and six turns come back round;
-#   - the dock covers a sand tile and the coast tile beside it, auto-rotating toward the water,
-#     and both tiles belong to it;
-#   - its model moors the rowboat and puts the robot's work spot on the shore tile, and the robot
-#     clicked onto the pier tile walks to that spot;
+#   - the dock covers a sand tile, the coast tile beside it and a water berth beyond, in a line,
+#     auto-rotating toward the water, and all three tiles belong to it;
+#   - its model moors the salvage skiff and puts the robot's work spot on the shore tile, and the
+#     robot clicked onto the pier tile walks to that spot;
 #   - a building's rotation survives a save round trip, and a one-tile dock from an older save
-#     grows to two tiles on load.
+#     grows to three tiles on load.
 #
 # The game writes user://savegame.sav as it plays, so any existing save is backed up first and
 # restored at the end.
@@ -87,19 +87,24 @@ func _check_dock(game: Node) -> void:
 		return
 
 	var cells := manager.get_footprint_cells(anchor, dock, rotation)
-	_expect(cells.size() == 2 and island.get_terrain(cells[1]) == GameTypes.Terrain.COAST,
+	_expect(cells.size() == 3 and island.get_terrain(cells[1]) == GameTypes.Terrain.COAST,
 		"The dock's second tile is the coast beside its sand")
+	_expect(cells.size() == 3 and island.get_terrain(cells[2]) in [GameTypes.Terrain.COAST, GameTypes.Terrain.WATER]
+		and HexGridScript.neighbors(cells[1]).has(cells[2]) and not HexGridScript.neighbors(cells[0]).has(cells[2]),
+		"The berth is water, straight on past the pier")
 	_expect(renderer.place_building_at(anchor, dock, rotation), "The dock places")
 	_expect(island.get_building_anchor_cell(cells[1]) == anchor, "The pier tile belongs to the dock")
+	_expect(island.get_building_anchor_cell(cells[2]) == anchor, "The berth belongs to the dock")
 	_expect(island.get_building_rotation(anchor) == rotation, "The dock keeps its rotation")
 
 	var spot = renderer.get_work_spot(anchor)
 	_expect(spot != null and renderer.world_to_cell(spot) == anchor, "The work spot is on the shore tile")
-	var boats := 0
-	for node in renderer.find_children("*", "Sprite3D", true, false):
-		if (node as Sprite3D).texture == IslandRenderer.ROWBOAT_TEXTURE:
-			boats += 1
-	_expect(boats == 1, "The dock moors one rowboat")
+	var boats := renderer.find_children(IslandRenderer.MOORED_BOAT_NAME, "", true, false)
+	_expect(boats.size() == 1, "The dock moors one boat")
+	if boats.size() == 1:
+		# world_to_cell takes positions in the renderer's parent space, as get_work_spot returns.
+		var boat_cell := renderer.world_to_cell(renderer.position + renderer.to_local((boats[0] as Node3D).global_position))
+		_expect(boat_cell == cells[2], "The boat lies on the berth tile")
 
 	var plan: Dictionary = game._plan_approach(cells[1], game.player_unit.current_cell)
 	_expect(not plan.is_empty() and plan.spot_cell == anchor, "Clicking the pier sends the robot to the shore spot")
@@ -121,8 +126,8 @@ func _check_migration(game: Node) -> void:
 			island.buildings[cell] = {type = dock, cells = old_cells}
 			manager.migrate_footprints(island)
 			var cells := island.get_building_footprint_cells(cell)
-			_expect(cells.size() == 2 and island.get_terrain(cells[1]) == GameTypes.Terrain.COAST,
-				"A one-tile dock from an old save grows onto the coast")
+			_expect(cells.size() == 3 and island.get_terrain(cells[1]) == GameTypes.Terrain.COAST,
+				"A one-tile dock from an old save grows onto the coast and its berth")
 			island.remove_building(cell)
 			return
 	_expect(false, "Found a tile to test migration on")

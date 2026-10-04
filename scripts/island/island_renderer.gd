@@ -27,7 +27,9 @@ const PoweredSpinnerScript := preload("res://scripts/island/powered_spinner.gd")
 const WATER_TOON_SHADER := preload("res://assets/shaders/water_toon.gdshader")
 const WATER_SURFACE_NOISE := preload("res://assets/shaders/water_toon/PerlinNoise.png")
 const WATER_DISTORT_NOISE := preload("res://assets/shaders/water_toon/WaterDistortion.png")
-const ROWBOAT_TEXTURE := preload("res://assets/vehicles/rowboat.png")
+# The tier-1 boat (tools/build_salvage_skiff.py), moored at a dock's BoatSpot.
+const SALVAGE_SKIFF_MODEL := preload("res://assets/models/boats/salvage_skiff.glb")
+const MOORED_BOAT_NAME := "MooredBoat"
 
 const ITEM_TEXTURES := {
 	GameTypes.ItemType.AXE: preload("res://assets/icons/axe.png"),
@@ -41,7 +43,6 @@ const ITEM_MODELS := {
 	GameTypes.ItemType.WRENCH: preload("res://assets/models/items/wrench.glb"),
 }
 
-const BOAT_SIZE_TILES := Vector2(0.8, 0.8)
 # Model units per tile for BuildingDefinition.true_tile_model (lowpoly_kit.TILE).
 const TRUE_TILE_UNITS := 2.0
 # Red "no power" bolt over unpowered consumers: its height and the gap above the roof, in tiles.
@@ -943,10 +944,6 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 			var spot := model.find_child("WorkSpot", true, false) as Node3D
 			if spot != null:
 				_work_spots[anchor_cell] = _local_position_in(spot, model)
-			# A building with a mooring (the dock) gets the rowboat tied up there.
-			var boat_spot := model.find_child("BoatSpot", true, false) as Node3D
-			if boat_spot != null:
-				_spawn_boat(_local_position_in(boat_spot, model))
 		if model != null and definition.power_consumed > 0:
 			_spawn_power_indicator(anchor_cell, footprint, model)
 			_add_powered_spinner(anchor_cell, model)
@@ -977,6 +974,7 @@ func _spawn_building_model(definition: BuildingDefinition, footprint: Array, rot
 	)
 	if model != null:
 		_fit_placed_model(model, definition, footprint, rotation)
+		_moor_boat(model)
 	return model
 
 
@@ -1027,11 +1025,17 @@ func _add_powered_spinner(anchor_cell: Vector2i, model: Node3D) -> void:
 		spinner.free()
 
 
-func _spawn_boat(mooring: Vector3) -> void:
-	var sprite := _make_billboard(ROWBOAT_TEXTURE, BOAT_SIZE_TILES, Vector2.ZERO)
-	sprite.position = Vector3(mooring.x, WATER_TOP_Y, mooring.z)
-	_lift_to_ground(sprite)
-	_objects_root.add_child(sprite)
+# A building with a mooring (the dock) gets the salvage skiff tied up at its BoatSpot. Both are
+# authored at true tile scale with the boat's bow along the marker's +X, so the skiff simply
+# hangs off the marker and turns with the building; being part of the model, it shows in the
+# placement ghost too.
+func _moor_boat(model: Node3D) -> void:
+	var boat_spot := model.find_child("BoatSpot", true, false) as Node3D
+	if boat_spot == null:
+		return
+	var boat := SALVAGE_SKIFF_MODEL.instantiate() as Node3D
+	boat.name = MOORED_BOAT_NAME
+	boat_spot.add_child(boat)
 
 
 # --- Placement preview ---

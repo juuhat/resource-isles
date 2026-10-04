@@ -233,15 +233,16 @@ static func build_all() -> Array[BuildingDefinition]:
 	dock.category = GameTypes.BuildingCategory.LOGISTICS
 	dock.texture = DOCK_TEXTURE
 	dock.model = DOCK_MODEL
-	# Two tiles: the quay on a sandy shore tile and the pier out over the coast tile beside it
-	# (the shallow water that always rings land). auto_rotate swings the pier toward the water
-	# wherever the player hovers; R picks between several water sides. The future launch point
-	# for boats and inter-island travel (see docs/island-unlocks.md).
-	dock.footprint = [Vector2i.ZERO, HexGridScript.AXIAL_EAST]
+	# Three tiles in a line: the quay on a sandy shore tile, the pier out over the coast tile
+	# beside it (the shallow water that always rings land), and the berth beyond the pier head
+	# where the salvage skiff moors, on coast or open water. auto_rotate swings the pier toward
+	# the water wherever the player hovers; R picks between several water sides. The future
+	# launch point for boats and inter-island travel (see docs/island-unlocks.md).
+	dock.footprint = [Vector2i.ZERO, HexGridScript.AXIAL_EAST, HexGridScript.AXIAL_EAST * 2]
 	dock.required_terrains = [GameTypes.Terrain.SAND]
-	dock.footprint_terrains = [[], [GameTypes.Terrain.COAST]]
+	dock.footprint_terrains = [[], [GameTypes.Terrain.COAST], [GameTypes.Terrain.COAST, GameTypes.Terrain.WATER]]
 	dock.auto_rotate = true
-	# Authored at true tile scale (tools/build_dock.py), origin midway between the two tiles.
+	# Authored at true tile scale (tools/build_dock.py), origin on the pier tile, the middle of three.
 	dock.true_tile_model = true
 	# Size of the billboard fallback only; the true-tile model sets its own scale.
 	dock.visual_size_tiles = Vector2(1.6, 1.6)

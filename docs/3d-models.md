@@ -102,7 +102,7 @@ Because the lift is derived from the measured AABB, models with different origin
 - **Models:** the robot (`player_model.glb`), both resource nodes (`pine_forest.glb`,
   `stone_deposit.glb`), the crashed-spaceship building (`crashed_spaceship.glb`), and the dock
   (`dock.glb`, built by `tools/build_dock.py`), and the burner generator (`burner_generator.glb`,
-  built by `tools/build_burner_generator.py`). The dock covers two tiles and is a
+  built by `tools/build_burner_generator.py`). The dock covers three tiles and is a
   `true_tile_model`: fixed scale, origin placed directly on the ground, turned with its footprint.
   See [Building footprints](building-footprints.md).
 - **Ground items:** the robot's three lost tools (`assets/models/items/axe.glb`, `pickaxe.glb`,
@@ -113,7 +113,13 @@ Because the lift is derived from the measured AABB, models with different origin
   thirds of the 0.45-tile robot's height. `_spawn_item` places them at the fixed
   true-tile scale and turns each to an angle derived from its cell. `ITEM_TEXTURES` stays as
   the fallback for the axe and pickaxe (the wrench has no flat icon).
-- **Still billboards:** the remaining buildings and the dock boat. Swapping each
+- **Boats:** the salvage skiff (`assets/models/boats/salvage_skiff.glb`, built by
+  `tools/build_salvage_skiff.py`), tier 1 of the [robot-built boats](robot-built-boats.md). It is
+  at true tile scale with its bow along +X and its origin on the waterline, and it carries
+  `PilotSpot`, `DockPoint`, `CompanionSpot` and a spinnable `PropellerPivot` (about +X). The
+  renderer moors one at every dock's `BoatSpot` (`_moor_boat`), on the dock's third tile. The
+  world map's trade-route boats are still the code-built sailboat in `world_view.gd`.
+- **Still billboards:** the remaining buildings. Swapping each
   is just dropping in an asset and setting `model` — the cost is the art, not code.
 
 ## Gotchas

@@ -9,8 +9,8 @@ extends RefCounted
 # docks. A route runs only while its home island still has a dock for it and the away island has
 # at least one dock; otherwise it idles at home (blocked_reason says why).
 #
-# Throughput is deliberately a trickle for now (the rowboat): BOAT_CAPACITY per leg, with trip
-# time growing with world-map distance. Boat tiers will raise capacity and reach later.
+# Throughput is deliberately a trickle for now (the salvage skiff): BOAT_CAPACITY per leg, with
+# trip time growing with world-map distance. Boat tiers will raise capacity and reach later.
 
 signal route_created(route: TradeRoute)
 signal route_removed(route: TradeRoute)

@@ -123,7 +123,8 @@ shipment. Keep both objectives reachable in the final milestone ordering.
   sufficient opening budget?
 - Is the Burner Generator mandatory to prove automatic power, or an optional early unlock?
 - How many planks should the opening require, and what spends them? Currently 12 planks gate
-  the quest, but the Dock itself costs only wood and stone; no separate buildable rowboat exists.
+  the quest, but the Dock itself costs only wood and stone; the salvage skiff comes moored
+  with the Dock rather than as a separate build.
 - Does ring 1 keep coal deposits while coal power waits for ring 2, or does the frontier resource
   profile change? Current non-starter islands all use the iron/coal/stone profile.
 - Which quest rewards follow the rescue and useful trade? Choose a bounded first-playable
