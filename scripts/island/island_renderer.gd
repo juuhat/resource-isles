@@ -18,6 +18,7 @@ extends Node3D
 # where on the disc the island sits.
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
+const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
 const BladeSpinnerScript := preload("res://scripts/island/blade_spinner.gd")
 const PowerIndicatorScript := preload("res://scripts/island/power_indicator.gd")
 const PoweredSpinnerScript := preload("res://scripts/island/powered_spinner.gd")
@@ -46,6 +47,9 @@ const ITEM_MODELS := {
 
 # Model units per tile for BuildingDefinition.true_tile_model (lowpoly_kit.TILE).
 const TRUE_TILE_UNITS := 2.0
+# How much of a step onto or off a deck the hop up or down takes (see get_step_height): the dock's
+# walkway starts 0.1 of a step out from the quay tile's centre (tools/build_dock.py, WALK_X0).
+const DECK_STEP_FRACTION := 0.15
 # Red "no power" bolt over unpowered consumers: its height and the gap above the roof, in tiles.
 const POWER_INDICATOR_HEIGHT_TILES := 0.5
 const POWER_INDICATOR_GAP_TILES := 0.12
@@ -241,7 +245,33 @@ func get_cell_center(cell: Vector2i) -> Vector3:
 func _local_cell_center(cell: Vector2i) -> Vector3:
 	var center := HexGridScript.cell_center_3d(cell, cell_size)
 	center.y = _terrain_top_y(_terrain_of(cell))
+	var decks := HexPathfinderScript.deck_cells(island) if island != null else {}
+	if decks.has(cell) and building_manager != null:
+		# A deck's floor (the dock's pier), raised above its building's anchor ground.
+		var anchor_cell: Vector2i = decks[cell]
+		var definition := building_manager.get_definition(island.get_building_type(anchor_cell))
+		center.y = _terrain_top_y(_terrain_of(anchor_cell)) + definition.deck_height_tiles * cell_size.x
 	return center
+
+
+# Height of a unit at world_position on its way from from_cell to the neighbouring to_cell. It
+# walks a straight line between the tile centres, so this is its own y, except stepping onto or
+# off a deck: the pier's boards reach back over the quay's tile, so the unit hops up onto them as
+# it sets off (or down off them as it arrives) rather than sinking through them on a ramp.
+func get_step_height(from_cell: Vector2i, to_cell: Vector2i, world_position: Vector3) -> float:
+	var decks := HexPathfinderScript.deck_cells(island) if island != null else {}
+	var onto := decks.has(to_cell) and not decks.has(from_cell)
+	var off := decks.has(from_cell) and not decks.has(to_cell)
+	if not onto and not off:
+		return world_position.y
+
+	var from := get_cell_center(from_cell)
+	var to := get_cell_center(to_cell)
+	var leg := Vector2(to.x - from.x, to.z - from.z)
+	var along := Vector2(world_position.x - from.x, world_position.z - from.z).dot(leg) / maxf(leg.length_squared(), 0.001)
+	var t := clampf(along / DECK_STEP_FRACTION, 0.0, 1.0) if onto \
+		else clampf((along - (1.0 - DECK_STEP_FRACTION)) / DECK_STEP_FRACTION, 0.0, 1.0)
+	return lerpf(from.y, to.y, smoothstep(0.0, 1.0, t))
 
 
 func world_to_cell(world_position: Vector3) -> Vector2i:
@@ -336,7 +366,7 @@ func cell_from_ray(origin: Vector3, direction: Vector3) -> Vector2i:
 
 	var cell := _local_to_cell(approx)
 	if island != null and island.is_in_bounds(cell):
-		var refined = _ray_plane_xz(local_origin, direction, _terrain_top_y(island.get_terrain(cell)))
+		var refined = _ray_plane_xz(local_origin, direction, _local_cell_center(cell).y)
 		if refined != null:
 			cell = _local_to_cell(refined)
 
@@ -772,6 +802,14 @@ func _rebuild_objects() -> void:
 	for anchor_cell in island.buildings.keys():
 		var building_type: int = island.buildings[anchor_cell].type
 		_spawn_building(anchor_cell, building_type)
+	for id in island.boats:
+		if id == island.piloted_boat:
+			continue
+		var boat := SALVAGE_SKIFF_MODEL.instantiate() as Node3D
+		_objects_root.add_child(boat)
+		boat.scale = Vector3.ONE * cell_size.x / TRUE_TILE_UNITS
+		boat.position = get_water_center(island.boats[id].cell) - position
+		boat.rotation.y = float(island.boats[id].get("yaw", 0.0))
 
 
 func _spawn_resource(cell: Vector2i, resource_node_type: int) -> void:
@@ -904,6 +942,10 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 			var spot := model.find_child("WorkSpot", true, false) as Node3D
 			if spot != null:
 				_work_spots[anchor_cell] = _local_position_in(spot, model)
+			if island.buildings[anchor_cell].get("boat_launched", false):
+				var moored := model.find_child(MOORED_BOAT_NAME, true, false)
+				if moored != null:
+					moored.free()
 		if model != null and under_construction:
 			_dress_construction_site(anchor_cell, model, _spawn_building_model(definition, footprint, rotation))
 			return
@@ -1027,6 +1069,12 @@ func _moor_boat(model: Node3D) -> void:
 	var boat := SALVAGE_SKIFF_MODEL.instantiate() as Node3D
 	boat.name = MOORED_BOAT_NAME
 	boat_spot.add_child(boat)
+
+
+func get_water_center(cell: Vector2i) -> Vector3:
+	var center := HexGridScript.cell_center_3d(cell, cell_size) + position
+	center.y = position.y + WATER_TOP_Y
+	return center
 
 
 # --- Placement preview ---

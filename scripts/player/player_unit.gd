@@ -51,6 +51,8 @@ const EQUIP_TIME := 0.15
 var renderer: IslandRenderer
 var current_cell := Vector2i(-1, -1)
 var selected := false
+var boat_id := -1
+var _vessel: Node3D
 
 var _path: Array[Vector2i] = []
 var _target_world := Vector3.ZERO
@@ -127,6 +129,40 @@ func place_at(cell: Vector2i) -> void:
 	_moving = false
 	visible = true
 	_update_marker()
+
+
+func mount_boat(id: int, cell: Vector2i, yaw: float) -> void:
+	leave_boat()
+	boat_id = id
+	place_at(cell)
+	position = renderer.get_water_center(cell)
+	_vessel = Node3D.new()
+	add_child(_vessel)
+	_vessel.rotation.y = yaw
+	var hull := IslandRenderer.SALVAGE_SKIFF_MODEL.instantiate() as Node3D
+	_vessel.add_child(hull)
+	var size := renderer.cell_size.x / IslandRenderer.TRUE_TILE_UNITS
+	hull.scale = Vector3.ONE * size
+	var helm := hull.find_child("PilotSpot", true, false) as Node3D
+	_model.reparent(_vessel, false)
+	_model.position = helm.position * size if helm != null else Vector3.ZERO
+	_model.rotation.y = PI / 2.0
+	set_work("operate")
+
+
+func boat_yaw() -> float:
+	return _vessel.rotation.y if _vessel != null else 0.0
+
+
+func leave_boat() -> void:
+	if _vessel != null:
+		_model.reparent(self, false)
+		_model.position = Vector3.ZERO
+		_model.rotation.y = boat_yaw() + PI / 2.0
+		_vessel.free()
+		_vessel = null
+	boat_id = -1
+	set_work("")
 
 
 # Walk the cells in `path`, then, with a spot_cell, one last leg straight to spot_position inside
@@ -245,6 +281,9 @@ func _face_direction(direction: Vector3, delta: float) -> void:
 	var flat := Vector3(direction.x, 0.0, direction.z)
 	if flat.length() < 0.001:
 		return
+	if _vessel != null:
+		_vessel.rotation.y = lerp_angle(_vessel.rotation.y, atan2(-flat.z, flat.x), clampf(delta * turn_speed, 0.0, 1.0))
+		return
 
 	var target_yaw := atan2(flat.x, flat.z) + MODEL_YAW_OFFSET
 	_model.rotation.y = lerp_angle(_model.rotation.y, target_yaw, clampf(delta * turn_speed, 0.0, 1.0))
@@ -268,6 +307,8 @@ func _process(delta: float) -> void:
 		_advance_to_next()
 	else:
 		position += to_target / distance * step
+		if boat_id == -1:
+			position.y = renderer.get_step_height(current_cell, _pending_cell, position)
 
 
 # Parked: ease into the pose from face_toward(), if any.
@@ -299,6 +340,8 @@ func _advance_to_next() -> void:
 
 	_pending_cell = _path.pop_front()
 	_target_world = renderer.get_cell_center(_pending_cell)
+	if boat_id != -1:
+		_target_world = renderer.get_water_center(_pending_cell)
 	_moving = true
 	_update_marker()
 
@@ -333,14 +376,15 @@ func _setup_animations() -> void:
 func _update_animation() -> void:
 	if _animation_player == null:
 		return
-	var working := not _moving and _work_animations.has(_work)
-	var animation_name: String = _move_animation if _moving else _idle_animation
+	var walking := _moving and boat_id == -1
+	var working := (not _moving or boat_id != -1) and _work_animations.has(_work)
+	var animation_name: String = _move_animation if walking else _idle_animation
 	if working:
 		animation_name = _work_animations[_work]
 	# Match the in-place gait to translation, including changes to speed or model size.
 	# Always reset this for idle/work so their timing doesn't inherit the gait's rate.
 	var playback_speed := 1.0
-	if _moving and not _move_animation.is_empty():
+	if walking and not _move_animation.is_empty():
 		var cycle_distance := _move_cycle_distance * absf(_model.scale.z)
 		var cycle_length := _animation_player.get_animation(_move_animation).length
 		playback_speed = maxf(move_speed, 0.0) * cycle_length / maxf(cycle_distance, 0.001)

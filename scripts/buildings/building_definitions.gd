@@ -23,6 +23,17 @@ const WINDMILL_MODEL := preload("res://assets/models/buildings/windmill2.glb")
 const IRON_MINE_MODEL := preload("res://assets/models/buildings/iron_mine.glb")
 const COAL_MINE_MODEL := preload("res://assets/models/buildings/coal_mine.glb")
 
+# Lazily built, then cached for the rest of the run. Keyed by BuildingType.
+static var _cached: Dictionary = {}
+
+
+# One building's definition, for static callers (HexPathfinder) with no BuildingManager to ask.
+static func get_definition(building_type: int) -> BuildingDefinition:
+	if _cached.is_empty():
+		for definition in build_all():
+			_cached[definition.id] = definition
+	return _cached.get(building_type)
+
 
 static func build_all() -> Array[BuildingDefinition]:
 	var definitions: Array[BuildingDefinition] = []
@@ -246,6 +257,10 @@ static func build_all() -> Array[BuildingDefinition]:
 	dock.auto_rotate = true
 	# Authored at true tile scale (tools/build_dock.py), origin on the pier tile, the middle of three.
 	dock.true_tile_model = true
+	# The pier is walkable: its deck boards stand DECK_TOP (0.2 model units, 0.1 tiles) above the
+	# shore's sand in tools/build_dock.py.
+	dock.deck_tiles = [1]
+	dock.deck_height_tiles = 0.1
 	# Size of the billboard fallback only; the true-tile model sets its own scale.
 	dock.visual_size_tiles = Vector2(1.6, 1.6)
 	dock.cost = {

@@ -16,6 +16,8 @@ var resources: Dictionary = {}
 var items: Dictionary = {}
 var scavenged_cells: Dictionary = {}
 var buildings: Dictionary = {}
+var boats: Dictionary = {}
+var piloted_boat := -1
 var building_next_production_times: Dictionary = {}
 var building_next_fuel_times: Dictionary = {}
 var generator_running_states: Dictionary = {}
@@ -298,6 +300,8 @@ func to_dict(reference_time: float) -> Dictionary:
 		items = items.duplicate(),
 		scavenged_cells = scavenged_cells.duplicate(),
 		buildings = _buildings_to_dict(),
+		boats = boats.duplicate(true),
+		piloted_boat = piloted_boat,
 		next_production_times = _to_relative_times(building_next_production_times, reference_time),
 		next_fuel_times = _to_relative_times(building_next_fuel_times, reference_time),
 		generator_running_states = generator_running_states.duplicate(),
@@ -316,6 +320,8 @@ static func from_dict(data: Dictionary, reference_time: float) -> IslandData:
 	island.items = (data.get("items", {}) as Dictionary).duplicate()
 	island.scavenged_cells = (data.get("scavenged_cells", {}) as Dictionary).duplicate()
 	island.buildings = _buildings_from_dict(data.get("buildings", {}))
+	island.boats = (data.get("boats", {}) as Dictionary).duplicate(true)
+	island.piloted_boat = int(data.get("piloted_boat", -1))
 	island.building_next_production_times = _to_absolute_times(
 		data.get("next_production_times", {}), reference_time
 	)
@@ -339,6 +345,8 @@ func _buildings_to_dict() -> Dictionary:
 		}
 		if building.has("build_progress"):
 			result[anchor_cell].build_progress = float(building.build_progress)
+		if building.get("boat_launched", false):
+			result[anchor_cell].boat_launched = true
 	return result
 
 
@@ -354,6 +362,8 @@ static func _buildings_from_dict(saved_buildings: Dictionary) -> Dictionary:
 		result[anchor_cell] = {type = int(saved.type), cells = cells, rotation = int(saved.get("rotation", 0))}
 		if saved.has("build_progress"):
 			result[anchor_cell].build_progress = float(saved.build_progress)
+		if saved.get("boat_launched", false):
+			result[anchor_cell].boat_launched = true
 	return result
 
 

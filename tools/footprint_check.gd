@@ -5,8 +5,9 @@ extends SceneTree
 #     stays three mutually adjacent tiles at every rotation, and six turns come back round;
 #   - the dock covers a sand tile, the coast tile beside it and a water berth beyond, in a line,
 #     auto-rotating toward the water, and all three tiles belong to it;
-#   - its model moors the salvage skiff and puts the robot's work spot on the shore tile, and the
-#     robot clicked onto the pier tile walks to that spot;
+#   - its model moors the salvage skiff and puts the robot's work spot on the shore tile;
+#   - the built pier is a deck the robot walks out onto from the quay, at the boards' height, and
+#     a robot left on it when the dock is removed is put back ashore;
 #   - a building's rotation survives a save round trip, and a one-tile dock from an older save
 #     grows to three tiles on load.
 #
@@ -106,13 +107,48 @@ func _check_dock(game: Node) -> void:
 		var boat_cell := renderer.world_to_cell(renderer.position + renderer.to_local((boats[0] as Node3D).global_position))
 		_expect(boat_cell == cells[2], "The boat lies on the berth tile")
 
-	var plan: Dictionary = game._plan_approach(cells[1], game.player_unit.current_cell)
-	_expect(not plan.is_empty() and plan.spot_cell == anchor, "Clicking the pier sends the robot to the shore spot")
+	_check_pier(game, anchor, rotation, cells)
 
 	var restored := IslandData.from_dict(island.to_dict(0.0), 0.0)
 	_expect(restored.get_building_rotation(anchor) == rotation and restored.get_building_footprint_cells(anchor) == cells,
 		"Rotation and tiles survive a save round trip")
 	renderer.remove_building(anchor)
+
+
+# The pier is a deck: walked out onto from the quay only, at the height of its boards, and only
+# once the dock is built. A robot left on it when the dock goes is put back ashore.
+func _check_pier(game: Node, anchor: Vector2i, rotation: int, cells: Array[Vector2i]) -> void:
+	var island: IslandData = game.current_island
+	var renderer: IslandRenderer = game.renderer
+	var pier := cells[1]
+	var start: Vector2i = game.player_unit.current_cell
+
+	_expect(HexPathfinder.is_walkable(island, pier) and HexPathfinder.is_open(island, pier), "The pier is walkable floor")
+	_expect(not HexPathfinder.is_walkable(island, cells[2]), "The berth stays water")
+	for neighbor in HexGridScript.neighbors(pier):
+		if not cells.has(neighbor):
+			_expect(not HexPathfinder.can_step(island, neighbor, pier), "The pier is boarded only from the quay (%s)" % neighbor)
+	_expect(HexPathfinder.can_step(island, anchor, pier), "The quay steps onto the pier")
+	var deck_y := renderer.get_cell_center(anchor).y + 0.1 * renderer.cell_size.x
+	_expect(is_equal_approx(renderer.get_cell_center(pier).y, deck_y), "Units stand on the pier's boards")
+
+	var plan: Dictionary = game._plan_approach(pier, start)
+	_expect(not plan.is_empty() and plan.spot_cell == Vector2i(-1, -1) and not plan.path.is_empty()
+		and plan.path[-1] == pier and plan.path[-2] == anchor, "Clicking the pier walks the robot out onto it via the quay")
+	var mid := renderer.get_cell_center(anchor).lerp(renderer.get_cell_center(pier), 0.5)
+	_expect(is_equal_approx(renderer.get_step_height(anchor, pier, mid), deck_y), "Halfway out, the robot is up on the boards")
+
+	game.player_unit.place_at(pier)
+	game._land_stranded_units(anchor)  # nothing to do while the dock stands
+	_expect(game.player_unit.current_cell == pier, "The robot stays on a standing pier")
+	island.buildings[anchor].build_progress = 0.5
+	_expect(not HexPathfinder.is_walkable(island, pier), "A blueprint dock has no pier to walk on")
+	island.buildings[anchor].erase("build_progress")
+	renderer.remove_building(anchor)
+	game._land_stranded_units(anchor)
+	_expect(game.player_unit.current_cell == anchor, "A robot left on a removed pier goes back ashore")
+	renderer.place_building_at(anchor, GameTypes.BuildingType.DOCK, rotation)
+	game.player_unit.place_at(start)
 
 
 # An older save holds the dock as just its sand tile.

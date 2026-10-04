@@ -1,30 +1,75 @@
 class_name HexPathfinder
 extends RefCounted
 
-# Shortest paths over land hex tiles. Buildings are walked through (the player can't wall the
+# Shortest paths over land hex tiles (and decks over the water, like the dock's pier). Buildings are walked through (the player can't wall the
 # robot in with their own construction); resource nodes — trees, rocks, ore — are walked around,
 # and crossed only when there is no other way (OBSTACLE_COST outweighs any detour), so a unit can
 # never be trapped and every land cell stays reachable. Paths exclude the start and include the
 # goal; they are empty when no path exists or the unit is already on the goal.
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
+const BuildingDefinitionsScript := preload("res://scripts/buildings/building_definitions.gd")
 
 # Cost of stepping onto a resource node, versus 1 for any other land: a path is effectively
 # "fewest nodes crossed, then fewest steps".
 const OBSTACLE_COST := 1000
 
 
-# Land a unit can stand on in principle (anything but water / off the map).
+# Ground a unit can stand on in principle: land (anything but water / off the map), or a finished
+# building's deck out over the water (the dock's pier, see deck_cells).
 static func is_walkable(island: IslandData, cell: Vector2i) -> bool:
-	return island != null and island.is_in_bounds(cell) \
-		and not GameTypes.is_water(island.get_terrain(cell))
+	return island != null and _is_walkable(island, deck_cells(island), cell)
 
 
 # Land with nothing solid on it: no building and no resource node — somewhere a unit can park
-# without overlapping a model. Ground items don't count: the robot picks them up by walking
-# over them.
+# without overlapping a model. A deck is open too: it's a floor, not a model to stand clear of.
+# Ground items don't count: the robot picks them up by walking over them.
 static func is_open(island: IslandData, cell: Vector2i) -> bool:
+	if island == null:
+		return false
+	if deck_cells(island).has(cell):
+		return true
 	return is_walkable(island, cell) and not island.has_building(cell) and not island.has_resource(cell)
+
+
+static func is_deck(island: IslandData, cell: Vector2i) -> bool:
+	return island != null and deck_cells(island).has(cell)
+
+
+# Every tile of a finished building's walkable floor (BuildingDefinition.deck_tiles), like the
+# dock's pier, mapped to that building's anchor. A blueprint has no floor yet.
+static func deck_cells(island: IslandData) -> Dictionary:
+	var decks := {}
+	for anchor_cell in island.buildings:
+		var building: Dictionary = island.buildings[anchor_cell]
+		var definition := BuildingDefinitionsScript.get_definition(int(building.type))
+		# build_progress marks a blueprint (IslandData.is_under_construction, without its lookup).
+		if definition == null or definition.deck_tiles.is_empty() or building.has("build_progress"):
+			continue
+		var cells: Array = building.get("cells", [])
+		for index in definition.deck_tiles:
+			if index < cells.size():
+				decks[cells[index]] = anchor_cell
+	return decks
+
+
+# Whether a unit can step from `from` onto the neighbouring `to`. A deck is boarded only from its
+# own building's tiles (the pier from the dock's quay), never straight off the water's edge
+# beside it.
+static func can_step(island: IslandData, from: Vector2i, to: Vector2i) -> bool:
+	return island != null and _can_step(island, deck_cells(island), from, to)
+
+
+static func _is_walkable(island: IslandData, decks: Dictionary, cell: Vector2i) -> bool:
+	return island.is_in_bounds(cell) and (not GameTypes.is_water(island.get_terrain(cell)) or decks.has(cell))
+
+
+static func _can_step(island: IslandData, decks: Dictionary, from: Vector2i, to: Vector2i) -> bool:
+	if not _is_walkable(island, decks, to):
+		return false
+	if decks.has(from) or decks.has(to):
+		return island.get_building_anchor_cell(from) == island.get_building_anchor_cell(to)
+	return true
 
 
 # Buildings are passable; resource nodes are not (except as a last resort, see OBSTACLE_COST).
@@ -42,13 +87,14 @@ static func find_path(island: IslandData, start: Vector2i, goal: Vector2i) -> Ar
 	return path_to(search(island, start, goal), goal)
 
 
-# Dijkstra from start over walkable land. Returns {cost = {cell: total cost}, came_from = {cell:
+# Dijkstra from start over walkable ground. Returns {cost = {cell: total cost}, came_from = {cell:
 # previous cell}}, covering every reachable cell, or stopping early once `goal` is settled.
 static func search(island: IslandData, start: Vector2i, goal := Vector2i(-1, -1)) -> Dictionary:
 	var cost := {start: 0}
 	var came_from := {start: start}
 	var settled := {}
 	var heap: Array = [[0, start]]
+	var decks := deck_cells(island)
 
 	while not heap.is_empty():
 		var entry: Array = _heap_pop(heap)
@@ -60,7 +106,7 @@ static func search(island: IslandData, start: Vector2i, goal := Vector2i(-1, -1)
 			break
 
 		for neighbor in HexGridScript.neighbors(current):
-			if settled.has(neighbor) or not is_walkable(island, neighbor):
+			if settled.has(neighbor) or not _can_step(island, decks, current, neighbor):
 				continue
 			var new_cost: int = cost[current] + step_cost(island, neighbor)
 			if not cost.has(neighbor) or new_cost < cost[neighbor]:

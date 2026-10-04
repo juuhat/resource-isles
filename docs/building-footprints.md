@@ -41,6 +41,7 @@ Author multi-tile models with the low-poly kit at true tile scale and set `true_
 - Put the origin at the **centroid of the footprint's tile centres**, on the anchor tile's ground. For the dock's line of three that's the middle (pier) tile's centre. For a triangle, it's the corner the three tiles share.
 - The renderer then uses a fixed scale (`TILE` units per tile), puts the origin right there, and turns the model with the footprint. Parts may reach below the ground, like the dock's pilings standing on the seabed.
 - Markers: `WorkSpot`, where the robot stands to work it (must be on a land tile; the robot walks to whichever footprint tile it falls on), `Footprint`, and `BoatSpot` (the dock's berth: the renderer hangs the salvage skiff off it, bow along the marker's +X, so it turns with the building and shows in the placement ghost).
+- Decks: list footprint tiles units can walk on in `deck_tiles`, with the floor's height above the anchor tile's ground in `deck_height_tiles` (model units / `TILE`). Once the building is finished, units walk and stand on those tiles even over water, boarding them only from the building's own tiles, and hop up onto the floor as they set off from the neighbouring tile. The dock's pier is `deck_tiles = [1]` at `0.1` tiles (its boards' `DECK_TOP`). Removing the building puts a unit left on its deck back on the anchor tile.
 - Preview it with `render_preview(true_tile=True, tiles=[...])`, one plinth per land tile centre, and `hex_tile()` for water or other preview tiles. [`tools/build_dock.py`](../tools/build_dock.py) is the reference.
 
 While placing, a building with a model shows it as a see-through ghost, sized and turned exactly as the placed building will be, over a green (or red) cap on each tile. Only buildings without a model fall back to their flat billboard.
@@ -63,7 +64,7 @@ The anchor is the south-west tile, east is the south-east tile, and north-east i
 
 ## Checks
 
-`tools/footprint_check.gd` covers shape rotation on both row parities, the dock's placement and auto-rotation, its work and boat spots, the robot's approach from the pier tile, the save round trip, and old-save migration:
+`tools/footprint_check.gd` covers shape rotation on both row parities, the dock's placement and auto-rotation, its work and boat spots, walking out onto the pier, the save round trip, and old-save migration:
 
 ```
 Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/footprint_check.gd

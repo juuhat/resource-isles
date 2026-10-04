@@ -48,11 +48,32 @@ Operate pose) and `salvage_skiff_dock_check.png` (spindle in the post socket, cl
   coast, and a berth on the water beyond (coast or open water). The skiff lies on the berth,
   stern-to off the pier head with its bow out to sea. The renderer hangs it off the dock's
   `BoatSpot`, so it turns with the dock and shows in the placement ghost. It is a moored prop
-  only: no bobbing, spinning screw or boarding yet.
+  until launched with the robot's **Pilot boat** action.
 - **Open: K9-DA's space.** `CompanionSpot` leaves about 0.2 tiles of clear deck, but K9-DA
   walks at 0.55 tiles long (`dog.gd` `visual_size_tiles`). Either the dog gets a smaller
   seated pose aboard or the skiff gets longer, which would push the catamaran and tug up by
   the same ratios.
+
+## Playable boarding and local navigation
+
+- Walk to the finished pier, or an open shore tile beside a parked boat. Right-clicking
+  the boat routes the robot to a reachable boarding tile; it does not board automatically.
+- Press **Pilot boat** (power icon) to mount the helm. The robot uses its hand-PTO operating
+  pose while the hull turns and moves with the usual right-click movement commands.
+- Boats navigate coast and water cells, avoiding land, pier decks, unfinished docks and other
+  boats. The hull stays at the visible water surface.
+- Beside an open land tile or a finished deck, **Disembark** becomes available. Right-click
+  a neighbouring landing tile to choose it, then press the action. The boat stays afloat;
+  the robot can walk back and reboard it. Resource obstacles cannot be landing spots.
+- Launched boats have independent position and heading saved in `IslandData.boats`.
+  Saving aboard restores the robot aboard. Moving or deleting the original dock does not
+  take the launched boat with it or create a replacement boat.
+- This first pass covers each island's water grid. Existing map travel between islands still
+  respawns the robot ashore and parks the boat on the island being left. K9-DA remains ashore;
+  companion boarding, the screw animation and bobbing are future work.
+
+Check with `Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/boat_navigation_check.gd`.
+Pass `-- --screenshot` without `--headless` to also capture `.godot/boat_preview.png`.
 
 ## Scale and overview readability
 

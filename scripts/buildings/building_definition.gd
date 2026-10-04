@@ -27,6 +27,11 @@ var auto_rotate: bool = false
 # scale and places the origin directly, instead of fitting the model's bounds to
 # visual_size_tiles, so parts may reach below the ground (the dock's pilings).
 var true_tile_model: bool = false
+# Footprint tiles (indices into footprint) with a floor units walk and stand on once the building
+# is finished, even over water (the dock's pier), reached only from the building's own tiles.
+# deck_height_tiles is that floor's height above the anchor tile's ground, in tiles.
+var deck_tiles: Array[int] = []
+var deck_height_tiles: float = 0.0
 var visual_size_tiles: Vector2 = Vector2.ONE
 var visual_offset_tiles: Vector2 = Vector2.ZERO
 # Heading (degrees) applied around the Y axis when instancing a 3D model.

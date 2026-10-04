@@ -163,6 +163,7 @@ func _advance_movement(delta: float) -> void:
 		_advance_to_next()
 	else:
 		position += to_target / distance * step
+		position.y = renderer.get_step_height(current_cell, _pending_cell, position)
 
 
 func _advance_to_next() -> void:
