@@ -1,5 +1,8 @@
 # 3D Models
 
+The player now uses the scripted cream-and-teal salvage robot with idle/walk clips. See
+[Player model](player-model.md) for its rig, source, previews, and rebuild instructions.
+
 How 3D presentation works in Resource Isles and how to add a 3D model. This is the
 **integration / code** side; for *generating* the assets (Meshy prompts, style, export
 settings) see [meshy-guide.md](meshy-guide.md).

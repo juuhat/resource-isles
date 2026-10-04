@@ -3,7 +3,7 @@ extends Node3D
 
 # The player-controlled robot (3D, see docs/3d-models.md). Holds a current
 # hex cell and walks along a queued path of cells at a constant world-space speed on the
-# XZ ground plane. The robot is a 3D model (player_model.glb). When selected it shows a
+# XZ ground plane. The robot is an animated 3D model (salvage_robot.glb). When selected it shows a
 # translucent hex cap on top of its tile, matching the placement-preview / hover highlight;
 # deselected it has no marker. Movement logic is unchanged from the 2D version — only the
 # coordinate type (Vector2 -> Vector3) differs.
@@ -12,11 +12,11 @@ signal arrived(cell: Vector2i)
 signal entered_cell(cell: Vector2i)
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
-const PLAYER_MODEL := preload("res://assets/player/player_model.glb")
+const PLAYER_MODEL := preload("res://assets/models/units/salvage_robot.glb")
 # Translucent blue selection cap, matching the renderer's hover/placement highlight tint.
 const MARKER_COLOR := Color(0.35, 0.85, 1.0, 0.45)
-# The model's native height in glTF units (feet at y=0), from its mesh bounds — used to
-# scale it to the desired on-map size.
+# The model's native body height in glTF units (feet at y=0 to head top; the antenna rises
+# above it) — used to scale it to the desired on-map size.
 const MODEL_NATIVE_HEIGHT := 1.2
 # Yaw offset (radians) applied so the model's modeled front points the right way. Used by
 # both the rest pose and movement facing so they stay in sync.
@@ -43,6 +43,9 @@ var _target_world := Vector3.ZERO
 var _pending_cell := Vector2i(-1, -1)
 var _moving := false
 var _model: Node3D
+var _animation_player: AnimationPlayer
+var _idle_animation := ""
+var _walk_animation := ""
 var _marker: MeshInstance3D
 var _marker_material: StandardMaterial3D
 var _select_player: AudioStreamPlayer
@@ -80,6 +83,7 @@ func _ready() -> void:
 	_model.scale = Vector3(model_scale, model_scale, model_scale)
 	_model.rotation.y = MODEL_YAW_OFFSET
 	add_child(_model)
+	_setup_animations()
 
 	_update_marker()
 
@@ -217,6 +221,7 @@ func _face_direction(direction: Vector3, delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	_update_animation()
 	if not _moving:
 		_settle(delta)
 		return
@@ -266,3 +271,27 @@ func _advance_to_next() -> void:
 	_target_world = renderer.get_cell_center(_pending_cell)
 	_moving = true
 	_update_marker()
+
+
+func _setup_animations() -> void:
+	_animation_player = _model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if _animation_player == null:
+		return
+	for animation_name in _animation_player.get_animation_list():
+		var clip := String(animation_name).get_slice("/", String(animation_name).get_slice_count("/") - 1).to_lower()
+		if clip == "idle":
+			_idle_animation = animation_name
+		elif clip == "walk":
+			_walk_animation = animation_name
+		else:
+			continue
+		_animation_player.get_animation(animation_name).loop_mode = Animation.LOOP_LINEAR
+	_update_animation()
+
+
+func _update_animation() -> void:
+	if _animation_player == null:
+		return
+	var animation_name := _walk_animation if _moving else _idle_animation
+	if not animation_name.is_empty() and _animation_player.current_animation != animation_name:
+		_animation_player.play(animation_name, 0.12)

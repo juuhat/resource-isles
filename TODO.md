@@ -1,5 +1,12 @@
 # To-do list
 
+## Player model
+
+- [x] Create a first cream-and-teal salvage robot model with an editable mechanical pivot rig and idle/walk clips; integrate movement-driven animation switching. See [Player model](docs/player-model.md).
+- [ ] Playtest the new robot's proportions, visibility, and walk rhythm at gameplay zoom.
+- [ ] Add harvesting, building, operating, and rescue animations with gameplay hooks.
+- [ ] Update the robot command-bar portrait to match the accepted model.
+
 ## Playtest feedback — 2026-10-03
 
 - [ ] Replace the tool pickups' ground icons with readable 3D models. Make the axe, pickaxe, and hammer look like equipment designed for the robot, using the game's salvage-tech style and teal accents.
