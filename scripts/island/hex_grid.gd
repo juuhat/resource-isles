@@ -19,6 +19,46 @@ const NEIGHBOR_DIRECTIONS_ODD_R: Array[Vector2i] = [
 ]
 
 
+# Axial hex offsets, one step in each direction (same order as the neighbour tables: east, then
+# counter-clockwise as seen from above). Building footprints are written with these, summed for
+# cells further out: a straight line of three is [ZERO, AXIAL_EAST, AXIAL_EAST * 2]. Unlike
+# odd-r offset coordinates, an axial offset means the same step on every row, so a shape can
+# be moved and rotated (see footprint_cells).
+const AXIAL_EAST := Vector2i(1, 0)
+const AXIAL_NORTH_EAST := Vector2i(1, -1)
+const AXIAL_NORTH_WEST := Vector2i(0, -1)
+const AXIAL_WEST := Vector2i(-1, 0)
+const AXIAL_SOUTH_WEST := Vector2i(-1, 1)
+const AXIAL_SOUTH_EAST := Vector2i(0, 1)
+
+
+static func offset_to_axial(cell: Vector2i) -> Vector2i:
+	return Vector2i(cell.x - (cell.y - (cell.y & 1)) / 2, cell.y)
+
+
+static func axial_to_offset(axial: Vector2i) -> Vector2i:
+	return Vector2i(axial.x + (axial.y - (axial.y & 1)) / 2, axial.y)
+
+
+# Turns an axial offset by steps x 60 degrees counter-clockwise (seen from above), so
+# AXIAL_EAST becomes AXIAL_NORTH_EAST after one step.
+static func rotate_axial(axial: Vector2i, steps: int) -> Vector2i:
+	var result := axial
+	for i in posmod(steps, 6):
+		result = Vector2i(result.x + result.y, -result.x)
+	return result
+
+
+# The cells a shape of axial offsets covers when its ZERO cell sits on anchor_cell, turned by
+# rotation x 60 degrees counter-clockwise. Cells keep the shape's order.
+static func footprint_cells(anchor_cell: Vector2i, shape: Array[Vector2i], rotation: int) -> Array[Vector2i]:
+	var anchor := offset_to_axial(anchor_cell)
+	var cells: Array[Vector2i] = []
+	for offset in shape:
+		cells.append(axial_to_offset(anchor + rotate_axial(offset, rotation)))
+	return cells
+
+
 static func neighbor(cell: Vector2i, direction_index: int) -> Vector2i:
 	return cell + neighbor_offset(cell, direction_index)
 

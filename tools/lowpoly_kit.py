@@ -301,26 +301,35 @@ def _robot_figure(loc):
         box('Preview robot eye', (x + dx, y - .168, .71), (.05, .01, .05), amber)
 
 
+def hex_tile(name, center, z0, z1, mat):
+    """One game tile as a hex prism from z0 to z1, centred on center (x, y): TILE wide flat to
+    flat, pointy along Y as the game's hexes are along Godot Z. Neighbouring tiles sit TILE apart
+    along X, or at (+-TILE / 2, +-TILE * sqrt(3) / 2) diagonally."""
+    tile = cylinder(name, (*center, z0), (*center, z1), TILE / math.sqrt(3), mat, 6)
+    first = tile.data.vertices[0].co
+    tile.rotation_euler.z = math.pi / 2 - math.atan2(first.y, first.x)
+    return tile
+
+
 def render_preview(name, target_z=.8, ortho_scale=4.05, plinth_radius=1.65, plinth_z=(-.16, -.025),
-                   camera=None, resolution=1000, true_tile=False):
+                   camera=None, resolution=1000, true_tile=False, tiles=((0, 0),)):
     """Add the studio (dark hex plinth, ortho camera, three area lights), save the editable
     art/blender/<name>.blend and render art/previews/<name>.png. Call after export(): the
     studio lives only in the .blend and preview, never in the game asset.
 
-    With true_tile, the plinth is exactly one game tile (TILE wide, pointy along Y as in the
-    game) and a robot-sized figure stands on the 'WorkSpot' marker, if there is one. Its
-    default camera is close to the game's: from the front, about 45 degrees down, yawed a
-    little so side faces read."""
+    With true_tile, the plinth is game tiles (see hex_tile), one per centre in tiles, and a
+    robot-sized figure stands on the 'WorkSpot' marker, if there is one. Its default camera is
+    close to the game's: from the front, about 45 degrees down, yawed a little so side faces
+    read."""
     if camera is None:
         camera = (-1.85, -5.7, 6.0) if true_tile else (-3.5, -5, 3.8)
     ground = material('Preview ground', (.075, .105, .10))
     if true_tile:
-        plinth_radius = TILE / math.sqrt(3)
-    plinth = cylinder('Preview hex plinth', (0, 0, plinth_z[0]), (0, 0, plinth_z[1]), plinth_radius, ground, 6)
+        for center in tiles:
+            hex_tile('Preview hex plinth', center, plinth_z[0], plinth_z[1], ground)
+    else:
+        cylinder('Preview hex plinth', (0, 0, plinth_z[0]), (0, 0, plinth_z[1]), plinth_radius, ground, 6)
     if true_tile:
-        # Turn a corner onto +Y: the game's hexes are pointy along Godot Z (Blender Y).
-        first = plinth.data.vertices[0].co
-        plinth.rotation_euler.z = math.pi / 2 - math.atan2(first.y, first.x)
         spot = bpy.context.scene.objects.get('WorkSpot')
         if spot:
             _robot_figure(spot.location)

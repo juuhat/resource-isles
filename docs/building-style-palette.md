@@ -112,7 +112,8 @@ The boards get the style right but some of their designs break this standard. Do
 | --- | --- | --- |
 | Logger camp, sawmill, quarry, coal mine, iron mine | Scripted builds in `tools/build_*.py` on the shared `tools/lowpoly_kit.py` | Palette colors, no bevels, 8-sided cylinders, no base platforms. The logger camp and the sawmill are redesigned as workbenches at true tile scale, with work spots. Remaining for the quarry and mines: the same treatment, with prop density cut to the two-group rule (bolts, rivets, chips, lantern). |
 | Windmill (`windmill2.glb`), crashed spaceship, pine forest, stone deposit, player robot, dog | Imported meshes with image textures | Furthest from the standard. Rework these first. |
-| Burner generator, dock | 2D billboard sprites only | Need 3D models. |
+| Dock | Scripted build in `tools/build_dock.py` at true tile scale over two tiles (see [Building footprints](building-footprints.md)), with work and boat spots | Meets the standard. A stone quay and cargo crates on the shore tile; a crosswise-boarded pier on pilings over the coast tile, widening into a T-head with a mooring post and a teal beacon post with an amber lamp. The rowboat moored beside it is still a billboard. |
+| Burner generator | 2D billboard sprite only | Needs a 3D model. |
 | Icons and building sprites in `assets/icons`, `assets/buildings` | Painterly 2D with dark outlines | Re-render from approved models (see [Icon standard](#icon-standard)). |
 
 Iron and coal deposits currently reuse the stone deposit model with a flat tint. Give them their own silhouettes when they are authored.

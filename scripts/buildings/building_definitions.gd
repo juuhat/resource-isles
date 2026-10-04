@@ -6,6 +6,7 @@ extends RefCounted
 # the per-building numbers. Add new buildings here.
 
 const BuildingDefinitionScript := preload("res://scripts/buildings/building_definition.gd")
+const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const CRASHED_SPACESHIP_TEXTURE := preload("res://assets/buildings/crashed_spaceship.png")
 const CRASHED_SPACESHIP_MODEL := preload("res://assets/models/buildings/crashed_spaceship.glb")
 const LOGGER_CAMP_TEXTURE := preload("res://assets/buildings/logger_camp.png")
@@ -16,6 +17,7 @@ const BURNER_GENERATOR_TEXTURE := preload("res://assets/buildings/burner_generat
 const SAWMILL_TEXTURE := preload("res://assets/buildings/sawmill.png")
 const SAWMILL_MODEL := preload("res://assets/models/buildings/sawmill.glb")
 const DOCK_TEXTURE := preload("res://assets/buildings/dock.png")
+const DOCK_MODEL := preload("res://assets/models/buildings/dock.glb")
 const WINDMILL_MODEL := preload("res://assets/models/buildings/windmill2.glb")
 const IRON_MINE_MODEL := preload("res://assets/models/buildings/iron_mine.glb")
 const COAL_MINE_MODEL := preload("res://assets/models/buildings/coal_mine.glb")
@@ -222,16 +224,23 @@ static func build_all() -> Array[BuildingDefinition]:
 	dock.description = "A landing on the sandy shore, and the future launch point for boats to other islands."
 	dock.category = GameTypes.BuildingCategory.LOGISTICS
 	dock.texture = DOCK_TEXTURE
+	dock.model = DOCK_MODEL
+	# Two tiles: the quay on a sandy shore tile and the pier out over the coast tile beside it
+	# (the shallow water that always rings land). auto_rotate swings the pier toward the water
+	# wherever the player hovers; R picks between several water sides. The future launch point
+	# for boats and inter-island travel (see docs/island-unlocks.md).
+	dock.footprint = [Vector2i.ZERO, HexGridScript.AXIAL_EAST]
+	dock.required_terrains = [GameTypes.Terrain.SAND]
+	dock.footprint_terrains = [[], [GameTypes.Terrain.COAST]]
+	dock.auto_rotate = true
+	# Authored at true tile scale (tools/build_dock.py), origin midway between the two tiles.
+	dock.true_tile_model = true
+	# Size of the 2D placement ghost only; the true-tile model sets its own scale.
+	dock.visual_size_tiles = Vector2(1.6, 1.6)
 	dock.cost = {
 		GameTypes.ResourceType.WOOD: 10,
 		GameTypes.ResourceType.STONE: 5,
 	}
-	dock.required_terrains = [GameTypes.Terrain.SAND]
-	# Built on the sandy shoreline and must touch open water — the future
-	# launch point for boats and inter-island travel. Placeable only for now;
-	# no transport behavior yet (see docs/island-unlocks.md, step 1).
-	# Coast = the shallow water that always rings land, so a shoreline dock touches it.
-	dock.required_adjacent = [_terrain_ref(GameTypes.Terrain.COAST)]
 	definitions.append(dock)
 
 	return definitions

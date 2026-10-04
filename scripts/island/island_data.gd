@@ -40,15 +40,22 @@ func get_terrain(cell: Vector2i) -> int:
 	return terrain.get(cell, GameTypes.Terrain.WATER)
 
 
+# cell_terrains optionally overrides required_terrains per footprint cell (same order); an
+# empty entry, or none, falls back to required_terrains.
 func can_place_building(
 	cell: Vector2i,
 	footprint_cells: Array[Vector2i],
-	required_terrains: Array[int]
+	required_terrains: Array[int],
+	cell_terrains: Array = []
 ) -> bool:
-	for footprint_cell in footprint_cells:
+	for index in footprint_cells.size():
+		var footprint_cell := footprint_cells[index]
+		var allowed: Array = required_terrains
+		if index < cell_terrains.size() and not (cell_terrains[index] as Array).is_empty():
+			allowed = cell_terrains[index]
 		if (
 			not is_in_bounds(footprint_cell)
-			or not required_terrains.has(get_terrain(footprint_cell))
+			or not allowed.has(get_terrain(footprint_cell))
 			or resources.has(footprint_cell)
 			or _has_building_on_cell(footprint_cell)
 		):
@@ -57,16 +64,20 @@ func can_place_building(
 	return true
 
 
+# rotation is the footprint's turn in 60-degree steps (see HexGrid.footprint_cells), kept so the
+# renderer can turn the model to match and a moved building can be put back as it was.
 func place_building(
 	cell: Vector2i,
 	building_type: int,
 	footprint_cells: Array[Vector2i],
-	required_terrains: Array[int]
+	required_terrains: Array[int],
+	rotation: int = 0,
+	cell_terrains: Array = []
 ) -> bool:
-	if not can_place_building(cell, footprint_cells, required_terrains):
+	if not can_place_building(cell, footprint_cells, required_terrains, cell_terrains):
 		return false
 
-	buildings[cell] = {type = building_type, cells = footprint_cells}
+	buildings[cell] = {type = building_type, cells = footprint_cells, rotation = rotation}
 	return true
 
 
@@ -109,6 +120,13 @@ func get_building_footprint_cells(anchor_cell: Vector2i) -> Array[Vector2i]:
 		return []
 
 	return buildings[anchor_cell].cells
+
+
+func get_building_rotation(anchor_cell: Vector2i) -> int:
+	if not buildings.has(anchor_cell):
+		return 0
+
+	return int(buildings[anchor_cell].get("rotation", 0))
 
 
 func has_production_time(anchor_cell: Vector2i) -> bool:
@@ -271,6 +289,7 @@ func _buildings_to_dict() -> Dictionary:
 		result[anchor_cell] = {
 			type = int(building.type),
 			cells = (building.cells as Array).duplicate(),
+			rotation = int(building.get("rotation", 0)),
 		}
 	return result
 
@@ -284,7 +303,7 @@ static func _buildings_from_dict(saved_buildings: Dictionary) -> Dictionary:
 		var cells: Array[Vector2i] = []
 		for cell in saved.get("cells", []):
 			cells.append(cell)
-		result[anchor_cell] = {type = int(saved.type), cells = cells}
+		result[anchor_cell] = {type = int(saved.type), cells = cells, rotation = int(saved.get("rotation", 0))}
 	return result
 
 

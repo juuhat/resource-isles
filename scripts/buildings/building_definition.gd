@@ -10,7 +10,21 @@ var texture: Texture2D
 # Optional 3D model. When set, the renderer instances this instead of the flat texture.
 var model: PackedScene = null
 var cost: Dictionary
-var footprint_size: Vector2i = Vector2i.ONE
+# The tiles the building covers, as axial hex offsets from its anchor tile (HexGrid.AXIAL_*,
+# summed for tiles further out). The anchor, Vector2i.ZERO, comes first. The player turns the
+# shape in 60-degree steps while placing it. See docs/building-footprints.md.
+var footprint: Array[Vector2i] = [Vector2i.ZERO]
+# Optional per-tile terrain rule, one entry per footprint tile: a non-empty Array[int] replaces
+# required_terrains for that tile (e.g. the dock's second tile must be Coast).
+var footprint_terrains: Array = []
+# When the player's chosen rotation doesn't fit, placement tries the other five before giving up
+# (the dock swings its pier toward whichever side the water is on).
+var auto_rotate: bool = false
+# Model authored with tools/lowpoly_kit.py at TILE (2) units per tile, its origin on the anchor
+# tile's ground at the centroid of the footprint tiles' centres. The renderer then uses a fixed
+# scale and places the origin directly, instead of fitting the model's bounds to
+# visual_size_tiles, so parts may reach below the ground (the dock's pilings).
+var true_tile_model: bool = false
 var visual_size_tiles: Vector2 = Vector2.ONE
 var visual_offset_tiles: Vector2 = Vector2.ZERO
 # Heading (degrees) applied around the Y axis when instancing a 3D model.

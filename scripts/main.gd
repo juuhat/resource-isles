@@ -80,6 +80,7 @@ var selected_building_type := NO_BUILDING
 var is_moving_building := false
 var moving_from_cell := Vector2i(-1, -1)
 var moving_building_type := NO_BUILDING
+var moving_rotation := 0
 var world: WorldData
 var current_island: IslandData
 var building_manager: BuildingManager
@@ -227,6 +228,8 @@ func _try_load_game() -> bool:
 
 	var reference_time := Time.get_ticks_msec() / 1000.0
 	world = WorldData.from_dict(payload.get("world", {}), reference_time)
+	for island in world.islands.values():
+		building_manager.migrate_footprints(island)
 	seed_value = int(payload.get("seed_value", seed_value))
 	stat_tracker.restore(payload.get("stats", {}))
 	quest_manager.restore_completed(payload.get("completed_quests", {}))
@@ -248,7 +251,7 @@ func _save_game() -> bool:
 		and not current_island.has_building(moving_from_cell)
 	)
 	if restore_for_save:
-		building_manager.try_place(moving_from_cell, moving_building_type, current_island)
+		building_manager.try_place(moving_from_cell, moving_building_type, current_island, moving_rotation)
 
 	var reference_time := Time.get_ticks_msec() / 1000.0
 	var payload := SaveManager.build_payload(
@@ -365,6 +368,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if key_event.keycode == KEY_B:
 		building_menu.toggle_menu()
+
+	if key_event.keycode == KEY_R and selected_building_type != NO_BUILDING:
+		# Turn the footprint being placed; Shift turns it back.
+		renderer.rotate_placement(-1 if key_event.shift_pressed else 1)
 
 	if key_event.keycode == KEY_SPACE:
 		world_view.set_show_grid(not renderer.show_grid)
@@ -576,7 +583,8 @@ func _command_unit_to_hovered() -> bool:
 		return false
 
 	var cell := renderer.hovered_cell
-	if cell == Vector2i(-1, -1) or not HexPathfinderScript.is_walkable(current_island, cell):
+	# A building's tiles are all targets, even one standing in the water (the dock's pier).
+	if cell == Vector2i(-1, -1) or not (HexPathfinderScript.is_walkable(current_island, cell) or current_island.has_building(cell)):
 		return false
 
 	var plan := _plan_approach(cell, player_unit.current_cell)
@@ -618,15 +626,19 @@ func _plan_approach(target: Vector2i, start: Vector2i) -> Dictionary:
 	var no_path: Array[Vector2i] = []
 
 	var spot = renderer.get_work_spot(island.get_building_anchor_cell(target)) if island.has_building(target) else null
+	# A building bigger than one tile is reached at the tile its spot stands on, not the one clicked.
+	var spot_tile: Vector2i = renderer.world_to_cell(spot) if spot != null else target
+	if spot != null and not HexPathfinderScript.is_walkable(island, spot_tile):
+		spot = null
 	if spot != null:
-		if start == target and player_unit.is_at_spot():
+		if start == spot_tile and player_unit.is_at_spot():
 			return _approach(no_path)
-		var to_tile := HexPathfinderScript.find_path(island, start, target)
-		if to_tile.is_empty() and start != target:
+		var to_tile := HexPathfinderScript.find_path(island, start, spot_tile)
+		if to_tile.is_empty() and start != spot_tile:
 			return {}
 		if not to_tile.is_empty():
 			to_tile.pop_back()  # the spot leg replaces the step to the tile's centre
-		return _approach(to_tile, target, Vector3(spot.x, renderer.get_cell_center(target).y, spot.z))
+		return _approach(to_tile, spot_tile, Vector3(spot.x, renderer.get_cell_center(spot_tile).y, spot.z))
 
 	if HexPathfinderScript.is_open(island, target):
 		var path := HexPathfinderScript.find_path(island, start, target)
@@ -667,7 +679,14 @@ func _is_working_position(target: Vector2i) -> bool:
 	if player_unit == null or target == Vector2i(-1, -1):
 		return false
 	var cell := player_unit.current_cell
-	return cell == target or HexGridScript.neighbors(target).has(cell)
+	# On or beside any tile of the target building, however many tiles it covers.
+	var target_cells: Array[Vector2i] = [target]
+	if current_island.has_building(target):
+		target_cells = current_island.get_building_footprint_cells(current_island.get_building_anchor_cell(target))
+	for target_cell in target_cells:
+		if cell == target_cell or HexGridScript.neighbors(target_cell).has(cell):
+			return true
+	return false
 
 
 # Placement veto (IslandRenderer.is_cell_occupied_by_unit): the robot's and K9-DA's cells,
@@ -1357,6 +1376,9 @@ func _on_building_move_requested(building_type: int, anchor_cell: Vector2i, isla
 	is_moving_building = true
 	moving_from_cell = anchor_cell
 	moving_building_type = building_type
+	moving_rotation = island.get_building_rotation(anchor_cell)
+	# Pick it up as it stands: the preview starts at its current turn.
+	renderer.placement_rotation = moving_rotation
 	# Take it off the map now so its old footprint stops drawing and stops feeding adjacency
 	# (to itself in the preview, and to its neighbours) while the player picks a new spot.
 	renderer.remove_building(anchor_cell)
@@ -1396,7 +1418,7 @@ func _cancel_building_move() -> void:
 	moving_building_type = NO_BUILDING
 
 	if current_island != null and from != Vector2i(-1, -1):
-		renderer.place_building_at(from, building_type)
+		renderer.place_building_at(from, building_type, moving_rotation)
 
 
 # Panel "Delete": scrap the building outright. The power/production managers recompute from the

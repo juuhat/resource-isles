@@ -17,17 +17,22 @@ func setup(new_resource_node_database: ResourceNodeDatabase) -> void:
 	resource_node_database = new_resource_node_database
 
 
-func get_footprint_cells(anchor_cell: Vector2i, building_type: int) -> Array[Vector2i]:
-	return [anchor_cell]
+# The cells the building would cover with its anchor on anchor_cell, turned by rotation x 60
+# degrees (see BuildingDefinition.footprint).
+func get_footprint_cells(anchor_cell: Vector2i, building_type: int, rotation: int = 0) -> Array[Vector2i]:
+	var definition := get_definition(building_type)
+	if definition == null:
+		return [anchor_cell]
+	return HexGridScript.footprint_cells(anchor_cell, definition.footprint, rotation)
 
 
-func can_place(anchor_cell: Vector2i, building_type: int, island: IslandData) -> bool:
+func can_place(anchor_cell: Vector2i, building_type: int, island: IslandData, rotation: int = 0) -> bool:
 	var definition := get_definition(building_type)
 	if definition == null:
 		return false
 
-	var footprint := get_footprint_cells(anchor_cell, building_type)
-	if not island.can_place_building(anchor_cell, footprint, definition.required_terrains):
+	var footprint := get_footprint_cells(anchor_cell, building_type, rotation)
+	if not island.can_place_building(anchor_cell, footprint, definition.required_terrains, definition.footprint_terrains):
 		return false
 
 	var neighbors := _footprint_neighbors(footprint)
@@ -43,13 +48,51 @@ func can_place(anchor_cell: Vector2i, building_type: int, island: IslandData) ->
 	return true
 
 
-func try_place(anchor_cell: Vector2i, building_type: int, island: IslandData) -> bool:
-	if not can_place(anchor_cell, building_type, island):
+func try_place(anchor_cell: Vector2i, building_type: int, island: IslandData, rotation: int = 0) -> bool:
+	if not can_place(anchor_cell, building_type, island, rotation):
 		return false
 
 	var definition := get_definition(building_type)
-	var footprint := get_footprint_cells(anchor_cell, building_type)
-	return island.place_building(anchor_cell, building_type, footprint, definition.required_terrains)
+	var footprint := get_footprint_cells(anchor_cell, building_type, rotation)
+	return island.place_building(
+		anchor_cell, building_type, footprint, definition.required_terrains, posmod(rotation, 6), definition.footprint_terrains
+	)
+
+
+# The rotation placement will use at anchor_cell: the player's choice, or for an auto_rotate
+# building whose choice doesn't fit, the next one counter-clockwise that does. Falls back to
+# the choice when nothing fits, so the preview shows the shape the player picked. One-tile
+# buildings always face their authored way (their yard and work spot are laid out for it).
+func fit_rotation(anchor_cell: Vector2i, building_type: int, island: IslandData, preferred: int) -> int:
+	var definition := get_definition(building_type)
+	if definition == null or definition.footprint.size() == 1:
+		return 0
+	if can_place(anchor_cell, building_type, island, preferred) or not definition.auto_rotate:
+		return posmod(preferred, 6)
+	for step in range(1, 6):
+		if can_place(anchor_cell, building_type, island, preferred + step):
+			return posmod(preferred + step, 6)
+	return posmod(preferred, 6)
+
+
+# Saves from before a building grew to its current footprint hold fewer (or other) cells. Re-fit
+# each such building on its anchor at the first rotation that fits; one that no longer fits
+# anywhere keeps its old cells.
+func migrate_footprints(island: IslandData) -> void:
+	for anchor_cell in island.buildings.keys():
+		var building_type: int = island.buildings[anchor_cell].type
+		var definition := get_definition(building_type)
+		if definition == null or island.get_building_footprint_cells(anchor_cell).size() == definition.footprint.size():
+			continue
+		var old: Dictionary = island.buildings[anchor_cell]
+		island.buildings.erase(anchor_cell)
+		var placed := false
+		for rotation in 6:
+			if try_place(anchor_cell, building_type, island, rotation):
+				placed = true
+				break
+		if not placed:
+			island.buildings[anchor_cell] = old
 
 
 func remove(anchor_cell: Vector2i, island: IslandData) -> bool:
@@ -59,13 +102,13 @@ func remove(anchor_cell: Vector2i, island: IslandData) -> bool:
 
 
 # Returns { total: int, breakdown: Array[{ label, count, amount }] }.
-func get_adjacency_yield(anchor_cell: Vector2i, building_type: int, island: IslandData) -> Dictionary:
+func get_adjacency_yield(anchor_cell: Vector2i, building_type: int, island: IslandData, rotation: int = 0) -> Dictionary:
 	var result := {total = 0, breakdown = []}
 	var definition := get_definition(building_type)
 	if definition == null or definition.adjacency_yields.is_empty():
 		return result
 
-	var neighbors := _footprint_neighbors(get_footprint_cells(anchor_cell, building_type))
+	var neighbors := _footprint_neighbors(_cells_at(anchor_cell, building_type, island, rotation))
 
 	for rule in definition.adjacency_yields:
 		var count := 0
@@ -90,13 +133,13 @@ func get_adjacency_yield(anchor_cell: Vector2i, building_type: int, island: Isla
 # Neighbor cells that change this building's output at anchor_cell, split by sign.
 # Drives the placement-preview yield highlight: positive = deposits it would tap,
 # negative = crowding penalties (e.g. an adjacent same-type extractor).
-func get_yield_cells(anchor_cell: Vector2i, building_type: int, island: IslandData) -> Dictionary:
+func get_yield_cells(anchor_cell: Vector2i, building_type: int, island: IslandData, rotation: int = 0) -> Dictionary:
 	var result := {positive = [] as Array[Vector2i], negative = [] as Array[Vector2i]}
 	var definition := get_definition(building_type)
 	if definition == null or definition.adjacency_yields.is_empty():
 		return result
 
-	var neighbors := _footprint_neighbors(get_footprint_cells(anchor_cell, building_type))
+	var neighbors := _footprint_neighbors(_cells_at(anchor_cell, building_type, island, rotation))
 
 	for rule in definition.adjacency_yields:
 		var amount := int(rule.amount)
@@ -113,12 +156,12 @@ func get_yield_cells(anchor_cell: Vector2i, building_type: int, island: IslandDa
 
 
 # Per-tick output for a placed building: base plus adjacency total, never below zero.
-func get_production_amount(anchor_cell: Vector2i, building_type: int, island: IslandData) -> int:
+func get_production_amount(anchor_cell: Vector2i, building_type: int, island: IslandData, rotation: int = 0) -> int:
 	var definition := get_definition(building_type)
 	if definition == null or definition.production_resource_type == -1:
 		return 0
 
-	var bonus: int = get_adjacency_yield(anchor_cell, building_type, island).total
+	var bonus: int = get_adjacency_yield(anchor_cell, building_type, island, rotation).total
 	return maxi(0, definition.production_base_amount + bonus)
 
 
@@ -126,12 +169,12 @@ func get_production_amount(anchor_cell: Vector2i, building_type: int, island: Is
 # The power analog of get_production_amount — a building's adjacency_yields modify whichever
 # output it has (resource units for producers, MW for generators). Returns 0 for anything
 # that isn't a generator, so non-generators never accidentally earn power from adjacency.
-func get_power_generated(anchor_cell: Vector2i, building_type: int, island: IslandData) -> int:
+func get_power_generated(anchor_cell: Vector2i, building_type: int, island: IslandData, rotation: int = 0) -> int:
 	var definition := get_definition(building_type)
 	if definition == null or definition.power_generated <= 0:
 		return 0
 
-	var bonus: int = get_adjacency_yield(anchor_cell, building_type, island).total
+	var bonus: int = get_adjacency_yield(anchor_cell, building_type, island, rotation).total
 	return maxi(0, definition.power_generated + bonus)
 
 
@@ -180,6 +223,14 @@ func format_cost(cost: Dictionary) -> String:
 		])
 
 	return ", ".join(parts)
+
+
+# A placed building's own cells; otherwise (a placement preview) the cells it would cover at
+# rotation.
+func _cells_at(anchor_cell: Vector2i, building_type: int, island: IslandData, rotation: int) -> Array[Vector2i]:
+	if island.buildings.has(anchor_cell) and int(island.buildings[anchor_cell].type) == building_type:
+		return island.get_building_footprint_cells(anchor_cell)
+	return get_footprint_cells(anchor_cell, building_type, rotation)
 
 
 func _footprint_neighbors(footprint_cells: Array[Vector2i]) -> Array[Vector2i]:

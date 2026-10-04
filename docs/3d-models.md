@@ -100,7 +100,10 @@ Because the lift is derived from the measured AABB, models with different origin
 ## Current models vs billboards
 
 - **Models:** the robot (`player_model.glb`), both resource nodes (`pine_forest.glb`,
-  `stone_deposit.glb`), and the crashed-spaceship building (`crashed_spaceship.glb`).
+  `stone_deposit.glb`), the crashed-spaceship building (`crashed_spaceship.glb`), and the dock
+  (`dock.glb`, built by `tools/build_dock.py`). The dock covers two tiles and is a
+  `true_tile_model`: fixed scale, origin placed directly on the ground, turned with its footprint.
+  See [Building footprints](building-footprints.md).
 - **Still billboards:** the remaining buildings, ground items, and the dock boat. Swapping each
   is just dropping in an asset and setting `model` — the cost is the art, not code.
 

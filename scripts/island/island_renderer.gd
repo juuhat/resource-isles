@@ -35,6 +35,8 @@ const ITEM_TEXTURES := {
 }
 
 const BOAT_SIZE_TILES := Vector2(0.8, 0.8)
+# Model units per tile for BuildingDefinition.true_tile_model (lowpoly_kit.TILE).
+const TRUE_TILE_UNITS := 2.0
 # Red "no power" bolt over unpowered consumers: its height and the gap above the roof, in tiles.
 const POWER_INDICATOR_HEIGHT_TILES := 0.5
 const POWER_INDICATOR_GAP_TILES := 0.12
@@ -86,6 +88,9 @@ var hovered_cell := Vector2i(-1, -1)
 var placement_preview_enabled := false
 var placement_building_type := GameTypes.BuildingType.LOGGER_CAMP
 var placement_can_afford := true
+# The player's chosen footprint turn (60-degree steps, R while placing). Placement may use another
+# for an auto_rotate building, see placement_rotation_at.
+var placement_rotation := 0
 # Optional veto on building placement, set by main: returns true for a cell a unit is standing on
 # (or walking into), so construction never drops geometry on the robot or the dog.
 var is_cell_occupied_by_unit := Callable()
@@ -347,14 +352,25 @@ func set_placement_preview(
 	_rebuild_preview()
 
 
+func rotate_placement(steps: int) -> void:
+	placement_rotation = posmod(placement_rotation + steps, 6)
+	_rebuild_preview()
+
+
+# The footprint turn a building placed at anchor_cell would get (BuildingManager.fit_rotation).
+func placement_rotation_at(anchor_cell: Vector2i, building_type: int) -> int:
+	return building_manager.fit_rotation(anchor_cell, building_type, island, placement_rotation)
+
+
 func try_place_hovered_building(building_type: int = GameTypes.BuildingType.LOGGER_CAMP) -> bool:
 	if island == null or hovered_cell == Vector2i(-1, -1):
 		return false
 
-	if not _can_place_at(hovered_cell, building_type):
+	var rotation := placement_rotation_at(hovered_cell, building_type)
+	if not _can_place_at(hovered_cell, building_type, rotation):
 		return false
 
-	var placed := building_manager.try_place(hovered_cell, building_type, island)
+	var placed := building_manager.try_place(hovered_cell, building_type, island, rotation)
 	if placed:
 		refresh()
 
@@ -374,22 +390,22 @@ func remove_building(anchor_cell: Vector2i) -> bool:
 
 # Place a building at a specific (non-hovered) cell. Used to restore a building lifted for a
 # move back to its original cell when the move is cancelled.
-func place_building_at(anchor_cell: Vector2i, building_type: int) -> bool:
+func place_building_at(anchor_cell: Vector2i, building_type: int, rotation: int = 0) -> bool:
 	if island == null:
 		return false
 
-	var placed := building_manager.try_place(anchor_cell, building_type, island)
+	var placed := building_manager.try_place(anchor_cell, building_type, island, rotation)
 	if placed:
 		refresh()
 
 	return placed
 
 
-func _can_place_at(anchor_cell: Vector2i, building_type: int) -> bool:
-	if not building_manager.can_place(anchor_cell, building_type, island):
+func _can_place_at(anchor_cell: Vector2i, building_type: int, rotation: int) -> bool:
+	if not building_manager.can_place(anchor_cell, building_type, island, rotation):
 		return false
 	if is_cell_occupied_by_unit.is_valid():
-		for cell in building_manager.get_footprint_cells(anchor_cell, building_type):
+		for cell in building_manager.get_footprint_cells(anchor_cell, building_type, rotation):
 			if is_cell_occupied_by_unit.call(cell):
 				return false
 	return true
@@ -712,10 +728,6 @@ func _rebuild_objects() -> void:
 	for anchor_cell in island.buildings.keys():
 		var building_type: int = island.buildings[anchor_cell].type
 		_spawn_building(anchor_cell, building_type)
-		if building_type == GameTypes.BuildingType.DOCK:
-			var boat_cell := _dock_boat_cell(anchor_cell)
-			if boat_cell != Vector2i(-1, -1):
-				_spawn_boat(boat_cell)
 
 
 func _spawn_resource(cell: Vector2i, resource_node_type: int) -> void:
@@ -882,9 +894,14 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 			definition.spin_speed_degrees
 		)
 		if model != null:
+			_fit_placed_model(model, definition, footprint, island.get_building_rotation(anchor_cell))
 			var spot := model.find_child("WorkSpot", true, false) as Node3D
 			if spot != null:
 				_work_spots[anchor_cell] = _local_position_in(spot, model)
+			# A building with a mooring (the dock) gets the rowboat tied up there.
+			var boat_spot := model.find_child("BoatSpot", true, false) as Node3D
+			if boat_spot != null:
+				_spawn_boat(_local_position_in(boat_spot, model))
 		if model != null and definition.power_consumed > 0:
 			_spawn_power_indicator(anchor_cell, footprint, model)
 		return
@@ -896,6 +913,19 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 	sprite.position = _ground_anchor(footprint) + _offset_xz(definition.visual_offset_tiles)
 	_lift_to_ground(sprite)
 	_objects_root.add_child(sprite)
+
+
+# Finishes a placed building's model after _spawn_model. A true_tile_model gets the kit's fixed
+# scale (TILE model units per tile) with its origin, the footprint centroid, set right on the
+# anchor tile's ground, so parts may reach below it. Then the model turns with its footprint:
+# HexGrid rotation steps are counter-clockwise from above, as is a positive Y rotation. The origin
+# sits on the footprint centroid, which the footprint turns about too, so the two stay matched.
+func _fit_placed_model(model: Node3D, definition: BuildingDefinition, footprint: Array, rotation: int) -> void:
+	if definition.true_tile_model:
+		var model_scale := cell_size.x / TRUE_TILE_UNITS
+		model.scale = Vector3(model_scale, model_scale, model_scale)
+		model.position = _ground_anchor(footprint)
+	model.rotation.y += deg_to_rad(60.0 * rotation)
 
 
 # Floats the red power bolt over a consumer's roof. It shows/hides itself from the island's
@@ -917,9 +947,9 @@ func _spawn_power_indicator(anchor_cell: Vector2i, footprint: Array, model: Node
 	)
 
 
-func _spawn_boat(water_cell: Vector2i) -> void:
+func _spawn_boat(mooring: Vector3) -> void:
 	var sprite := _make_billboard(ROWBOAT_TEXTURE, BOAT_SIZE_TILES, Vector2.ZERO)
-	sprite.position = _local_cell_center(water_cell)
+	sprite.position = Vector3(mooring.x, WATER_TOP_Y, mooring.z)
 	_lift_to_ground(sprite)
 	_objects_root.add_child(sprite)
 
@@ -935,8 +965,9 @@ func _rebuild_preview() -> void:
 	if not placement_preview_enabled or island == null or hovered_cell == Vector2i(-1, -1):
 		return
 
-	var footprint := building_manager.get_footprint_cells(hovered_cell, placement_building_type)
-	var can_place := _can_place_at(hovered_cell, placement_building_type) and placement_can_afford
+	var rotation := placement_rotation_at(hovered_cell, placement_building_type)
+	var footprint := building_manager.get_footprint_cells(hovered_cell, placement_building_type, rotation)
+	var can_place := _can_place_at(hovered_cell, placement_building_type, rotation) and placement_can_afford
 	var tint := Color(0.45, 1.0, 0.5, 0.4) if can_place else Color(1.0, 0.3, 0.3, 0.4)
 
 	for cell in footprint:
@@ -950,7 +981,17 @@ func _rebuild_preview() -> void:
 		_preview_root.add_child(marker)
 
 	var definition := building_manager.get_definition(placement_building_type)
-	if definition != null and definition.texture != null:
+	if definition != null and definition.model != null and definition.true_tile_model:
+		# A see-through copy of the model, turned as it will be placed: a multi-tile shape
+		# reads its rotation from the model, which a flat billboard can't show.
+		var ghost_model := definition.model.instantiate() as Node3D
+		_preview_root.add_child(ghost_model)
+		ghost_model.rotation.y = deg_to_rad(definition.visual_rotation_y)
+		_fit_placed_model(ghost_model, definition, footprint, rotation)
+		for node in ghost_model.find_children("*", "GeometryInstance3D", true, false):
+			(node as GeometryInstance3D).transparency = 0.55
+			(node as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	elif definition != null and definition.texture != null:
 		var ghost := _make_billboard(definition.texture, definition.visual_size_tiles, definition.visual_offset_tiles)
 		ghost.modulate = Color(1.0, 1.0, 1.0, 0.6)
 		ghost.position = _ground_anchor(footprint) + _offset_xz(definition.visual_offset_tiles)
@@ -961,7 +1002,7 @@ func _rebuild_preview() -> void:
 	# of a placement they can actually commit. Mark the neighbor cells that change output
 	# (blue = deposits tapped, orange = crowding penalty) and float the net per-cycle gain.
 	if can_place and definition != null and not definition.adjacency_yields.is_empty():
-		var yield_cells := building_manager.get_yield_cells(hovered_cell, placement_building_type, island)
+		var yield_cells := building_manager.get_yield_cells(hovered_cell, placement_building_type, island, rotation)
 		for cell in yield_cells.positive:
 			_preview_root.add_child(_make_yield_marker(cell, Color(0.4, 0.85, 1.0, 0.5)))
 		for cell in yield_cells.negative:
@@ -969,10 +1010,10 @@ func _rebuild_preview() -> void:
 
 		# A generator's adjacency shapes its power; everything else shapes resource output.
 		if definition.category == GameTypes.BuildingCategory.POWER:
-			var power := building_manager.get_power_generated(hovered_cell, placement_building_type, island)
+			var power := building_manager.get_power_generated(hovered_cell, placement_building_type, island, rotation)
 			_preview_root.add_child(_make_yield_label(footprint, power, " MW"))
 		else:
-			var output := building_manager.get_production_amount(hovered_cell, placement_building_type, island)
+			var output := building_manager.get_production_amount(hovered_cell, placement_building_type, island, rotation)
 			_preview_root.add_child(_make_yield_label(footprint, output, ""))
 
 
@@ -1063,11 +1104,16 @@ func _offset_xz(offset_tiles: Vector2) -> Vector3:
 
 
 # Ground point at the center of a (multi-cell) footprint, at land-surface height.
+# Centroid of a footprint's tile centres, at the height of its first (anchor) tile: a footprint can
+# span terrains of different heights, like the dock's sand and coast.
 func _ground_anchor(cells: Array) -> Vector3:
 	var sum := Vector3.ZERO
 	for cell in cells:
 		sum += _local_cell_center(cell)
-	return sum / float(maxi(1, cells.size()))
+	var ground := sum / float(maxi(1, cells.size()))
+	if not cells.is_empty():
+		ground.y = _local_cell_center(cells[0]).y
+	return ground
 
 
 # --- Mesh builders ---
@@ -1185,13 +1231,6 @@ func _cell_contains_xz(cell: Vector2i, point: Vector2) -> bool:
 	for corner in corners:
 		polygon.append(Vector2(corner.x, corner.z))
 	return HexGridScript.point_in_polygon(point, polygon)
-
-
-func _dock_boat_cell(dock_cell: Vector2i) -> Vector2i:
-	for neighbor in HexGridScript.neighbors(dock_cell):
-		if island.is_in_bounds(neighbor) and GameTypes.is_water(island.get_terrain(neighbor)):
-			return neighbor
-	return Vector2i(-1, -1)
 
 
 func _row_offset(row: int) -> float:

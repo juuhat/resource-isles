@@ -776,8 +776,15 @@ func _placement_rows(definition: BuildingDefinition) -> Array[Control]:
 		rows.append(_detail_row(null, "Must touch " + building_manager.get_reference_label(required)))
 	for forbidden in definition.forbidden_adjacent:
 		rows.append(_detail_row(null, "Can't touch " + building_manager.get_reference_label(forbidden)))
-	if definition.footprint_size != Vector2i.ONE:
-		rows.append(_detail_row(null, "Footprint %d x %d tiles" % [definition.footprint_size.x, definition.footprint_size.y]))
+	if definition.footprint.size() > 1:
+		rows.append(_detail_row(null, "Covers %d tiles (R to rotate)" % definition.footprint.size()))
+	for tile_terrains in definition.footprint_terrains:
+		if (tile_terrains as Array).is_empty():
+			continue
+		var names: Array[String] = []
+		for terrain in tile_terrains:
+			names.append(GameTypes.terrain_display_name(terrain))
+		rows.append(_detail_row(null, "One tile on " + " or ".join(names)))
 	return rows
 
 
