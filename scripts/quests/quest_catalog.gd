@@ -63,16 +63,14 @@ static func build_all() -> Array[Quest]:
 	))
 
 	quests.append(QuestScript.new(
-		GameTypes.QuestId.SCALE_UP,
+		GameTypes.QuestId.FOUNDATIONS,
 		GameTypes.QuestKind.MILESTONE,
-		"Scale Up",
-		"Put the land to work: raise a Logger's Camp and a Quarry, then stockpile a real "
-			+ "haul of wood and stone for refining and steady power.",
+		"Lay the Foundations",
+		"Time to stop doing everything by hand. Open the build menu and place a Logger's "
+			+ "Camp by the trees and a Quarry by the rocks, then let the robot build them.",
 		[
 			_objective("Build a Logger's Camp", GameTypes.Stat.LOGGER_CAMPS_BUILT, 1),
 			_objective("Build a Quarry", GameTypes.Stat.QUARRIES_BUILT, 1),
-			_objective("Gather wood", GameTypes.Stat.WOOD_GATHERED, 100),
-			_objective("Gather stone", GameTypes.Stat.STONE_GATHERED, 100),
 		],
 		[
 			QuestReward.unlock_building(GameTypes.BuildingType.SAWMILL, "Unlocks the Sawmill"),

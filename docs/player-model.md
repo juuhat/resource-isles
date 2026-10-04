@@ -30,13 +30,30 @@ and legs animate independently through parented nodes, which are preserved in th
   antenna trails the head scan slightly.
 - **Walk:** 0.8-second loop with alternating legs, opposing arm swings, and a small body bob.
   The antenna nods with each step and sways a beat behind the body.
-  It is an in-place cycle; gameplay code provides translation and turning. The stance boot
-  stays on the ground while the swing boot lifts.
+  It is an in-place cycle; gameplay code provides translation and turning. Each boot is
+  planted for half the loop, sliding back under the hip at a constant rate so it holds still
+  on the ground as the body moves over it, then eases forward with a small lift.
+  The game no longer plays it while moving (see Run); it stays for slower movement later.
+- **Run:** the gait played while moving, a bounding trot. Each boot is planted for only a
+  quarter of the loop, sliding back through a 0.55-radian swing, so the robot is airborne for
+  the rest of each half: it pushes off, floats a little above the line between push-off and
+  landing, and lands on the other boot. It leans into the run with the head up, bent arms
+  pumping against the legs, and the antenna whipping on each landing.
+  Runtime playback scales with movement speed and model size: `PlayerUnit` matches the body's
+  distance per loop (`RUN_CYCLE_DISTANCE`, 1.652 native units; Walk's is 0.527) to the
+  movement speed, about 4 loops (8 steps) a second at gameplay speed, so a planted boot holds
+  still on the ground. A model without a Run clip falls back to Walk. Idle and work clips
+  retain their authored playback rate. `tools/player_model_check.gd` follows the boots in
+  world space to check they hold still on the floor and leave it between steps.
 - **Chop:** 1.0-second loop swinging the axe: a slow wind-up overhead, a fast level blow into
   the trunk with the body leaning and twisting into it, a recoil, and back to ready. The
   antenna whips forward on impact.
 - **Mine:** 1.2-second loop with the pickaxe: a higher wind-up and a steeper blow down into
   the rock, bending further in.
+- **Build:** 1.2-second loop with the wrench (`HeldWrench`): two quick taps at chest height,
+  bent in over the work with the head down and the free arm reaching forward to steady the part.
+  `main.gd` plays it with `set_work("build")` while the robot raises a blueprint (see
+  [Construction](building-footprints.md#construction)).
 
 The swings use the same axe and pickaxe as the ground pickups (`build_axe` and
 `build_pickaxe` from [tools/build_robot_tools.py](../tools/build_robot_tools.py)), each merged

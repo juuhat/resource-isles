@@ -5,7 +5,7 @@
 See [Quest design review](docs/quest-design.md) for the current chain, proposed teaching sequence,
 and unresolved budgets and unlock decisions. These recommendations are not yet implemented.
 
-- [ ] Replace the Scale Up 100-resource gate with a construction/production lesson, and resolve whether one or both extractors are required.
+- [x] Replace the Scale Up 100-resource gate with a construction lesson: *Lay the Foundations* asks for one Logger's Camp and one Quarry.
 - [ ] Add objectives teaching manual Operate power followed by automatic power.
 - [ ] Make the first supply-line objective track wood actually delivered from home to the frontier colony.
 - [ ] Define the payoff after trade; unlock smelting before requiring ingots when the metal-production chain is added.
@@ -21,11 +21,13 @@ and unresolved budgets and unlock decisions. These recommendations are not yet i
 
 ## Robot construction
 
-- [ ] Make construction a robot task: choose a building in the build menu, place a blueprint, then automatically command the robot to walk to a reachable work spot and build it. Avoid requiring a second Build click for every placement.
-- [ ] Reserve construction materials when placing the blueprint and return them if it is cancelled. Reserve the footprint and show a transparent 3D building preview until construction finishes.
-- [ ] Use a short construction time. Leave interrupted blueprints and their progress in place, provide a Build action in the robot's command bar to resume them, and persist blueprints, reserved materials, and progress through save/load.
-- [ ] Start the completed building's power consumption and production only after construction finishes. Count quest construction objectives on completion rather than blueprint placement.
-- [ ] Teach blueprint placement and completed robot construction in an early quest, followed by Operate. Keep moving completed buildings instant for now so layout experimentation stays easy.
+- [x] Make construction a robot task: choose a building in the build menu, place a blueprint, then automatically command the robot to walk to a reachable work spot and build it. Avoid requiring a second Build click for every placement.
+- [x] Reserve construction materials when placing the blueprint and return them if it is cancelled. Reserve the footprint and show a transparent 3D building preview until construction finishes. (The blueprint is a teal hologram the real model prints up through; see [Construction](docs/building-footprints.md#construction).)
+- [x] Use a short construction time. Leave interrupted blueprints and their progress in place, provide a Build action in the robot's command bar to resume them, and persist blueprints, reserved materials, and progress through save/load.
+- [x] Start the completed building's power consumption and production only after construction finishes. Count quest construction objectives on completion rather than blueprint placement.
+- [x] Teach blueprint placement and completed robot construction in an early quest (Lay the Foundations). Keep moving completed buildings instant for now so layout experimentation stays easy.
+- [ ] Follow Lay the Foundations with an Operate lesson (see Quest design above).
+- [ ] Playtest construction: build time (6 s default), the hologram and seam readability at gameplay zoom, and whether the robot should auto-resume blueprints after loading a save.
 
 ## Playtest feedback — 2026-10-03
 

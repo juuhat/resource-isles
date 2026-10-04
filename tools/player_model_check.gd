@@ -23,6 +23,8 @@ func _check_model() -> void:
 	assert(player._animation_player != null, "Robot must import an AnimationPlayer")
 	assert(not player._idle_animation.is_empty(), "Idle clip must be found")
 	assert(not player._walk_animation.is_empty(), "Walk clip must be found")
+	assert(not player._run_animation.is_empty(), "Run clip must be found")
+	assert(player._move_animation == player._run_animation, "The robot runs while moving")
 	assert(player._animation_player.current_animation == player._idle_animation)
 	var model := player._model
 	var head := model.find_child("HeadPivot", true, false) as Node3D
@@ -36,8 +38,24 @@ func _check_model() -> void:
 	var path: Array[Vector2i] = [Vector2i(2, 1)]
 	player.follow_path(path)
 	player._update_animation()
-	assert(player._animation_player.current_animation == player._walk_animation)
-	assert(player._animation_player.get_animation(player._walk_animation).loop_mode == Animation.LOOP_LINEAR)
+	assert(player._animation_player.current_animation == player._move_animation)
+	assert(player._animation_player.get_animation(player._move_animation).loop_mode == Animation.LOOP_LINEAR)
+	var walk_clip := player._animation_player.get_animation(player._move_animation)
+	var cycle_distance := PlayerScript.RUN_CYCLE_DISTANCE * model.scale.z
+	var walk_rate := player._animation_player.speed_scale
+	assert(is_equal_approx(cycle_distance * walk_rate / walk_clip.length, player.move_speed),
+		"Walk stride must cover the same world distance per second as movement")
+	player.move_speed *= 0.5
+	player._update_animation()
+	assert(is_equal_approx(player._animation_player.speed_scale, walk_rate * 0.5),
+		"Walk cadence must follow speed changes during a route")
+	player.move_speed *= 2.0
+	model.scale *= 2.0
+	player._update_animation()
+	assert(is_equal_approx(player._animation_player.speed_scale, walk_rate * 0.5),
+		"A larger robot needs fewer steps to cover the same distance")
+	model.scale *= 0.5
+	player._update_animation()
 	player._animation_player.advance(0.2)
 	player._animation_player.seek(0.0, true)
 	var leg_rest := leg.transform
@@ -50,6 +68,7 @@ func _check_model() -> void:
 	assert(player.current_cell == Vector2i(2, 1), "Animated player must finish the movement command")
 	assert(not player.is_moving())
 	assert(player._animation_player.current_animation == player._idle_animation)
+	assert(is_equal_approx(player._animation_player.speed_scale, 1.0), "Idle must keep its authored timing")
 
 	# Harvesting swings: each plays its clip with only its own tool in hand, and walking or
 	# stopping puts the tool away.
@@ -61,6 +80,7 @@ func _check_model() -> void:
 		assert(player._work_animations.has(kind), "%s clip must be found" % kind)
 		player.set_work(kind)
 		assert(player._animation_player.current_animation == player._work_animations[kind])
+		assert(is_equal_approx(player._animation_player.speed_scale, 1.0), "Work must keep its authored timing")
 		assert(axe.visible == (kind == "chop") and pickaxe.visible == (kind == "mine"))
 	var wrist := model.find_child("ToolPivot", true, false) as Node3D
 	player._animation_player.advance(0.2)
@@ -70,7 +90,7 @@ func _check_model() -> void:
 	assert(not wrist.transform.is_equal_approx(wrist_rest), "Mine must swing the tool")
 	player.follow_path([Vector2i(1, 1)] as Array[Vector2i])
 	player._update_animation()
-	assert(player._animation_player.current_animation == player._walk_animation)
+	assert(player._animation_player.current_animation == player._move_animation)
 	assert(not pickaxe.visible, "Walking puts the tool away")
 	for i in 120:
 		player._process(1.0 / 60.0)
@@ -104,5 +124,60 @@ func _check_model() -> void:
 	player.queue_free()
 	renderer.queue_free()
 	await process_frame
+	_check_planted_boots()
 	print("Player model import, animation and movement: PASS")
 	quit()
+
+
+# Run the robot down a long straight path at gameplay speed and follow its boots in world space. A
+# boot on the floor should hold roughly still (the run is matched to the movement speed), and both
+# should leave the floor between steps (the trot's float). Boots are tracked by their bounds'
+# centre, which shifts a little as they tilt, so "still" allows some drift.
+func _check_planted_boots() -> void:
+	var renderer := IslandRenderer.new()
+	var island := IslandData.new(30, 3)
+	for y in 3:
+		for x in 30:
+			island.set_terrain(Vector2i(x, y), GameTypes.Terrain.GRASS)
+	renderer.island = island
+	root.add_child(renderer)
+	var player := PlayerScript.new()
+	player.setup(renderer)
+	root.add_child(player)
+	player.place_at(Vector2i(1, 1))
+	var path: Array[Vector2i] = []
+	for x in range(2, 28):
+		path.append(Vector2i(x, 1))
+	player.follow_path(path)
+	var boots := player._model.find_children("* boot", "MeshInstance3D", true, false)
+	assert(boots.size() == 2, "Both boots must be exported as meshes")
+	const STEP := 1.0 / 1000.0
+	const ON_FLOOR := 0.8  # world units above the tile top
+	var previous_x := [0.0, 0.0]
+	var drift := 0.0
+	var on_floor_samples := 0
+	var airborne_samples := 0
+	var samples := 0
+	for i in 1500:
+		player._process(STEP)
+		player._animation_player.advance(STEP)
+		var both_up := true
+		for k in 2:
+			var bounds: AABB = boots[k].global_transform * (boots[k] as MeshInstance3D).get_aabb()
+			var height := bounds.position.y - player.position.y
+			var x := bounds.get_center().x
+			if i > 200 and height < ON_FLOOR:
+				drift += absf(x - previous_x[k]) / STEP
+				on_floor_samples += 1
+			both_up = both_up and height >= ON_FLOOR
+			previous_x[k] = x
+		if i > 200:
+			samples += 1
+			airborne_samples += 1 if both_up else 0
+	var mean_drift := drift / maxf(on_floor_samples, 1)
+	assert(on_floor_samples > 0, "The boots must touch the floor")
+	assert(mean_drift < 0.35 * player.move_speed,
+		"A boot on the floor must hold roughly still (drifting %.0f at speed %.0f)" % [mean_drift, player.move_speed])
+	assert(float(airborne_samples) / samples > 0.25, "The run must leave the floor between steps")
+	player.free()
+	renderer.free()

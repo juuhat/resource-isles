@@ -66,18 +66,23 @@ func can_place_building(
 
 # rotation is the footprint's turn in 60-degree steps (see HexGrid.footprint_cells), kept so the
 # renderer can turn the model to match and a moved building can be put back as it was.
+# under_construction places a blueprint: the footprint is reserved, but the building does nothing
+# until the robot finishes building it (see is_under_construction).
 func place_building(
 	cell: Vector2i,
 	building_type: int,
 	footprint_cells: Array[Vector2i],
 	required_terrains: Array[int],
 	rotation: int = 0,
-	cell_terrains: Array = []
+	cell_terrains: Array = [],
+	under_construction := false
 ) -> bool:
 	if not can_place_building(cell, footprint_cells, required_terrains, cell_terrains):
 		return false
 
 	buildings[cell] = {type = building_type, cells = footprint_cells, rotation = rotation}
+	if under_construction:
+		buildings[cell].build_progress = 0.0
 	return true
 
 
@@ -127,6 +132,47 @@ func get_building_rotation(anchor_cell: Vector2i) -> int:
 		return 0
 
 	return int(buildings[anchor_cell].get("rotation", 0))
+
+
+# --- Construction ---
+# A blueprint is a building entry carrying build_progress (0..1). It holds its footprint and has
+# its materials already paid, but produces, burns and draws nothing, and only counts as built once
+# complete_construction drops the key. Entries without one (every older save) are finished.
+
+# True for a blueprint, given any of its cells.
+func is_under_construction(cell: Vector2i) -> bool:
+	var anchor_cell := get_building_anchor_cell(cell)
+	return anchor_cell != Vector2i(-1, -1) and buildings[anchor_cell].has("build_progress")
+
+
+# True for a finished building, given any of its cells.
+func is_building_complete(cell: Vector2i) -> bool:
+	return has_building(cell) and not is_under_construction(cell)
+
+
+func get_build_progress(anchor_cell: Vector2i) -> float:
+	if not buildings.has(anchor_cell):
+		return 0.0
+	return float(buildings[anchor_cell].get("build_progress", 1.0))
+
+
+func set_build_progress(anchor_cell: Vector2i, progress: float) -> void:
+	if buildings.has(anchor_cell) and buildings[anchor_cell].has("build_progress"):
+		buildings[anchor_cell].build_progress = clampf(progress, 0.0, 1.0)
+
+
+func complete_construction(anchor_cell: Vector2i) -> void:
+	if buildings.has(anchor_cell):
+		buildings[anchor_cell].erase("build_progress")
+
+
+# Anchors of every blueprint on the island.
+func construction_sites() -> Array[Vector2i]:
+	var sites: Array[Vector2i] = []
+	for anchor_cell in buildings:
+		if buildings[anchor_cell].has("build_progress"):
+			sites.append(anchor_cell)
+	return sites
 
 
 func has_production_time(anchor_cell: Vector2i) -> bool:
@@ -291,6 +337,8 @@ func _buildings_to_dict() -> Dictionary:
 			cells = (building.cells as Array).duplicate(),
 			rotation = int(building.get("rotation", 0)),
 		}
+		if building.has("build_progress"):
+			result[anchor_cell].build_progress = float(building.build_progress)
 	return result
 
 
@@ -304,6 +352,8 @@ static func _buildings_from_dict(saved_buildings: Dictionary) -> Dictionary:
 		for cell in saved.get("cells", []):
 			cells.append(cell)
 		result[anchor_cell] = {type = int(saved.type), cells = cells, rotation = int(saved.get("rotation", 0))}
+		if saved.has("build_progress"):
+			result[anchor_cell].build_progress = float(saved.build_progress)
 	return result
 
 

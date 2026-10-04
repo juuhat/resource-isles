@@ -54,7 +54,7 @@ enum QuestId {
 	RESCUE_THE_DOG, # MAIN: the north-star goal, sail out and bring the dog home
 	HELLO_WORLD,    # recover the scattered tools
 	BREAK_GROUND,   # first wood + stone -> logging and mining
-	SCALE_UP,       # bigger wood + stone haul -> refining and power
+	FOUNDATIONS,    # build the logger camp + quarry -> refining and power
 	REFINE,         # raise a sawmill and mill planks -> the dock
 	SET_SAIL,       # build the dock -> reveal the first ring of islands
 	THE_SUPPLY_LINE, # dock a second island and run a trade route to it

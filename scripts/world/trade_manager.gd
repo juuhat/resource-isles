@@ -67,7 +67,7 @@ func dock_count(coord: Vector2i) -> int:
 		return 0
 	var count := 0
 	for anchor_cell in island.buildings:
-		if island.buildings[anchor_cell].type == GameTypes.BuildingType.DOCK:
+		if island.buildings[anchor_cell].type == GameTypes.BuildingType.DOCK and not island.is_under_construction(anchor_cell):
 			count += 1
 	return count
 

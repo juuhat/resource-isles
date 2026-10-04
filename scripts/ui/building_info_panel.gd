@@ -70,6 +70,10 @@ func show_building(building_type: int, cell: Vector2i, island: IslandData) -> vo
 	title_label.text = _get_building_name(building_type)
 
 	_clear(detail_box)
+	var is_blueprint := island != null and island.is_under_construction(anchor_cell)
+	if is_blueprint:
+		_add_text_line("Under construction: %d%%" % int(island.get_build_progress(anchor_cell) * 100.0), SECTION_COLOR)
+		_add_hint("The robot builds it. Right-click it with the robot selected to resume.")
 	_add_text_line("Location: %d, %d" % [anchor_cell.x, anchor_cell.y])
 	_build_production(building_type, anchor_cell, island)
 	_build_input(building_type)
@@ -83,8 +87,10 @@ func show_building(building_type: int, cell: Vector2i, island: IslandData) -> vo
 	# Worldgen / story buildings (the wreck, etc.) are not the player's to move or scrap.
 	var definition := building_manager.get_definition(building_type)
 	var can_modify := definition != null and definition.player_buildable
-	move_button.visible = can_modify
+	# A blueprint isn't moved; cancelling it refunds its materials.
+	move_button.visible = can_modify and not is_blueprint
 	delete_button.visible = can_modify
+	delete_button.text = "Cancel (refund)" if is_blueprint else "Delete"
 
 	panel.visible = true
 

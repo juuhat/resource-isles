@@ -13,7 +13,7 @@ quest, **Rescue K9-DA**, and a linear milestone chain:
 | --- | --- | --- |
 | Recover Your Tools | Collect the axe, pickaxe, and wrench | Harvesting |
 | Break Ground | Gather 6 wood and 6 stone | Logger's Camp and Quarry |
-| Scale Up | Build a camp and quarry; gather 100 wood and 100 stone in total | Sawmill and Burner Generator |
+| Lay the Foundations | Build a Logger's Camp and a Quarry | Sawmill and Burner Generator |
 | Refine | Build a sawmill; gather 12 planks | Dock |
 | Set Sail | Build a dock | Reveal ring 1 |
 | Strike Iron | Gather 5 iron ore | Iron Mine and Coal Mine |
@@ -41,13 +41,13 @@ total, so materials spent along the way still count). Validate this budget in pl
 
 ### 2. Replace the 100-resource gate with a practical lesson
 
-Scale Up currently makes both extractors mandatory and asks for 100 of each resource. Replace
-the large totals with placement and actual production objectives. Building a machine, operating
-it, and seeing it produce teaches more than extending a collection counter.
+Done: the old Scale Up milestone (build both extractors, then gather 100 wood and 100 stone)
+is now **Lay the Foundations**, which only asks the player to place a Logger's Camp and a
+Quarry. It teaches the build menu and placement, and Break Ground's 6 + 6 leaves exactly
+enough to afford both. Both extractors are required, so earlier first-island notes describing
+them as optional are superseded for the tutorial.
 
-Earlier first-island notes describe camps and quarries as optional. Resolve that conflict:
-the proposed pass introduces an early construction/operation lesson, but whether it requires
-both extractors remains open. Avoid requiring buildings solely to fill out the tutorial.
+Still open: follow-up objectives that prove a building actually produced (see section 3).
 
 ### 3. Teach manual power before automatic power
 

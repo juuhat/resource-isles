@@ -23,7 +23,7 @@ func update(island: IslandData, current_time_seconds: float) -> void:
 	for anchor_cell in island.buildings.keys():
 		var building_type: int = island.buildings[anchor_cell].type
 		var definition := building_manager.get_definition(building_type)
-		if definition == null or definition.production_resource_type == -1:
+		if definition == null or definition.production_resource_type == -1 or island.is_under_construction(anchor_cell):
 			continue
 
 		if definition.production_interval_seconds <= 0.0:

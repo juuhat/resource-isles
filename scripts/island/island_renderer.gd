@@ -21,6 +21,7 @@ const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const BladeSpinnerScript := preload("res://scripts/island/blade_spinner.gd")
 const PowerIndicatorScript := preload("res://scripts/island/power_indicator.gd")
 const PoweredSpinnerScript := preload("res://scripts/island/powered_spinner.gd")
+const ConstructionSiteScript := preload("res://scripts/island/construction_site.gd")
 # Toon water (see assets/shaders/water_toon.gdshader): a transparent animated plane whose
 # depth bands, foam rim and swell lines all key off the distance to the nearest land hex —
 # exact near the shore (per-cell land mask), baked coarse further out (set in _rebuild_water).
@@ -386,7 +387,8 @@ func placement_rotation_at(anchor_cell: Vector2i, building_type: int) -> int:
 	return building_manager.fit_rotation(anchor_cell, building_type, island, placement_rotation)
 
 
-func try_place_hovered_building(building_type: int = GameTypes.BuildingType.LOGGER_CAMP) -> bool:
+# as_blueprint places it under construction, for the robot to build (IslandData.place_building).
+func try_place_hovered_building(building_type: int = GameTypes.BuildingType.LOGGER_CAMP, as_blueprint := false) -> bool:
 	if island == null or hovered_cell == Vector2i(-1, -1):
 		return false
 
@@ -394,7 +396,7 @@ func try_place_hovered_building(building_type: int = GameTypes.BuildingType.LOGG
 	if not _can_place_at(hovered_cell, building_type, rotation):
 		return false
 
-	var placed := building_manager.try_place(hovered_cell, building_type, island, rotation)
+	var placed := building_manager.try_place(hovered_cell, building_type, island, rotation, as_blueprint)
 	if placed:
 		refresh()
 
@@ -889,12 +891,17 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 	if footprint.is_empty():
 		footprint = [anchor_cell]
 
+	var under_construction := island.is_under_construction(anchor_cell)
 	if definition.model != null:
-		var model := _spawn_building_model(definition, footprint, island.get_building_rotation(anchor_cell))
+		var rotation := island.get_building_rotation(anchor_cell)
+		var model := _spawn_building_model(definition, footprint, rotation)
 		if model != null:
 			var spot := model.find_child("WorkSpot", true, false) as Node3D
 			if spot != null:
 				_work_spots[anchor_cell] = _local_position_in(spot, model)
+		if model != null and under_construction:
+			_dress_construction_site(anchor_cell, model, _spawn_building_model(definition, footprint, rotation))
+			return
 		if model != null and definition.power_consumed > 0:
 			_spawn_power_indicator(anchor_cell, footprint, model)
 			_add_powered_spinner(anchor_cell, model)
@@ -905,8 +912,28 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 
 	var sprite := _make_billboard(definition.texture, definition.visual_size_tiles, definition.visual_offset_tiles)
 	sprite.position = _ground_anchor(footprint) + _offset_xz(definition.visual_offset_tiles)
+	if under_construction:
+		sprite.modulate = Color(0.45, 1.0, 0.9, 0.5)
 	_lift_to_ground(sprite)
 	_objects_root.add_child(sprite)
+
+
+# A blueprint: the model printed up to the robot's progress inside a hologram of the finished
+# building (ConstructionSite). It has no power bolt or spinning parts until it is built.
+func _dress_construction_site(anchor_cell: Vector2i, model: Node3D, ghost_model: Node3D) -> void:
+	# A teal plate on the reserved tiles, so the plot reads even before anything is built.
+	for cell in island.get_building_footprint_cells(anchor_cell):
+		var plate := MeshInstance3D.new()
+		plate.mesh = _cap_mesh
+		plate.material_override = _make_overlay_material(Color(0.36, 0.95, 0.86, 0.28))
+		var center := _local_cell_center(cell)
+		plate.position = Vector3(center.x, center.y + 0.6, center.z)
+		_objects_root.add_child(plate)
+
+	var site := ConstructionSiteScript.new()
+	site.name = "ConstructionSite"
+	_objects_root.add_child(site)
+	site.setup(island, anchor_cell, model, ghost_model)
 
 
 # A building's model sized, placed and turned on its footprint, under _objects_root. Shared by

@@ -48,14 +48,23 @@ func can_place(anchor_cell: Vector2i, building_type: int, island: IslandData, ro
 	return true
 
 
-func try_place(anchor_cell: Vector2i, building_type: int, island: IslandData, rotation: int = 0) -> bool:
+# under_construction places it as a blueprint for the robot to build (IslandData.place_building).
+func try_place(
+	anchor_cell: Vector2i, building_type: int, island: IslandData, rotation: int = 0, under_construction := false
+) -> bool:
 	if not can_place(anchor_cell, building_type, island, rotation):
 		return false
 
 	var definition := get_definition(building_type)
 	var footprint := get_footprint_cells(anchor_cell, building_type, rotation)
 	return island.place_building(
-		anchor_cell, building_type, footprint, definition.required_terrains, posmod(rotation, 6), definition.footprint_terrains
+		anchor_cell,
+		building_type,
+		footprint,
+		definition.required_terrains,
+		posmod(rotation, 6),
+		definition.footprint_terrains,
+		under_construction
 	)
 
 
@@ -88,7 +97,8 @@ func migrate_footprints(island: IslandData) -> void:
 		island.buildings.erase(anchor_cell)
 		var placed := false
 		for rotation in 6:
-			if try_place(anchor_cell, building_type, island, rotation):
+			if try_place(anchor_cell, building_type, island, rotation, old.has("build_progress")):
+				island.set_build_progress(anchor_cell, float(old.get("build_progress", 1.0)))
 				placed = true
 				break
 		if not placed:

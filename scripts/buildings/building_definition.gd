@@ -10,6 +10,8 @@ var texture: Texture2D
 # Optional 3D model. When set, the renderer instances this instead of the flat texture.
 var model: PackedScene = null
 var cost: Dictionary
+# Seconds of robot work to raise a placed blueprint into the finished building.
+var build_seconds: float = 6.0
 # The tiles the building covers, as axial hex offsets from its anchor tile (HexGrid.AXIAL_*,
 # summed for tiles further out). The anchor, Vector2i.ZERO, comes first. The player turns the
 # shape in 60-degree steps while placing it. See docs/building-footprints.md.

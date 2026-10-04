@@ -68,3 +68,38 @@ The anchor is the south-west tile, east is the south-east tile, and north-east i
 ```
 Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/footprint_check.gd
 ```
+
+## Construction
+
+Placing a building from the build menu puts down a **blueprint**, not a finished building. The
+blueprint holds its footprint (nothing else can be placed there) and its cost is paid at placement,
+but it produces nothing, draws or generates no power, doesn't count as a dock for trade routes, and
+doesn't count toward quest construction objectives. In the island data it is an ordinary building
+entry carrying `build_progress` (0 to 1); `IslandData.complete_construction` drops the key. Entries
+without one (every save from before construction) load as finished.
+
+- **The robot builds it.** Placing a blueprint sends the robot to its work spot (or a neighbouring
+  tile), and it starts building on arrival, playing the wrench *Build* clip. Construction takes
+  `BuildingDefinition.build_seconds` of work (6 by default). If the robot is already building or
+  heading to another blueprint, the new one waits. When it finishes one, it walks to the nearest
+  blueprint left on the island.
+- **Interrupting** (sending the robot elsewhere, or *Pause building* in the command bar) leaves the
+  blueprint and its progress in place. Progress is saved. The command bar offers *Build* or
+  *Resume (N%)* while the robot is parked at a blueprint, and right-clicking one with the robot
+  selected sends it back to work (the hover shows green).
+- **Finishing** starts production and power use, counts the building for quests, and offers
+  *Operate* immediately if the building needs power and the robot is standing at it.
+- **Cancelling** a blueprint (the info panel's *Cancel (refund)*) refunds its full cost. Blueprints
+  can't be moved; finished buildings still move instantly and for free.
+
+On the map ([construction_site.gd](../scripts/island/construction_site.gd)), a blueprint is a teal
+plate on its tiles and a teal hologram of the finished building
+([construction_hologram.gdshader](../assets/shaders/construction/construction_hologram.gdshader)).
+The real model is printed up through it from the ground to the current progress
+([construction_reveal.gdshader](../assets/shaders/construction/construction_reveal.gdshader)): a
+glowing seam marks the cut, the open top is capped in dim teal, and sparks fly from the seam while
+the robot works. `tools/construction_check.gd` covers the whole flow:
+
+```
+Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/construction_check.gd
+```

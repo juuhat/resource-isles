@@ -18,6 +18,12 @@ const MARKER_COLOR := Color(0.35, 0.85, 1.0, 0.45)
 # The model's native body height in glTF units (feet at y=0 to head top; the antenna rises
 # above it) — used to scale it to the desired on-map size.
 const MODEL_NATIVE_HEIGHT := 1.2
+# Distance the body covers in one loop of each gait, in native model units, so playback can be
+# matched to movement (tools/build_player_robot.py). Walk: two planted sweeps of a 0.395-unit
+# leg through +/-0.34 radians, 4 * 0.395 * sin(0.34). Run: a planted sweep through +/-0.55
+# radians, 2 * 0.395 * sin(0.55), lasts a quarter of the loop, so 4 times that.
+const WALK_CYCLE_DISTANCE := 0.527
+const RUN_CYCLE_DISTANCE := 1.6517
 # Yaw offset (radians) applied so the model's modeled front points the right way. Used by
 # both the rest pose and movement facing so they stay in sync.
 const MODEL_YAW_OFFSET := 0.0
@@ -37,7 +43,8 @@ const SELECT_SOUNDS: Array[AudioStream] = [
 # Work clips (see set_work): the clip played while parked, and the tool node in the robot's
 # hand that only shows during it (tools/build_player_robot.py).
 # "operate" is the hand-PTO docking pose, its spindle spinning in a building's generator socket.
-const WORK_CLIPS := {"chop": "HeldAxe", "mine": "HeldPickaxe", "operate": "HeldPTO"}
+# "build" works a blueprint with the wrench.
+const WORK_CLIPS := {"chop": "HeldAxe", "mine": "HeldPickaxe", "operate": "HeldPTO", "build": "HeldWrench"}
 # How long a tool takes to pop into the hand when a swing starts.
 const EQUIP_TIME := 0.15
 
@@ -53,6 +60,10 @@ var _model: Node3D
 var _animation_player: AnimationPlayer
 var _idle_animation := ""
 var _walk_animation := ""
+var _run_animation := ""
+# The gait played while moving (Run, or Walk for a model without one) and its cycle distance.
+var _move_animation := ""
+var _move_cycle_distance := WALK_CYCLE_DISTANCE
 # Work kind ("chop", "mine") -> its clip name and its held tool node.
 var _work_animations := {}
 var _held_tools := {}
@@ -168,7 +179,7 @@ func face_toward(world_target: Vector3, nudge_tiles := 0.0) -> void:
 
 
 # Work while parked: swing a tool ("chop" with the axe, "mine" with the pickaxe), dock the hand PTO
-# into a building ("operate"), or "" to stop. Walking still plays the walk clip; the work resumes
+# into a building ("operate"), or "" to stop. Moving still plays the run clip; the work resumes
 # once parked again.
 func set_work(kind: String) -> void:
 	_work = kind
@@ -302,11 +313,15 @@ func _setup_animations() -> void:
 			_idle_animation = animation_name
 		elif clip == "walk":
 			_walk_animation = animation_name
+		elif clip == "run":
+			_run_animation = animation_name
 		elif WORK_CLIPS.has(clip):
 			_work_animations[clip] = animation_name
 		else:
 			continue
 		_animation_player.get_animation(animation_name).loop_mode = Animation.LOOP_LINEAR
+	_move_animation = _run_animation if not _run_animation.is_empty() else _walk_animation
+	_move_cycle_distance = RUN_CYCLE_DISTANCE if not _run_animation.is_empty() else WALK_CYCLE_DISTANCE
 	for kind in WORK_CLIPS:
 		var tool := _model.find_child(WORK_CLIPS[kind], true, false) as Node3D
 		if tool != null:
@@ -319,9 +334,17 @@ func _update_animation() -> void:
 	if _animation_player == null:
 		return
 	var working := not _moving and _work_animations.has(_work)
-	var animation_name: String = _walk_animation if _moving else _idle_animation
+	var animation_name: String = _move_animation if _moving else _idle_animation
 	if working:
 		animation_name = _work_animations[_work]
+	# Match the in-place gait to translation, including changes to speed or model size.
+	# Always reset this for idle/work so their timing doesn't inherit the gait's rate.
+	var playback_speed := 1.0
+	if _moving and not _move_animation.is_empty():
+		var cycle_distance := _move_cycle_distance * absf(_model.scale.z)
+		var cycle_length := _animation_player.get_animation(_move_animation).length
+		playback_speed = maxf(move_speed, 0.0) * cycle_length / maxf(cycle_distance, 0.001)
+	_animation_player.speed_scale = playback_speed
 	if not animation_name.is_empty() and _animation_player.current_animation != animation_name:
 		_animation_player.play(animation_name, 0.12)
 	for kind in _held_tools:

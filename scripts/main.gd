@@ -43,6 +43,7 @@ const AUTOSAVE_INTERVAL_SECONDS := 60.0
 const PICKAXE_ICON := preload("res://assets/icons/pickaxe.png")
 const POWER_ICON := preload("res://assets/icons/power.png")
 const PAW_ICON := preload("res://assets/icons/paw.png")
+const HAMMER_ICON := preload("res://assets/icons/hammer.png")
 
 const PLACEMENT_SOUND := preload("res://assets/audio/sfx/building_placement.wav")
 const StarfieldSkyShader := preload("res://assets/shaders/world_map/starfield_sky.gdshader")
@@ -52,6 +53,7 @@ enum UnitAction {
 	HARVEST,
 	OPERATE,
 	RESCUE,
+	BUILD,
 }
 # Pixels the cursor may travel between left press and release before it counts
 # as a drag (pan) rather than a click.
@@ -124,6 +126,14 @@ var _harvest_accum := 0.0
 var is_operating := false
 var operate_cell := Vector2i(-1, -1)
 var operable_cell := Vector2i(-1, -1)
+
+# Construction: placing a building puts down a blueprint (IslandData.is_under_construction) and
+# sends the robot to raise it. While is_constructing it works the blueprint anchored at
+# construct_cell, adding to its build progress; buildable_cell is the blueprint it is parked at,
+# where the Build action is offered to start or resume the work.
+var is_constructing := false
+var construct_cell := Vector2i(-1, -1)
+var buildable_cell := Vector2i(-1, -1)
 
 
 func _ready() -> void:
@@ -344,6 +354,9 @@ func _process(delta: float) -> void:
 
 	if is_harvesting:
 		_update_harvest(delta)
+
+	if is_constructing:
+		_update_construction(delta)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -579,10 +592,13 @@ func _setup_lighting() -> void:
 # building or resource node, so for one it walks to where it can work it instead (see
 # _plan_approach) and the target stays the clicked cell.
 func _command_unit_to_hovered() -> bool:
+	return _command_unit_to(renderer.hovered_cell)
+
+
+func _command_unit_to(cell: Vector2i) -> bool:
 	if player_unit == null or current_island == null:
 		return false
 
-	var cell := renderer.hovered_cell
 	# A building's tiles are all targets, even one standing in the water (the dock's pier).
 	if cell == Vector2i(-1, -1) or not (HexPathfinderScript.is_walkable(current_island, cell) or current_island.has_building(cell)):
 		return false
@@ -599,13 +615,17 @@ func _command_unit_to_hovered() -> bool:
 			_stop_harvesting()
 		if current_island.get_building_anchor_cell(cell) != operate_cell:
 			_stop_operating()
+		if current_island.get_building_anchor_cell(cell) != construct_cell:
+			_stop_constructing()
 		_on_unit_arrived(player_unit.current_cell)
 		return true
 
 	_stop_harvesting()
 	_stop_operating()
+	_stop_constructing()
 	harvestable_cell = Vector2i(-1, -1)
 	operable_cell = Vector2i(-1, -1)
+	buildable_cell = Vector2i(-1, -1)
 	player_unit.follow_path(plan.path, plan.spot_cell, plan.spot_position)
 	_refresh_action_bar()
 	return true
@@ -738,6 +758,7 @@ func _on_unit_arrived(_cell: Vector2i) -> void:
 	if _is_working_position(target):
 		harvestable_cell = target if current_island.get_resource_node_type(target) != -1 else Vector2i(-1, -1)
 		operable_cell = target if _building_consumes_power(target) else Vector2i(-1, -1)
+		buildable_cell = target if current_island.is_under_construction(target) else Vector2i(-1, -1)
 		if player_unit.is_at_spot():
 			player_unit.face_toward(renderer.get_cell_center(target))
 		elif target != player_unit.current_cell:
@@ -750,7 +771,9 @@ func _on_unit_arrived(_cell: Vector2i) -> void:
 # green hover promised, see _is_actionable_cell). Work already under way there is left running.
 func _start_action_at(target: Vector2i) -> void:
 	var can_harvest := quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.HARVESTING)
-	if harvestable_cell == target and not is_harvesting and can_harvest:
+	if buildable_cell == target and not is_constructing:
+		_on_build_pressed()
+	elif harvestable_cell == target and not is_harvesting and can_harvest:
 		_on_harvest_pressed()
 	elif operable_cell == target and not is_operating:
 		_on_operate_pressed()
@@ -758,8 +781,8 @@ func _start_action_at(target: Vector2i) -> void:
 		_on_rescue_pressed()
 
 
-# True for a cell the selected robot would start working on if right-clicked: a resource node
-# once harvesting is unlocked, a building that draws power, or the stranded K9-DA. The hover
+# True for a cell the selected robot would start working on if right-clicked: a blueprint, a
+# resource node once harvesting is unlocked, a building that draws power, or the stranded K9-DA. The hover
 # tints it green (IslandRenderer.is_cell_actionable). Not while placing or moving a building,
 # where the right-click cancels instead.
 func _is_actionable_cell(cell: Vector2i) -> bool:
@@ -767,6 +790,8 @@ func _is_actionable_cell(cell: Vector2i) -> bool:
 		return false
 	if selected_building_type != NO_BUILDING:
 		return false
+	if current_island.is_under_construction(cell):
+		return true
 	if current_island.get_resource_node_type(cell) != -1:
 		return quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.HARVESTING)
 	if _building_consumes_power(cell):
@@ -789,6 +814,9 @@ func _refresh_action_bar() -> void:
 		and not player_unit.is_moving()
 		and current_island != null
 	):
+		var build := _build_action()
+		if not build.is_empty():
+			actions.append(build)
 		var harvest := _harvest_action()
 		if not harvest.is_empty():
 			actions.append(harvest)
@@ -857,6 +885,27 @@ func _operate_action() -> Dictionary:
 	return {id = UnitAction.OPERATE, icon = POWER_ICON, label = label, active = is_operating}
 
 
+# Offered while the robot is parked at a blueprint: start (or resume) raising it, or pause.
+func _build_action() -> Dictionary:
+	if buildable_cell == Vector2i(-1, -1) or not _is_working_position(buildable_cell):
+		return {}
+	if not current_island.is_under_construction(buildable_cell):
+		return {}
+
+	var anchor_cell := current_island.get_building_anchor_cell(buildable_cell)
+	var building_name := building_manager.get_display_name(current_island.get_building_type(anchor_cell))
+	var percent := int(current_island.get_build_progress(anchor_cell) * 100.0)
+	var label := ""
+	if is_constructing:
+		label = "Pause building"
+	elif percent > 0:
+		label = "Resume %s (%d%%)" % [building_name, percent]
+	else:
+		label = "Build %s" % building_name
+
+	return {id = UnitAction.BUILD, icon = HAMMER_ICON, label = label, active = is_constructing}
+
+
 # Offered while the robot is parked on or right beside the stranded K9-DA.
 func _rescue_action() -> Dictionary:
 	if not _can_rescue_dog():
@@ -877,7 +926,7 @@ func _can_rescue_dog() -> bool:
 # with the Operate verb (the tier-0 power source — see is_operating / power_manager.gd).
 func _building_consumes_power(cell: Vector2i) -> bool:
 	var building_type := current_island.get_building_type(cell)
-	if building_type == -1:
+	if building_type == -1 or current_island.is_under_construction(cell):
 		return false
 
 	var definition := building_manager.get_definition(building_type)
@@ -892,6 +941,8 @@ func _on_action_pressed(action_id: int) -> void:
 			_on_operate_pressed()
 		UnitAction.RESCUE:
 			_on_rescue_pressed()
+		UnitAction.BUILD:
+			_on_build_pressed()
 
 
 # Bring K9-DA aboard: it starts following the robot, and the DOG_RESCUED stat completes the MAIN
@@ -978,6 +1029,109 @@ func _stop_operating() -> void:
 	operate_cell = Vector2i(-1, -1)
 	if player_unit != null:
 		player_unit.set_work("")
+
+
+func _on_build_pressed() -> void:
+	if is_constructing:
+		_stop_constructing()
+		_refresh_action_bar()
+		return
+
+	if buildable_cell == Vector2i(-1, -1) or not current_island.is_under_construction(buildable_cell):
+		return
+
+	is_constructing = true
+	construct_cell = current_island.get_building_anchor_cell(buildable_cell)
+	player_unit.set_work("build")
+	_refresh_action_bar()
+
+
+# Leave the blueprint as it stands; its progress stays on the map (and in the save) to resume.
+func _stop_constructing() -> void:
+	if not is_constructing:
+		return
+
+	is_constructing = false
+	construct_cell = Vector2i(-1, -1)
+	if player_unit != null:
+		player_unit.set_work("")
+
+
+func _update_construction(delta: float) -> void:
+	# Stop if the robot walked off or the blueprint is gone (cancelled from its panel).
+	if (
+		player_unit == null
+		or player_unit.is_moving()
+		or current_island == null
+		or not current_island.is_under_construction(construct_cell)
+		or not _is_working_position(construct_cell)
+	):
+		_stop_constructing()
+		_refresh_action_bar()
+		return
+
+	var definition := building_manager.get_definition(current_island.get_building_type(construct_cell))
+	var build_seconds := definition.build_seconds if definition != null else 6.0
+	var progress := current_island.get_build_progress(construct_cell) + delta / maxf(build_seconds, 0.1)
+	if progress < 1.0:
+		current_island.set_build_progress(construct_cell, progress)
+		_autosave_dirty = true
+		return
+
+	_finish_construction(construct_cell)
+
+
+# The robot finished a blueprint: the building starts working, counts as built for quests, and
+# the robot moves on to the next blueprint on the island, if any.
+func _finish_construction(anchor_cell: Vector2i) -> void:
+	var building_type := current_island.get_building_type(anchor_cell)
+	current_island.complete_construction(anchor_cell)
+	_stop_constructing()
+	buildable_cell = Vector2i(-1, -1)
+	renderer.refresh()
+	# Standing at a machine that needs power, the robot can Operate it straight away.
+	if _building_consumes_power(anchor_cell) and _is_working_position(anchor_cell):
+		operable_cell = anchor_cell
+	if _placement_player != null:
+		_placement_player.play()
+	_spawn_floating_text(
+		renderer.get_cell_center(anchor_cell),
+		"%s built!" % building_manager.get_display_name(building_type),
+		Color(0.55, 1.0, 0.85)
+	)
+	stat_tracker.record_building_built(building_type)
+	if not _build_next_blueprint():
+		_refresh_action_bar()
+	_save_game()
+
+
+# Send the robot to the nearest unfinished blueprint on this island. Returns false when none is left.
+func _build_next_blueprint() -> bool:
+	var sites := current_island.construction_sites()
+	if sites.is_empty() or player_unit == null:
+		return false
+
+	var search := HexPathfinderScript.search(current_island, player_unit.current_cell)
+	var costs: Dictionary = search.cost
+	var best := Vector2i(-1, -1)
+	var best_cost := INF
+	for site in sites:
+		for cell in current_island.get_building_footprint_cells(site):
+			var cost: float = costs.get(cell, INF)
+			if cost < best_cost or best == Vector2i(-1, -1):
+				best = site
+				best_cost = cost
+	return best != Vector2i(-1, -1) and _command_unit_to(best)
+
+
+# A blueprint was just placed: put the robot to work on it, unless it is already building (or on its
+# way to) another one — it moves on to this one when that is done (_build_next_blueprint).
+func _send_robot_to_build(anchor_cell: Vector2i) -> void:
+	if is_constructing:
+		return
+	if pending_action_cell != Vector2i(-1, -1) and current_island.is_under_construction(pending_action_cell):
+		return
+	_command_unit_to(anchor_cell)
 
 
 func _update_harvest(delta: float) -> void:
@@ -1123,17 +1277,18 @@ func _try_place_selected_building() -> bool:
 	if not resource_manager.can_afford(cost):
 		return false
 
-	if not renderer.try_place_hovered_building(selected_building_type):
+	# Placement puts down a blueprint; the robot builds it (see _finish_construction, which is also
+	# where it counts as built for quests). Its materials are paid now, and refunded if cancelled.
+	var anchor_cell := renderer.hovered_cell
+	if not renderer.try_place_hovered_building(selected_building_type, true):
 		return false
 	_reroute_unit()
 
 	resource_manager.spend(cost)
-	stat_tracker.record_building_built(selected_building_type)
 	if _placement_player != null:
 		_placement_player.play()
-	# Placing a building is a deliberate, resource-spending action — checkpoint it. (If it also
-	# completed a quest, record_building_built already saved via _on_quest_completed; the extra
-	# write is cheap and keeps placement a save point in its own right.)
+	_send_robot_to_build(anchor_cell)
+	# Placing a building is a deliberate, resource-spending action — checkpoint it.
 	_save_game()
 	return true
 
@@ -1278,9 +1433,11 @@ func _spawn_player_unit() -> void:
 
 	_stop_harvesting()
 	_stop_operating()
+	_stop_constructing()
 	pending_action_cell = Vector2i(-1, -1)
 	harvestable_cell = Vector2i(-1, -1)
 	operable_cell = Vector2i(-1, -1)
+	buildable_cell = Vector2i(-1, -1)
 	player_unit.place_at(_find_unit_spawn_cell(current_island))
 	_refresh_action_bar()
 
@@ -1413,6 +1570,9 @@ func _select_building(building_type: int) -> void:
 func _on_building_move_requested(building_type: int, anchor_cell: Vector2i, island: IslandData) -> void:
 	if island == null or island != current_island:
 		return
+	# Moving is for finished buildings; a blueprint is cancelled and placed again instead.
+	if island.is_under_construction(anchor_cell):
+		return
 
 	is_moving_building = true
 	moving_from_cell = anchor_cell
@@ -1462,14 +1622,25 @@ func _cancel_building_move() -> void:
 		renderer.place_building_at(from, building_type, moving_rotation)
 
 
-# Panel "Delete": scrap the building outright. The power/production managers recompute from the
-# remaining buildings on the next _process tick, so no manual refresh is needed here.
+# Panel "Delete": scrap the building outright, or cancel a blueprint and get its materials back.
+# The power/production managers recompute from the remaining buildings on the next _process tick,
+# so no manual refresh is needed here.
 func _on_building_delete_requested(anchor_cell: Vector2i, island: IslandData) -> void:
 	if island == null or island != current_island:
 		return
 
-	if renderer.remove_building(anchor_cell):
-		_save_game()
+	var refund := {}
+	if island.is_under_construction(anchor_cell):
+		refund = _get_building_cost(island.get_building_type(anchor_cell))
+	if not renderer.remove_building(anchor_cell):
+		return
+
+	if anchor_cell == construct_cell:
+		_stop_constructing()
+	for resource_type in refund:
+		resource_manager.add_amount(resource_type, refund[resource_type])
+	_refresh_action_bar()
+	_save_game()
 
 
 func _apply_selected_building() -> void:
