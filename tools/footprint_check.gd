@@ -11,7 +11,7 @@ extends SceneTree
 #   - a building's rotation survives a save round trip, and a one-tile dock from an older save
 #     grows to three tiles on load.
 #
-# The game writes user://savegame.sav as it plays, so any existing save is backed up first and
+# The game saves to SaveManager.SAVE_PATH as it plays, so any existing save is backed up first and
 # restored at the end.
 #
 #   Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/footprint_check.gd

@@ -5,7 +5,7 @@ extends SceneTree
 # is unpowered, hides as soon as the robot's Operate action hand-powers it, and returns when the
 # robot stops. Non-consumers (e.g. a windmill) never get a bolt.
 #
-# The game writes user://savegame.sav as it plays, so any existing save is backed up first and
+# The game saves to SaveManager.SAVE_PATH as it plays, so any existing save is backed up first and
 # restored at the end.
 #
 #   Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/power_indicator_check.gd

@@ -6,7 +6,7 @@ extends SceneTree
 # preview shows a see-through copy of the 3D model (not the flat billboard) with the same bounds
 # as the building placed on that spot.
 #
-# The game writes user://savegame.sav as it plays, so any existing save is backed up first and
+# The game saves to SaveManager.SAVE_PATH as it plays, so any existing save is backed up first and
 # restored at the end.
 #
 #   Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/placement_preview_check.gd

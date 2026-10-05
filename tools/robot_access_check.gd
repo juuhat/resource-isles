@@ -10,7 +10,7 @@ extends SceneTree
 #     reached by the shortest route straight onto its tile, then turned to face it;
 #   - buildings can't be placed on the robot, and one placed on its route doesn't stop it.
 #
-# The game writes user://savegame.sav as it plays, so any existing save is backed up first and
+# The game saves to SaveManager.SAVE_PATH as it plays, so any existing save is backed up first and
 # restored at the end.
 #
 #   Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/robot_access_check.gd

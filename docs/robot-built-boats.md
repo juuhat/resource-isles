@@ -71,17 +71,15 @@ Operate pose) and `salvage_skiff_dock_check.png` (spindle in the post socket, cl
   a neighbouring landing tile to choose it, then press the action. The boat stays afloat;
   the robot can walk back and reboard it. Resource obstacles cannot be landing spots.
 - Launched boats have independent world position and heading saved in `WorldData.boats`.
-  Saving aboard restores the robot aboard. Moving or deleting the original dock does not
-  take the launched boat with it or create a replacement boat.
+  Saving aboard restores the robot aboard, also out in open ocean. Moving or deleting the
+  original dock does not take the launched boat with it or create a replacement boat.
 - The islands and intervening ocean share a navigable hex lattice (`WorldNavigation`).
   Right-click water anywhere, or click a revealed island while aboard to sail to its shore.
   The camera can be panned freely; the bottom-right player portrait selects and centers on
   the robot. Approaching close enough to reveal an island discovers it and shows its name;
   landing activates the destination inventory.
 - A continuous fog bank covers locked sea and islands. Its radius is the navigation frontier,
-  expanded by quest ring rewards. Paths cannot cross it. Old saves with boats kept per island
-  are upgraded to world boats (`SaveMigration`), including the robot aboard; loading in open
-  ocean preserves the boat.
+  expanded by quest ring rewards. Paths cannot cross it.
 - K9-DA's boat pose, the screw animation and bobbing are future work. The companion resumes
   following after landing.
 

@@ -6,7 +6,7 @@ extends SceneTree
 # islands, and the rescue survives a save round-trip. Also sweeps several world seeds to confirm
 # the chosen spot is always reachable from where the robot lands.
 #
-# The game writes user://savegame.sav as it plays, so any existing save is backed up first and
+# The game saves to SaveManager.SAVE_PATH as it plays, so any existing save is backed up first and
 # restored at the end.
 #
 #   Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/dog_rescue_check.gd

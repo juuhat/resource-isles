@@ -226,11 +226,6 @@ func _ready() -> void:
 	# app without further warning).
 	get_tree().set_auto_accept_quit(false)
 	_switch_to_island(world.current_coord if loaded else WorldData.CENTER, true)
-	# Older saves already discovered this island before the dedicated stat existed.
-	if (world.get_island(world.dog_coord).visited or world.dog_rescued) \
-			and stat_tracker.get_value(GameTypes.Stat.DOG_ISLAND_DISCOVERED) == 0:
-		stat_tracker.add(GameTypes.Stat.DOG_ISLAND_DISCOVERED, 1)
-		_save_game()
 
 
 # Save on the ways the game can end: a desktop window close, or a mobile app suspend (which
@@ -1818,14 +1813,11 @@ func _find_crashed_spaceship_cell(island: IslandData) -> Vector2i:
 
 # --- K9-DA ---
 
-# Give the world its stranded dog: a ring-1 island (from the seed) and a spot on it. Runs on every
-# start, so it also fills in saves from before the rescue existed — and if such a save already
-# completed the old "reach any island" rescue quest, K9-DA counts as rescued rather than undoing it.
+# Give a new world its stranded dog: a ring-1 island (from the seed) and a spot on it.
 func _ensure_dog_placed() -> void:
 	if world.dog_coord == WorldData.NO_COORD or not world.has_island(world.dog_coord):
 		world.dog_coord = WorldData.dog_slot_for_seed(seed_value)
 		world.dog_cell = GameTypes.NO_CELL
-		world.dog_rescued = quest_manager.is_completed(GameTypes.QuestId.RESCUE_THE_DOG)
 
 	if world.dog_cell == GameTypes.NO_CELL:
 		world.dog_cell = _choose_dog_cell(world.get_island(world.dog_coord), _island_seed(world.dog_coord))

@@ -199,8 +199,7 @@ static func from_dict(data: Dictionary, reference_time: float) -> WorldData:
 		# Drop a route whose island is gone (e.g. a hand-edited save) rather than crash on it.
 		if world.has_island(route.home_coord) and world.has_island(route.away_coord):
 			world.trade_routes.append(route)
-	# Saves from before the rescue have no dog data; main assigns a fresh spot (and treats an
-	# already-completed rescue quest as rescued) — see main._ensure_dog_placed.
+	# Without dog data, main gives the world a fresh spot (main._ensure_dog_placed).
 	world.dog_coord = data.get("dog_coord", NO_COORD)
 	world.dog_cell = data.get("dog_cell", GameTypes.NO_CELL)
 	world.dog_rescued = bool(data.get("dog_rescued", false))

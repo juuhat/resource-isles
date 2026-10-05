@@ -8,7 +8,7 @@ extends SceneTree
 #   - right-clicking such a cell walks the robot over and starts the work on arrival (harvest
 #     with the chop swing, operate), and right-clicking it again leaves the work running.
 #
-# The game writes user://savegame.sav as it plays, so any existing save is backed up first and
+# The game saves to SaveManager.SAVE_PATH as it plays, so any existing save is backed up first and
 # restored at the end.
 #
 #   Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/action_hover_check.gd
