@@ -1,13 +1,15 @@
 class_name HexPathfinder
 extends RefCounted
 
-# Shortest paths over land hex tiles (and decks over the water, like the dock's pier). Buildings are walked through (the player can't wall the
-# robot in with their own construction); resource nodes — trees, rocks, ore — are walked around,
-# and crossed only when there is no other way (OBSTACLE_COST outweighs any detour), so a unit can
-# never be trapped and every land cell stays reachable. Paths exclude the start and include the
-# goal; they are empty when no path exists or the unit is already on the goal.
+# Shortest paths over hex cells, for any way of moving (Movement): walking an island here, sailing
+# the world's waters in WorldNavigation. Paths exclude the start and include the goal; they are
+# empty when no path exists or the mover is already on the goal.
+#
+# Walking covers land hex tiles (and decks over the water, like the dock's pier). Buildings are
+# walked through (the player can't wall the robot in with their own construction); resource nodes —
+# trees, rocks, ore — are walked around, and crossed only when there is no other way (OBSTACLE_COST
+# outweighs any detour), so a unit can never be trapped and every land cell stays reachable.
 
-const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const BuildingDefinitionsScript := preload("res://scripts/buildings/building_definitions.gd")
 
 # Cost of stepping onto a resource node, versus 1 for any other land: a path is effectively
@@ -93,34 +95,75 @@ static func find_path(island: IslandData, start: Vector2i, goal: Vector2i) -> Ar
 	return path_to(search(island, start, goal), goal)
 
 
-# Dijkstra from start over walkable ground. Returns {cost = {cell: total cost}, came_from = {cell:
-# previous cell}}, covering every reachable cell, or stopping early once `goal` is settled.
+# Walking the island from start (see Movement.search).
 static func search(island: IslandData, start: Vector2i, goal := GameTypes.NO_CELL) -> Dictionary:
-	var cost := {start: 0}
-	var came_from := {start: start}
-	var settled := {}
-	var heap: Array = [[0, start]]
-	var decks := deck_cells(island)
+	return Walking.new(island).search(start, goal)
 
-	while not heap.is_empty():
-		var entry: Array = _heap_pop(heap)
-		var current: Vector2i = entry[1]
-		if settled.has(current):
-			continue
-		settled[current] = true
-		if current == goal:
-			break
 
-		for neighbor in HexGridScript.neighbors(current):
-			if settled.has(neighbor) or not _can_step(island, decks, current, neighbor):
+# A way of moving over the hex grid: where a mover may step and what each step costs. Every path is
+# found by its search: Walking an island below, Sailing the world's waters in WorldNavigation.
+class Movement extends RefCounted:
+	# Whether the mover may step from `from` onto the neighbouring `to`.
+	func can_step(_from: Vector2i, _to: Vector2i) -> bool:
+		return false
+
+	# The cost of stepping onto `cell`, at least 1.
+	func step_cost(_cell: Vector2i) -> int:
+		return 1
+
+	# A lower bound on the cost from `cell` to `goal`, steering a search toward the goal (A*). 0, the
+	# default, searches outward evenly (Dijkstra).
+	func estimate(_cell: Vector2i, _goal: Vector2i) -> int:
+		return 0
+
+	# Shortest paths from start: {cost = {cell: total cost}, came_from = {cell: previous cell}},
+	# covering every reachable cell, or stopping early once `goal` is settled.
+	func search(start: Vector2i, goal := GameTypes.NO_CELL) -> Dictionary:
+		var cost := {start: 0}
+		var came_from := {start: start}
+		var settled := {}
+		var heap: Array = [[estimate(start, goal), start]]
+
+		while not heap.is_empty():
+			var current: Vector2i = HexPathfinder._heap_pop(heap)[1]
+			if settled.has(current):
 				continue
-			var new_cost: int = cost[current] + step_cost(island, neighbor)
-			if not cost.has(neighbor) or new_cost < cost[neighbor]:
-				cost[neighbor] = new_cost
-				came_from[neighbor] = current
-				_heap_push(heap, [new_cost, neighbor])
+			settled[current] = true
+			if current == goal:
+				break
 
-	return {cost = cost, came_from = came_from}
+			for neighbor in HexGrid.neighbors(current):
+				if settled.has(neighbor) or not can_step(current, neighbor):
+					continue
+				var new_cost: int = cost[current] + step_cost(neighbor)
+				if not cost.has(neighbor) or new_cost < cost[neighbor]:
+					cost[neighbor] = new_cost
+					came_from[neighbor] = current
+					HexPathfinder._heap_push(heap, [new_cost + estimate(neighbor, goal), neighbor])
+
+		return {cost = cost, came_from = came_from}
+
+	# The cheapest path from start to goal, or [] (see path_to).
+	func find_path(start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
+		if start == goal:
+			return []
+		return HexPathfinder.path_to(search(start, goal), goal)
+
+
+# Walking an island: over land and decks, around resource nodes (see the top of this file).
+class Walking extends Movement:
+	var island: IslandData
+	var decks: Dictionary
+
+	func _init(walked: IslandData) -> void:
+		island = walked
+		decks = HexPathfinder.deck_cells(walked)
+
+	func can_step(from: Vector2i, to: Vector2i) -> bool:
+		return HexPathfinder._can_step(island, decks, from, to)
+
+	func step_cost(cell: Vector2i) -> int:
+		return HexPathfinder.step_cost(island, cell)
 
 
 # The path to `goal` recorded by search(), or [] when it wasn't reached.

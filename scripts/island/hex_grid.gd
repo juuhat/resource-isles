@@ -46,6 +46,12 @@ static func shift(cell: Vector2i, axial_offset: Vector2i) -> Vector2i:
 	return axial_to_offset(offset_to_axial(cell) + axial_offset)
 
 
+# How many steps apart two cells are.
+static func distance(a: Vector2i, b: Vector2i) -> int:
+	var delta := offset_to_axial(a) - offset_to_axial(b)
+	return maxi(absi(delta.x), maxi(absi(delta.y), absi(delta.x + delta.y)))
+
+
 # Turns an axial offset by steps x 60 degrees counter-clockwise (seen from above), so
 # AXIAL_EAST becomes AXIAL_NORTH_EAST after one step.
 static func rotate_axial(axial: Vector2i, steps: int) -> Vector2i:

@@ -1,7 +1,6 @@
 extends SceneTree
 
 const GameScene := preload("res://game.tscn")
-const Navigation := preload("res://scripts/player/boat_navigation.gd")
 const Grid := preload("res://scripts/island/hex_grid.gd")
 var failures := 0
 var saved_bytes := PackedByteArray()
@@ -75,11 +74,11 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 			await process_frame
 		root.get_texture().get_image().save_png("res://.godot/boat_preview.png")
 	expect(not game._command_unit_to(anchor), "Boat cannot move onto land")
-	expect(not Navigation.can_sail(island, pier), "Boat cannot pass through pier")
+	expect(not game.world_navigation.can_sail(pier), "Boat cannot pass through pier")
 	var sea := GameTypes.NO_CELL
 	for cell in island.terrain:
-		if Navigation.can_sail(island, cell) and not game.world_navigation.find_path(berth, cell, 0).is_empty() \
-				and not Grid.neighbors(cell).any(func(shore: Vector2i) -> bool: return Navigation.can_land(island, cell, shore)):
+		if game.world_navigation.can_sail(cell, 0) and not game.world_navigation.find_path(berth, cell, 0).is_empty() \
+				and not Grid.neighbors(cell).any(func(shore: Vector2i) -> bool: return game.world_navigation.can_land(cell, shore)):
 			sea = cell
 			break
 	expect(sea != GameTypes.NO_CELL, "Find reachable open sea")
@@ -99,6 +98,7 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	expect(restored.get_current().buildings[anchor].boat_launched, "Launch state survives save")
 	game._spawn_player_unit()
 	expect(player.boat_id == 0 and player.current_cell == sea, "Reload resumes piloting")
+	_check_sailing_reroute(game)
 	expect(game._command_unit_to(berth), "Return boat to berth")
 	steps = 0
 	while player.is_moving() and steps < 1000:
@@ -115,10 +115,54 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	await process_frame
 	expect(island.buildings[anchor].boat_launched and renderer.find_children(IslandRenderer.MOORED_BOAT_NAME, "", true, false).is_empty(), "Moving/cancelling dock does not duplicate launched boat")
 	# An occupied / non-neighbouring shore never qualifies as a landing.
-	expect(not Navigation.can_land(island, berth, anchor), "Landing requires immediate adjacency")
+	expect(not game.world_navigation.can_land(berth, anchor), "Landing requires immediate adjacency")
 	island.resources[pier] = GameTypes.ResourceNodeType.TREE
 	# A deck remains open in ground pathfinding; resource occupancy must still veto transfer.
-	expect(not Navigation.can_land(island, berth, pier), "Landing rejects resource obstacles")
+	expect(not game.world_navigation.can_land(berth, pier), "Landing rejects resource obstacles")
 	island.resources.erase(pier)
 	game._on_building_delete_requested(anchor, island)
 	expect(player.boat_id == 0 and player.current_cell == berth, "Removing dock leaves piloted boat afloat")
+
+# A boat whose route gets blocked (here by another boat) re-plans around it (_reroute_unit), and one
+# whose destination gets taken stops beside it instead of sailing in.
+func _check_sailing_reroute(game: Node) -> void:
+	var player: PlayerUnit = game.player_unit
+	var navigation: WorldNavigation = game.world_navigation
+	var start := player.current_cell
+	var reach: Dictionary = WorldNavigation.Sailing.new(navigation, player.boat_id).search(start).cost
+	var goal := GameTypes.NO_CELL
+	for cell in reach:
+		if reach[cell] >= 6 and reach[cell] <= 12:
+			goal = cell
+			break
+	expect(goal != GameTypes.NO_CELL, "Open water a few cells out")
+	if goal == GameTypes.NO_CELL:
+		return
+	var route := navigation.find_path(start, goal, player.boat_id)
+	expect(game._command_unit_to(goal), "Sail out")
+	var blocker: Vector2i = route[3]
+	game.world.boats[99] = {cell = blocker, yaw = 0.0}
+	game._reroute_unit()
+	var sailed := _sail(player)
+	expect(not sailed.has(blocker) and player.current_cell == goal, "A boat re-plans around a blocked cell")
+
+	game.world.boats.erase(99)
+	expect(game._command_unit_to(start), "Sail back")
+	game.world.boats[99] = {cell = start, yaw = 0.0}
+	game._reroute_unit()
+	_sail(player)
+	expect(player.current_cell != start and Grid.neighbors(start).has(player.current_cell),
+		"A boat whose destination is taken stops beside it")
+	game.world.boats.erase(99)
+
+
+# Sails until the boat stops; the cells it passed through, in order.
+func _sail(player: PlayerUnit) -> Array[Vector2i]:
+	var sailed: Array[Vector2i] = []
+	for step in 2000:
+		if not player.is_moving():
+			break
+		player._process(0.1)
+		if sailed.is_empty() or sailed.back() != player.current_cell:
+			sailed.append(player.current_cell)
+	return sailed

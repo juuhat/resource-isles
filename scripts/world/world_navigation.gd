@@ -6,7 +6,6 @@ extends RefCounted
 # world-map slot; slots are far apart, so islands never share a cell.
 const Grid := preload("res://scripts/island/hex_grid.gd")
 const Ground := preload("res://scripts/island/hex_pathfinder.gd")
-const IslandBoats := preload("res://scripts/player/boat_navigation.gd")
 const CELL_SIZE := Vector2(128.0, 128.0)
 const RING_SPACING := 6400.0
 const SEA_Y := 6.0
@@ -54,51 +53,50 @@ func inside_frontier(cell: Vector2i) -> bool:
 	var point := cell_center(cell)
 	return Vector2(point.x, point.z).length() + CELL_SIZE.x * 0.5 <= sailing_radius()
 
+# Whether a boat may float on the cell (other than boat own_id): open sea or an island's water,
+# inside the fog frontier and clear of other boats.
 func can_sail(cell: Vector2i, own_id := -1) -> bool:
 	if not inside_frontier(cell):
 		return false
 	var coord := slot_at(cell)
 	if coord != WorldData.NO_COORD:
-		if not world.is_revealed(coord) or not IslandBoats.can_sail(world.islands[coord], cell):
+		if not world.is_revealed(coord) or not _island_water(world.islands[coord], cell):
 			return false
 	for id in world.boats:
 		if id != own_id and world.boats[id].cell == cell:
 			return false
 	return true
 
+# Whether the robot can step ashore from a boat on boat_cell onto the neighbouring shore: a deck
+# or unobstructed land on a revealed island. The boat stays afloat.
 func can_land(boat_cell: Vector2i, shore: Vector2i) -> bool:
 	var coord := slot_at(shore)
 	if coord == WorldData.NO_COORD or not world.is_revealed(coord):
 		return false
-	return IslandBoats.can_land(world.islands[coord], boat_cell, shore)
+	var island: IslandData = world.islands[coord]
+	return Grid.neighbors(boat_cell).has(shore) and Ground.is_open(island, shore) \
+		and not island.has_resource(shore) \
+		and (Ground.is_deck(island, shore) or not GameTypes.is_water(island.get_terrain(shore)))
 
+# Where boat own_id can sail from start to goal (Sailing), or [] when it can't get there.
 func find_path(start: Vector2i, goal: Vector2i, own_id := -1) -> Array[Vector2i]:
 	if not can_sail(start, own_id) or not can_sail(goal, own_id):
 		return []
-	var previous := {start: start}
-	var cost := {start: 0}
-	var settled := {}
-	var heap: Array = [[_distance(start, goal), start]]
-	while not heap.is_empty():
-		var cell: Vector2i = Ground._heap_pop(heap)[1]
-		if settled.has(cell):
-			continue
-		settled[cell] = true
-		if cell == goal:
-			return Ground.path_to({came_from = previous}, goal)
-		for neighbor in Grid.neighbors(cell):
-			if settled.has(neighbor) or not can_sail(neighbor, own_id):
-				continue
-			var next_cost: int = cost[cell] + 1
-			if not cost.has(neighbor) or next_cost < cost[neighbor]:
-				cost[neighbor] = next_cost
-				previous[neighbor] = cell
-				Ground._heap_push(heap, [next_cost + _distance(neighbor, goal), neighbor])
-	return []
+	return Sailing.new(self, own_id).find_path(start, goal)
 
-static func _distance(a: Vector2i, b: Vector2i) -> int:
-	var delta := Grid.offset_to_axial(a) - Grid.offset_to_axial(b)
-	return maxi(absi(delta.x), maxi(absi(delta.y), absi(delta.x + delta.y)))
+# A boat may float on an island's water, but not on a deck or a building, except the berth at the
+# end of a dock whose boat has been launched.
+static func _island_water(island: IslandData, cell: Vector2i) -> bool:
+	if not GameTypes.is_water(island.get_terrain(cell)) or Ground.is_deck(island, cell):
+		return false
+	if island.has_building(cell):
+		var anchor := island.get_building_anchor_cell(cell)
+		var building: Dictionary = island.buildings[anchor]
+		if int(building.type) != GameTypes.BuildingType.DOCK or building.has("build_progress") or building.cells.back() != cell:
+			return false
+		if not building.get("boat_launched", false):
+			return false
+	return true
 
 func cell_from_position(point: Vector3) -> Vector2i:
 	# Cube rounding also handles negative rows and the ocean outside any island rectangle.
@@ -122,3 +120,20 @@ func cell_from_ray(origin: Vector3, direction: Vector3) -> Vector2i:
 	if distance < 0.0:
 		return GameTypes.NO_CELL
 	return cell_from_position(origin + direction * distance)
+
+
+# Sailing (HexPathfinder.Movement): onto any cell can_sail allows for the boat, steered toward the
+# goal by hex distance.
+class Sailing extends HexPathfinder.Movement:
+	var navigation: WorldNavigation
+	var boat_id: int
+
+	func _init(sailed: WorldNavigation, own_id: int) -> void:
+		navigation = sailed
+		boat_id = own_id
+
+	func can_step(_from: Vector2i, to: Vector2i) -> bool:
+		return navigation.can_sail(to, boat_id)
+
+	func estimate(cell: Vector2i, goal: Vector2i) -> int:
+		return HexGrid.distance(cell, goal) if goal != GameTypes.NO_CELL else 0

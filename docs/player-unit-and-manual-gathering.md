@@ -163,6 +163,8 @@ Phases 1–4 are the playable core; everything after is content.
 2. **DONE — Hex pathfinding** ([`scripts/island/hex_pathfinder.gd`](../scripts/island/hex_pathfinder.gd)):
    Dijkstra over land tiles using `HexGrid.neighbors`. Buildings are walked through, so the player
    can never wall the robot in. Resource nodes are walked around: stepping onto one costs `OBSTACLE_COST`, so a route crosses one only when there is no other way (no generated island needs this; `tools/robot_access_check.gd` sweeps 60). Nothing is ever unreachable.
+   The same search (`HexPathfinder.Movement`) also plans boat routes across the world, with
+   sailing rules instead of walking ones (`WorldNavigation.Sailing`).
 3. **DONE — Input rework in `main.gd`**: **right-click (on release)** commands the robot
    (`_command_unit_to_hovered`) — it pathfinds to the clicked tile. The robot's **command bar**
    ([`scripts/ui/action_bar.gd`](../scripts/ui/action_bar.gd), Civ 6 unit-command style) is a

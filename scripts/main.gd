@@ -18,7 +18,6 @@ const PlayerUnitScript := preload("res://scripts/player/player_unit.gd")
 const DogScript := preload("res://scripts/units/dog.gd")
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
-const BoatNavigationScript := preload("res://scripts/player/boat_navigation.gd")
 const WorldNavigationScript := preload("res://scripts/world/world_navigation.gd")
 const CameraRigScript := preload("res://scripts/camera_rig.gd")
 const WorldDataScript := preload("res://scripts/world/world_data.gd")
@@ -690,17 +689,26 @@ func _command_boat_to(cell: Vector2i) -> bool:
 	if not world_navigation.inside_frontier(cell):
 		toast.show_message("The fog blocks passage — " + world_view.locked_island_hint(Vector2i(world.revealed_rings + 1, 0)))
 		return false
-	var path := world_navigation.find_path(player_unit.next_cell(), cell, player_unit.boat_id)
-	if path.is_empty():
+	var plan := _plan_route(cell, player_unit.next_cell())
+	if plan.is_empty():
 		return false
 	landing_cell = GameTypes.NO_CELL
 	pending_action_cell = cell
 	if player_unit.is_moving():
-		player_unit.reroute(path)
+		player_unit.reroute(plan.path)
 	else:
-		player_unit.follow_path(path)
+		player_unit.follow_path(plan.path)
 	_refresh_action_bar()
 	return true
+
+
+# How the robot gets from `start` to `target`: sailing, the boat's route there; on foot, the walk
+# to where it can work the target (_plan_approach). {} when it can't get there.
+func _plan_route(target: Vector2i, start: Vector2i) -> Dictionary:
+	if player_unit.boat_id == -1:
+		return _plan_approach(target, start)
+	var path := world_navigation.find_path(start, target, player_unit.boat_id)
+	return _approach(path) if not path.is_empty() else {}
 
 
 # How the robot, standing at `start`, gets to work `target`: {path, spot_cell, spot_position} for
@@ -721,7 +729,7 @@ func _plan_approach(target: Vector2i, start: Vector2i) -> Dictionary:
 		var best := GameTypes.NO_CELL
 		var cost := INF
 		for shore in HexGridScript.neighbors(target):
-			if BoatNavigationScript.can_land(island, target, shore) and search.cost.has(shore) and search.cost[shore] < cost:
+			if world_navigation.can_land(target, shore) and search.cost.has(shore) and search.cost[shore] < cost:
 				best = shore
 				cost = search.cost[shore]
 		return _approach(HexPathfinderScript.path_to(search, best)) if best != GameTypes.NO_CELL else {}
@@ -806,20 +814,18 @@ func _is_unit_cell(cell: Vector2i) -> bool:
 	return false
 
 
-# Construction changed the map: re-plan a moving robot's approach from the cell it's stepping
-# into, so it never ends up parked on a building placed where it was heading (walking through
-# one on the way is fine). The last leg into a work spot stays inside the building's own tile.
+# Construction changed the map: re-plan a moving robot's route from the cell it's stepping into,
+# so it never ends up parked on a building placed where it was heading (walking through one on the
+# way is fine), nor sails into a pier. The last leg into a work spot stays inside the building's
+# own tile. A boat left with no route carries on until its old one is blocked, and stops there
+# (PlayerUnit checks each step).
 func _reroute_unit() -> void:
-	if player_unit != null and player_unit.boat_id != -1:
-		if player_unit.is_moving() and pending_action_cell != GameTypes.NO_CELL:
-			player_unit.reroute(world_navigation.find_path(player_unit.next_cell(), pending_action_cell, player_unit.boat_id))
-		return
 	if player_unit == null or not player_unit.is_moving() or pending_action_cell == GameTypes.NO_CELL:
 		return
 	if player_unit.is_at_spot():
 		return
 
-	var plan := _plan_approach(pending_action_cell, player_unit.next_cell())
+	var plan := _plan_route(pending_action_cell, player_unit.next_cell())
 	if not plan.is_empty():
 		player_unit.reroute(plan.path, plan.spot_cell, plan.spot_position)
 
@@ -1101,7 +1107,7 @@ func _nearby_boat() -> Dictionary:
 		return {}
 	for cell in HexGridScript.neighbors(player_unit.current_cell):
 		var boat := _boat_at(cell)
-		if not boat.is_empty() and BoatNavigationScript.can_land(current_island, cell, player_unit.current_cell):
+		if not boat.is_empty() and world_navigation.can_land(cell, player_unit.current_cell):
 			return boat
 	return {}
 
@@ -1705,7 +1711,7 @@ func _sail_to_island(coord: Vector2i) -> bool:
 			continue
 		for shore in HexGridScript.neighbors(cell):
 			if world_navigation.can_land(cell, shore):
-				candidates.append({cell = cell, shore = shore, distance = WorldNavigationScript._distance(player_unit.next_cell(), cell)})
+				candidates.append({cell = cell, shore = shore, distance = HexGridScript.distance(player_unit.next_cell(), cell)})
 				break
 	candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.distance < b.distance)
 	for candidate in candidates:
