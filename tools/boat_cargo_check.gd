@@ -38,8 +38,8 @@ func _run() -> void:
 		game.player_unit.set_selected(true)
 		game.refresh_action_bar()
 		expect(game.action_bar.action_row.get_children().any(func(button: Button) -> bool: return button.text == "Cargo"), "Cargo control offered beside initial boat")
-		game._open_boat_cargo()
-		var id: int = game.cargo_boat_id
+		game.boats.open_cargo()
+		var id: int = game.boats.cargo_boat_id
 		expect(game.player_unit.boat_id == -1 and game.boat_cargo_panel.is_open(), "Open cargo without boarding")
 		var hold := Cargo.inventory(game.world.boats[id])
 		var ui: BoatCargoPanel = game.boat_cargo_panel
@@ -69,16 +69,16 @@ func _run() -> void:
 		origin.inventory.set_amount(GameTypes.ResourceType.COAL, 0)
 		ui.refresh()
 		expect(not ui.amount_dialog.visible, "Prompt closes if source disappears")
-		game._board_boat()
+		game.boats.board()
 		expect(game.player_unit.boat_id == id, "Loading first does not create another boat")
 		game._reveal_rings(1)
 		var target: Vector2i = game.world.dog_coord
 		ui.boat_slots[0]._drop_data(Vector2.ZERO, ui.island_slots[0].drag_data())
-		expect(game._sail_to_island(target), "Sail with cargo")
-		game._refresh_boat_cargo()
+		expect(game.boats.sail_to_island(target), "Sail with cargo")
+		game.boats.refresh_cargo()
 		expect(not ui.amount_dialog.visible, "Moving away cancels pending transfer prompt")
 		expect(ui.maximum_transfer(GameTypes.ResourceType.WOOD, true) == 0 and ui.boat_slots[0].drag_data() == null, "Transfers disabled while moving")
-		game._on_cargo_transfer(GameTypes.ResourceType.WOOD, 1, false)
+		game.boats.transfer(GameTypes.ResourceType.WOOD, 1, false)
 		expect(hold.get_amount(GameTypes.ResourceType.WOOD) == 12, "Reject transfer while moving")
 		for step in 2000:
 			if not game.player_unit.is_moving():
@@ -87,7 +87,7 @@ func _run() -> void:
 		var away: IslandData = game.world.get_island(target)
 		expect(away.buildings.values().all(func(building: Dictionary) -> bool: return int(building.type) != GameTypes.BuildingType.DOCK), "Destination has no dock")
 		var before := away.inventory.get_amount(GameTypes.ResourceType.WOOD)
-		game._refresh_boat_cargo()
+		game.boats.refresh_cargo()
 		expect(game.boat_cargo_panel.island == away and game.world.current_coord == WorldData.CENTER, "Aboard transfer targets destination, not home")
 		ui.island_slots[0]._drop_data(Vector2.ZERO, ui.boat_slots[0].drag_data())
 		expect(ui.amount_picker.value == 12, "Unloading defaults to whole boat stack")
@@ -95,17 +95,17 @@ func _run() -> void:
 		await process_frame
 		game.boat_cargo_panel.amount_dialog.confirmed.emit()
 		expect(away.inventory.get_amount(GameTypes.ResourceType.WOOD) == before + 7 and origin.inventory.get_amount(GameTypes.ResourceType.WOOD) == 88, "Unload at untouched shoreline through controls")
-		game._disembark_boat()
-		game._refresh_boat_cargo()
+		game.boats.disembark()
+		game.boats.refresh_cargo()
 		expect(game.boat_cargo_panel.island == away, "Can transfer standing beside boat after landing")
 		ui.island_slots[0]._drop_data(Vector2.ZERO, ui.boat_slots[0].drag_data())
 		expect(ui.amount_picker.value == 5, "Default unload updates after split transfer")
 		await process_frame
 		game.boat_cargo_panel.amount_dialog.confirmed.emit()
 		expect(hold.get_amount(GameTypes.ResourceType.WOOD) == 0 and away.inventory.get_amount(GameTypes.ResourceType.WOOD) == before + 12, "Unload remaining supplies after landing")
-		game._on_cargo_transfer(GameTypes.ResourceType.WOOD, 3, true)
+		game.boats.transfer(GameTypes.ResourceType.WOOD, 3, true)
 		var at_shore: Vector2i = game.world.boats[id].cell
-		game._board_boat()
+		game.boats.board()
 		var sea := GameTypes.NO_CELL
 		for cell in HexGrid.neighbors(at_shore):
 			if game.world_navigation.can_sail(cell, id) and HexGrid.neighbors(cell).all(func(shore: Vector2i) -> bool: return not game.world_navigation.can_land(cell, shore)):
@@ -113,8 +113,8 @@ func _run() -> void:
 				break
 		if sea != GameTypes.NO_CELL:
 			game.player_unit.mount_boat(id, sea, 0.0)
-			game._store_boat_position()
-			game._refresh_boat_cargo()
+			game.boats.store_position()
+			game.boats.refresh_cargo()
 			expect(game.boat_cargo_panel.island == null and game.boat_cargo_panel.maximum_transfer(GameTypes.ResourceType.WOOD, false) == 0, "Stationary open-water boat cannot unload")
 		game.save_game()
 		root.remove_child(game)
@@ -125,12 +125,12 @@ func _run() -> void:
 		await process_frame
 		expect(Cargo.inventory(game.world.boats[id]).get_amount(GameTypes.ResourceType.WOOD) == 3, "Actual save/reload retains cargo")
 		game.boat_cargo_panel.close()
-		game._open_boat_cargo()
+		game.boats.open_cargo()
 		if OS.get_cmdline_user_args().has("--screenshot"):
 			root.size = Vector2i(1400, 900)
 			game.player_unit.mount_boat(id, at_shore, 0.0)
-			game._store_boat_position()
-			game._refresh_boat_cargo()
+			game.boats.store_position()
+			game.boats.refresh_cargo()
 			game.player_unit.set_selected(true)
 			game.refresh_action_bar()
 			game.camera_rig.center_on(game.player_unit.position, true)

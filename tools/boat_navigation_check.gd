@@ -53,13 +53,13 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	var pier := cells[1]
 	var berth := cells[2]
 	player.place_at(anchor)
-	expect(game._nearby_boat().is_empty(), "Cannot board from the quay two cells away")
+	expect(game.boats.nearby_boat().is_empty(), "Cannot board from the quay two cells away")
 	var approach: Dictionary = game.robot.plan_approach(berth, anchor)
 	expect(not approach.is_empty() and approach.path.back() == pier, "Boat command approaches via pier")
 	player.place_at(pier)
 	player.set_selected(true)
 	game.refresh_action_bar()
-	expect(not game._nearby_boat().is_empty(), "Pilot offered beside boat")
+	expect(not game.boats.nearby_boat().is_empty(), "Pilot offered beside boat")
 	game._on_action_pressed(GameTypes.UnitAction.PILOT_BOAT)
 	await process_frame
 	expect(player.boat_id == 0 and player.current_cell == berth, "Board the boat")
@@ -91,7 +91,7 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 		steps += 1
 	expect(player.current_cell == sea and not player.is_moving(), "Boat reaches water destination")
 	expect(is_equal_approx(player.position.y, renderer.get_water_center(sea).y), "Boat floats at surface")
-	game._disembark_boat()
+	game.boats.disembark()
 	expect(player.boat_id == 0, "Cannot disembark at sea")
 	var restored := WorldData.from_dict(game.world.to_dict(0.0), 0.0)
 	expect(restored.piloted_boat == 0 and restored.boats[0].cell == sea, "Boat position and occupant survive save")
@@ -108,7 +108,7 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	game._on_action_pressed(GameTypes.UnitAction.DISEMBARK)
 	expect(player.boat_id == -1 and player.current_cell == pier, "Disembark onto pier")
 	expect(game.world.boats[0].cell == berth and game.world.piloted_boat == -1, "Boat stays parked afloat")
-	game._board_boat()
+	game.boats.board()
 	expect(player.boat_id == 0 and game.world.boats.size() == 1, "Reboard the same boat")
 	game._on_building_move_requested(GameTypes.BuildingType.DOCK, anchor, island)
 	game._cancel_building_move()

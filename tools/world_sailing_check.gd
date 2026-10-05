@@ -33,7 +33,7 @@ func _run() -> void:
 		game.renderer.place_building_at(anchor, GameTypes.BuildingType.DOCK, rotation)
 		game.player_unit.place_at(origin.buildings[anchor].cells[1])
 		game.player_unit.set_selected(true)
-		game._board_boat()
+		game.boats.board()
 		var boat_id: int = game.player_unit.boat_id
 		var navigation: WorldNavigation = game.world_navigation
 		_check_sailing_hover(game)
@@ -41,7 +41,7 @@ func _run() -> void:
 		var locked_point := Nav.slot_center(target)
 		var locked_cell := navigation.cell_from_position(locked_point)
 		expect(not navigation.inside_frontier(locked_cell), "Fog boundary blocks outer region before quest")
-		expect(not game._command_boat_to(locked_cell), "Cannot command boat through locked fog")
+		expect(not game.boats.command_to(locked_cell), "Cannot command boat through locked fog")
 		var radius := navigation.sailing_radius()
 		game._reveal_rings(1)
 		expect(not game.dog.visible, "Ring unlock alone must not reveal K9-DA")
@@ -51,7 +51,7 @@ func _run() -> void:
 		expect(navigation.inside_frontier(locked_cell), "First ring becomes reachable")
 		var initial_position: Vector3 = game.player_unit.position
 		var started: int = Time.get_ticks_msec()
-		expect(game._sail_to_island(target), "Route to another island")
+		expect(game.boats.sail_to_island(target), "Route to another island")
 		print("World route planning: %d ms" % (Time.get_ticks_msec() - started))
 		expect(game.player_unit.position == initial_position, "Selecting island does not teleport")
 		var crossed_sea := false
@@ -66,7 +66,7 @@ func _run() -> void:
 				break
 			steps += 1
 		expect(crossed_sea, "Cross ocean outside every island grid")
-		game._store_boat_position()
+		game.boats.store_position()
 		game.save_game()
 		var at_sea: Vector2i = game.player_unit.current_cell
 		if OS.get_cmdline_user_args().has("--screenshot"):
@@ -79,7 +79,7 @@ func _run() -> void:
 		await process_frame
 		expect(game.player_unit.boat_id == boat_id and game.player_unit.current_cell == at_sea, "Reload restores boat and robot in open ocean")
 		expect(game.player_unit.position.is_equal_approx(Nav.cell_center(at_sea)), "Reload does not move boat to shore")
-		expect(game._sail_to_island(target), "Continue voyage after reload")
+		expect(game.boats.sail_to_island(target), "Continue voyage after reload")
 		steps = 0
 		while game.player_unit.is_moving() and steps < 2000:
 			game.player_unit._process(0.25)
@@ -91,13 +91,13 @@ func _run() -> void:
 		expect(game.stat_tracker.get_value(GameTypes.Stat.DOG_ISLAND_DISCOVERED) == 1, "Approach records the rescue island discovery")
 		expect(game.world_view._labels[target].text.contains(game.world.get_island(target).island_name), "Approach reveals island name")
 		var discoveries: int = game.stat_tracker.get_value(GameTypes.Stat.ISLANDS_REACHED)
-		game._reveal_nearby_island(game.player_unit.current_cell)
+		game.boats.reveal_nearby_island(game.player_unit.current_cell)
 		expect(game.stat_tracker.get_value(GameTypes.Stat.ISLANDS_REACHED) == discoveries, "Repeated approach does not duplicate discovery")
 		expect(game.stat_tracker.get_value(GameTypes.Stat.DOG_ISLAND_DISCOVERED) == 1, "Repeated approach does not duplicate rescue island discovery")
-		var landing: Vector2i = game._landing_tile()
+		var landing: Vector2i = game.boats.landing_tile()
 		expect(landing != GameTypes.NO_CELL, "Reach a valid shore landing")
 		var water_cell: Vector2i = game.player_unit.current_cell
-		game._disembark_boat()
+		game.boats.disembark()
 		expect(game.world.current_coord == target and game.current_island.visited, "Landing activates already-discovered destination")
 		expect(game.stat_tracker.get_value(GameTypes.Stat.ISLANDS_REACHED) == discoveries, "Landing does not count discovery twice")
 		expect(game.resource_manager.inventory == game.current_island.inventory, "Landing switches island inventory")
@@ -112,23 +112,23 @@ func _run() -> void:
 			and game.player_unit.position.is_equal_approx(game.renderer.get_cell_center(inland)), "Robot keeps to the new island's ground")
 		expect(game._command_unit_to(landing), "Robot walks back to its boat")
 		_walk(game.player_unit)
-		game._board_boat()
+		game.boats.board()
 		expect(game.player_unit.boat_id == boat_id and game.world.boats.size() == 1, "Same boat can be reboarded on new island")
-		game._command_boat_to(navigation.cell_from_position(Vector3(navigation.sailing_radius() + 500.0, Nav.SEA_Y, 0.0)))
+		game.boats.command_to(navigation.cell_from_position(Vector3(navigation.sailing_radius() + 500.0, Nav.SEA_Y, 0.0)))
 		expect(not game.player_unit.is_moving(), "Outer fog still blocks sailing after first unlock")
-		expect(game._sail_to_island(WorldData.CENTER), "Plan return voyage to original island")
+		expect(game.boats.sail_to_island(WorldData.CENTER), "Plan return voyage to original island")
 		for step in 2000:
 			if not game.player_unit.is_moving():
 				break
 			game.player_unit._process(0.25)
-		game._disembark_boat()
+		game.boats.disembark()
 		expect(game.world.current_coord == WorldData.CENTER and game.player_unit.boat_id == -1, "Return voyage lands on original island")
 		expect(game.current_island.buildings[anchor].boat_launched, "Original dock remains unchanged after round trip")
-		game._board_boat()
+		game.boats.board()
 		expect(game.player_unit.boat_id == boat_id and game.world.boats.size() == 1, "World boat identity survives full round trip")
 		if OS.get_cmdline_user_args().has("--screenshot"):
 			var edge: Vector2i = game.world_navigation.cell_from_position(Vector3(game.world_navigation.sailing_radius() - 150.0, Nav.SEA_Y, 0.0))
-			if game._command_boat_to(edge):
+			if game.boats.command_to(edge):
 				for step in 2000:
 					if not game.player_unit.is_moving():
 						break

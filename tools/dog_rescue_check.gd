@@ -45,15 +45,15 @@ func _run() -> void:
 	assert(not dog.visible, "Unlocking sailing alone does not reveal K9-DA")
 	for coord in world.slots_within(1):
 		if coord != WorldData.CENTER and coord != world.dog_coord:
-			game._discover_island(coord)
+			game.discover_island(coord)
 			break
 	assert(not game.quest_manager.is_completed(GameTypes.QuestId.FOLLOW_THE_SIGNAL),
 		"Discovering another island cannot complete Follow the Signal")
-	game._discover_island(world.dog_coord)
+	game.discover_island(world.dog_coord)
 	assert(dog.visible, "Discovery reveals K9-DA before landing")
 	assert(game.quest_manager.is_completed(GameTypes.QuestId.FOLLOW_THE_SIGNAL))
 	assert(game.quest_manager.get_current_milestone().id == GameTypes.QuestId.STRIKE_IRON)
-	game._switch_to_island(world.dog_coord, true)
+	game.switch_to_island(world.dog_coord, true)
 	assert(dog.visible, "K9-DA is visible once his island is reached")
 	assert(dog.mode == Dog.Mode.STRANDED)
 	assert(dog.current_cell == world.dog_cell)
@@ -81,7 +81,7 @@ func _run() -> void:
 	assert(not game.robot._can_rescue_dog(), "K9-DA can only be rescued once")
 
 	# The rescued dog travels with the robot.
-	game._switch_to_island(WorldData.CENTER, true)
+	game.switch_to_island(WorldData.CENTER, true)
 	assert(dog.visible and dog.mode == Dog.Mode.FOLLOWING)
 	assert(dog.is_on(game.world.get_island(WorldData.CENTER)), "K9-DA follows to the robot's island")
 	assert(dog.position.is_equal_approx(game.world_view.renderer_for(WorldData.CENTER).get_cell_center(dog.current_cell)),
