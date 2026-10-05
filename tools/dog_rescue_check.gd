@@ -86,7 +86,7 @@ func _run() -> void:
 		assert(WorldData.ring_of(coord) == 1)
 		game.seed_value = seed_value
 		var island_seed: int = game._island_seed(coord)
-		var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord))
+		var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord, seed_value))
 		var generated: IslandData = game.generator.generate(profile, island_seed, game.building_manager)
 		var start: Vector2i = game._find_unit_spawn_cell(generated)
 		var cell: Vector2i = game._choose_dog_cell(generated, island_seed)

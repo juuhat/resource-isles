@@ -227,7 +227,7 @@ func _check_generated_islands(game: Node) -> void:
 	for seed_value in range(1, 31):
 		game.seed_value = seed_value
 		for coord in [WorldData.CENTER, WorldData.dog_slot_for_seed(seed_value)]:
-			var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord))
+			var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord, seed_value))
 			var island: IslandData = game.generator.generate(profile, game._island_seed(coord), game.building_manager)
 			var start: Vector2i = game._find_unit_spawn_cell(island)
 			var costs: Dictionary = HexPathfinderScript.search(island, start).cost

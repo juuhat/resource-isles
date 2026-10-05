@@ -90,6 +90,7 @@ enum ResourceNodeType {
 	STONE,
 	IRON_ORE, # iron deposit, found on island 2+ (see docs/second-island-progression.md)
 	COAL,     # coal seam, found on island 2+
+	COPPER_ORE,
 }
 
 enum ResourceType {
@@ -99,6 +100,7 @@ enum ResourceType {
 	IRON_ORE, # raw ore mined from an IRON_ORE node; smelted into iron later
 	COAL,      # raw coal mined from a COAL node; smelter reductant + power fuel
 	IRON_INGOT,
+	COPPER_ORE,
 }
 
 enum AdjacencyKind {
@@ -135,6 +137,7 @@ enum Stat {
 	BUILDINGS_OPERATED, # times the robot started hand-powering a building with Operate
 	IRON_INGOTS_GATHERED,
 	FURNACES_BUILT,
+	COPPER_ORE_GATHERED,
 }
 
 
@@ -202,6 +205,8 @@ static func stat_display_name(stat: int) -> String:
 			return "Iron ingots produced"
 		Stat.FURNACES_BUILT:
 			return "Furnaces built"
+		Stat.COPPER_ORE_GATHERED:
+			return "Copper ore gathered"
 		_:
 			return "Unknown"
 

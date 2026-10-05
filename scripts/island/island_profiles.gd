@@ -10,18 +10,20 @@ const IslandProfileScript := preload("res://scripts/island/island_profile.gd")
 enum Biome {
 	STARTER, # ring 0 home: grass, wood + stone, the crash site
 	STONE,   # ring 1 frontier: rocky, iron + coal + stone, no wood (docs/second-island-progression.md)
+	COPPER,  # ring-1 rescue island (K9-DA's slot): copper + stone, no iron/coal, import wood
 }
 
 const ISLAND_WIDTH := 30
 const ISLAND_HEIGHT := 24
 
 
-# Which biome generates at a world-map coord. CENTER is the crash site; every other slot is a
-# STONE frontier colony for now (the only frontier biome authored). This becomes ring-based once
-# more biomes exist — see docs/island-generation.md.
-static func biome_for_coord(coord: Vector2i) -> int:
+# K9-DA's rescue slot (WorldData.dog_slot_for_seed) is the copper + stone island; every other
+# frontier slot is a STONE (iron + coal + stone) colony.
+static func biome_for_coord(coord: Vector2i, world_seed: int = 1) -> int:
 	if coord == Vector2i.ZERO:
 		return Biome.STARTER
+	if coord == WorldData.dog_slot_for_seed(world_seed):
+		return Biome.COPPER
 	return Biome.STONE
 
 
@@ -29,6 +31,8 @@ static func get_profile(biome: int) -> IslandProfile:
 	match biome:
 		Biome.STONE:
 			return _stone_profile()
+		Biome.COPPER:
+			return _copper_profile()
 		_:
 			return _starter_profile()
 
@@ -46,6 +50,17 @@ static func _starter_profile() -> IslandProfile:
 	]
 	profile.place_crashed_spaceship = true
 	profile.place_starter_tools = true
+	return profile
+
+
+static func _copper_profile() -> IslandProfile:
+	var profile := IslandProfileScript.new(
+		Biome.COPPER, GameTypes.Terrain.STONE, ISLAND_WIDTH, ISLAND_HEIGHT
+	)
+	profile.resource_table = [
+		IslandProfileScript.resource_entry(GameTypes.ResourceNodeType.COPPER_ORE, 3, false),
+		IslandProfileScript.resource_entry(GameTypes.ResourceNodeType.STONE, 3, false),
+	]
 	return profile
 
 

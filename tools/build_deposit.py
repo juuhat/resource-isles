@@ -1,4 +1,4 @@
-"""Blender --background --python tools/build_deposit.py -- [stone|iron|coal]: model, source and
+"""Blender --background --python tools/build_deposit.py -- [stone|iron|coal|copper]: model, source and
 preview.
 
 Resource deposits, low-poly kit (docs/building-style-palette.md): natural, irregular rock, so a
@@ -11,8 +11,9 @@ its own silhouette, not just its own color:
   veins wedged down the cracks between them, ore chunks and rubble at the foot.
 - coal: a wide, low mound with a core of black coal blocks under a broad, flat grey cap slab,
   wrapped in grey blocks, coal lumps spilled in front.
+- copper: a split, low ridge with warm copper seams and broad green mineral faces.
 
-All three are packed outcrops of chunky, flat-topped blocks, after
+All variants are packed outcrops of chunky, flat-topped blocks, after
 art/concepts/iron-coal-deposits-v1.png (which shows iron and coal; stone follows the same style).
 
 Authored at true tile scale (lowpoly_kit.TILE = 2 units per tile, front toward -Y), with the rock
@@ -136,8 +137,31 @@ elif VARIANT == 'coal':
         ('Pebble', stone, (.30, -.42, 0), (.08, .08, .06)),
     ])
 
+elif VARIANT == 'copper':
+    ore = material('Copper ore', mix(PALETTE['terracotta'], PALETTE['amber'], .48))
+    mineral = material('Green copper mineral', mix(PALETTE['teal'], PALETTE['pine'], .35))
+    outcrop([
+        # Two broken ridges separated by an exposed green-and-copper seam.
+        ('Left ridge', weathered, (-.30, .24, 0), (.50, .46, .62),
+         {'cuts': [((-.18, .08, .32), (.4, -.9, .2))], 'cut_mat': mineral}),
+        ('Right ridge', stone, (.27, .29, 0), (.48, .48, .76),
+         {'cuts': [((.25, .09, .40), (-.2, -.9, .2))], 'cut_mat': mineral}),
+        ('Copper seam', ore, (-.02, .15, 0), (.20, .38, .60)),
+        ('Mineral cap', mineral, (.25, .30, .58), (.34, .36, .16)),
+        ('Copper cap', ore, (-.29, .25, .48), (.32, .32, .12)),
+        ('Left foot', stone, (-.48, -.02, 0), (.32, .30, .30)),
+        ('Right foot', weathered, (.48, .01, 0), (.32, .32, .38)),
+        ('Front mineral', mineral, (.15, -.08, 0), (.34, .28, .30)),
+        ('Copper seam', ore, (.34, -.09, 0), (.12, .22, .28)),
+        ('Ore chunk', ore, (-.16, -.24, 0), (.22, .20, .18)),
+        ('Mineral chunk', mineral, (.33, -.28, 0), (.18, .16, .14)),
+        ('Rubble', stone, (-.46, -.24, 0), (.16, .14, .12)),
+        ('Pebble', ore, (.06, -.38, 0), (.08, .07, .06)),
+        ('Pebble', weathered, (.53, -.30, 0), (.08, .08, .06)),
+    ])
+
 else:
-    sys.exit('Unknown deposit variant %r (stone, iron or coal)' % VARIANT)
+    sys.exit('Unknown deposit variant %r (stone, iron, coal or copper)' % VARIANT)
 
 # Width and height in tiles, for the definition's visual_size_tiles and the scale table.
 bpy.context.view_layer.update()

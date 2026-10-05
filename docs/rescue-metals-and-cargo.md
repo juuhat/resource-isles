@@ -2,7 +2,8 @@
 
 Implementation update: [Furnace](furnace.md) records the delivered stone kiln, ingot recipe,
 iron-built Burner Generator, rescue/smelting power gates, and save behavior. Personal-boat
-cargo is also implemented; copper, autonomous drones and the manual-delivery quest remain TODOs.
+cargo is also implemented. Copper deposits and manual gathering are implemented for new
+worlds; copper processing, autonomous drones and the manual-delivery quest remain TODOs.
 
 Current design direction from the playtest discussion. These are implementation TODOs,
 not changes already made to gameplay. This direction supersedes older plans for an
@@ -43,8 +44,21 @@ depend on the generator it supplies.
 
 ## Ring-1 copper
 
-Keep iron + coal + stone on island 2. Proposed specialization for another ring-1 island:
-copper + stone, optionally wood. Copper gives the player a next destination after rescue
+Implemented: K9-DA's rescue island (the ring-1 slot from `WorldData.dog_slot_for_seed`) has
+copper ore + stone (three deposits each) and no iron or coal, with wood imported. The other
+ring-1 slots keep iron + coal + stone. Existing saved islands retain
+their resources; start a new world to get the copper profile. Copper can be scavenged and
+harvested by hand, carried in inventory and boat cargo, and saved like other resources.
+There is no copper mine or processing recipe yet.
+
+The low-poly model has a split rock ridge, warm copper seams, and green mineral faces.
+Rebuild with `blender --background --python tools/build_deposit.py -- copper`; rebuild its
+transparent inventory icon with `blender --background --python tools/build_copper_icon.py`.
+Validate generation, definitions, save/load, and cargo with
+`godot --headless --path . --script tools/copper_deposit_check.gd`.
+
+(Superseded: copper now sits on the rescue island itself.) Original proposal: keep iron +
+coal + stone on island 2 and specialize another ring-1 island as copper + stone, optionally wood. Copper gives the player a next destination after rescue
 without adding another island trip to the first generator's prerequisites.
 
 Proposed copper chain: copper ore -> copper ingot -> wire/control components. Use iron

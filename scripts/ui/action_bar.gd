@@ -15,7 +15,7 @@ extends CanvasLayer
 signal action_pressed(action_id: int)
 signal select_requested
 
-const PORTRAIT_TEXTURE := preload("res://assets/player/player_robot.png")
+const PLAYER_MODEL := preload("res://assets/models/units/salvage_robot.glb")
 const CANCEL_TEXTURE := preload("res://assets/icons/cancel.png")
 # Square footprint matching the building-menu button (88 px, 16 px from the screen edges).
 const BUTTON_SIZE := 88.0
@@ -24,6 +24,7 @@ const ICON_MAX_WIDTH := 64
 
 var portrait: Button
 var action_row: HBoxContainer
+var portrait_viewport: SubViewport
 
 
 func _ready() -> void:
@@ -108,7 +109,7 @@ func _build_ui() -> void:
 	# Portrait: bottom-right corner, mirror of the building-menu button on the left.
 	portrait = Button.new()
 	portrait.tooltip_text = "Select player and center camera"
-	portrait.icon = PORTRAIT_TEXTURE
+	portrait.icon = _build_player_portrait()
 	portrait.expand_icon = true
 	portrait.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	portrait.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -139,3 +140,49 @@ func _build_ui() -> void:
 	action_row.offset_bottom = -EDGE_MARGIN
 	action_row.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	add_child(action_row)
+
+
+# A separate, tiny world keeps the portrait's idle pose and lighting independent of play.
+func _build_player_portrait() -> Texture2D:
+	portrait_viewport = SubViewport.new()
+	portrait_viewport.name = "PlayerPortrait"
+	portrait_viewport.size = Vector2i(176, 176)
+	portrait_viewport.own_world_3d = true
+	portrait_viewport.transparent_bg = true
+	portrait_viewport.gui_disable_input = true
+	portrait_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(portrait_viewport)
+
+	var environment := Environment.new()
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color.WHITE
+	environment.ambient_light_energy = 0.65
+	var world_environment := WorldEnvironment.new()
+	world_environment.environment = environment
+	portrait_viewport.add_child(world_environment)
+	var light := DirectionalLight3D.new()
+	light.rotation_degrees = Vector3(-45.0, -30.0, 0.0)
+	portrait_viewport.add_child(light)
+
+	var model := PLAYER_MODEL.instantiate() as Node3D
+	portrait_viewport.add_child(model)
+	for tool_name in PlayerUnit.WORK_CLIPS.values():
+		var tool := model.find_child(tool_name, true, false) as Node3D
+		if tool != null:
+			tool.hide()
+	var animation_player := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if animation_player != null:
+		for animation_name in animation_player.get_animation_list():
+			if String(animation_name).get_file().to_lower() == "idle":
+				animation_player.get_animation(animation_name).loop_mode = Animation.LOOP_LINEAR
+				animation_player.play(animation_name)
+				break
+
+	var camera := Camera3D.new()
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = 0.85
+	portrait_viewport.add_child(camera)
+	var portrait_center := Vector3(0.0, 1.0, 0.0)
+	camera.look_at_from_position(portrait_center + Vector3(0.7, 0.2, 3.0), portrait_center)
+	camera.current = true
+	return portrait_viewport.get_texture()

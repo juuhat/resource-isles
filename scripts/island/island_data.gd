@@ -388,7 +388,8 @@ func _terrain_for_resource(resource_node_type: int) -> int:
 	match resource_node_type:
 		GameTypes.ResourceNodeType.STONE, \
 		GameTypes.ResourceNodeType.IRON_ORE, \
-		GameTypes.ResourceNodeType.COAL:
+		GameTypes.ResourceNodeType.COAL, \
+		GameTypes.ResourceNodeType.COPPER_ORE:
 			# Quarried/mined deposits sit on rock (the STONE biome, see docs/island-generation.md).
 			return GameTypes.Terrain.STONE
 		_:

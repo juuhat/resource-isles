@@ -1610,6 +1610,7 @@ func _try_place_selected_building() -> bool:
 	if _placement_player != null:
 		_placement_player.play()
 	_send_robot_to_build(anchor_cell)
+	building_menu.clear_selection()
 	# Placing a building is a deliberate, resource-spending action — checkpoint it.
 	_save_game()
 	return true
@@ -1631,11 +1632,11 @@ func _ensure_world_generated() -> void:
 func _generate_island_at(coord: Vector2i) -> void:
 	# The center slot (World 1) is the crash site with the starting wreck (STARTER biome). It
 	# begins with no resources — the opening loop is scavenging the first wood by hand (see
-	# docs/progression-and-power.md). Other slots are frontier biomes (currently STONE) and arrive
+	# docs/progression-and-power.md). Other slots are frontier biomes and arrive
 	# with just enough to establish their first dock. The biome and per-island seed are both
 	# derived from the coord, so a slot's layout is intrinsic to where it is.
 	var is_starter := coord == WorldData.CENTER
-	var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord))
+	var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord, seed_value))
 	var island := generator.generate(profile, _island_seed(coord), building_manager)
 	if not is_starter:
 		_stock_bootstrap_supplies(island)

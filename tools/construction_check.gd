@@ -59,7 +59,8 @@ func _run() -> void:
 	renderer.hovered_cell = cell
 	game.selected_building_type = CAMP
 	assert(game._try_place_selected_building(), "The camp blueprint is placed")
-	game.building_menu.clear_selection()
+	assert(game.selected_building_type == game.NO_BUILDING, "Successful placement exits build mode")
+	assert(not renderer.placement_preview_enabled, "Successful placement clears the preview")
 	assert(island.is_under_construction(cell), "Placing puts down a blueprint")
 	assert(resources.get_amount(GameTypes.ResourceType.WOOD) == 0, "The blueprint's cost is paid up front")
 	assert(stats.get_value(GameTypes.Stat.LOGGER_CAMPS_BUILT) == 0, "A blueprint doesn't count as built")
@@ -124,7 +125,7 @@ func _run() -> void:
 	renderer.hovered_cell = quarry_cell
 	game.selected_building_type = QUARRY
 	assert(game._try_place_selected_building(), "The quarry blueprint is placed")
-	game.building_menu.clear_selection()
+	assert(game.selected_building_type == game.NO_BUILDING, "Quarry placement also exits build mode")
 	assert(resources.get_amount(GameTypes.ResourceType.STONE) == 0)
 	game._on_building_delete_requested(quarry_cell, island)
 	assert(not island.has_building(quarry_cell), "Cancelling removes the blueprint")

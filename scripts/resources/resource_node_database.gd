@@ -10,6 +10,7 @@ const PINE_FOREST_MODEL := preload("res://assets/models/pine_forest.glb")
 const STONE_DEPOSIT_MODEL := preload("res://assets/models/resources/stone_deposit.glb")
 const IRON_DEPOSIT_MODEL := preload("res://assets/models/resources/iron_deposit.glb")
 const COAL_DEPOSIT_MODEL := preload("res://assets/models/resources/coal_deposit.glb")
+const COPPER_DEPOSIT_MODEL := preload("res://assets/models/resources/copper_deposit.glb")
 # Deposits have no front, so each tile turns its model up to this far either way.
 const DEPOSIT_YAW_VARIATION := 45.0
 
@@ -35,6 +36,7 @@ func _init() -> void:
 	# (see docs/second-island-progression.md).
 	_add_deposit(GameTypes.ResourceNodeType.IRON_ORE, "Iron Deposit", GameTypes.ResourceType.IRON_ORE, IRON_DEPOSIT_MODEL, 0.736)
 	_add_deposit(GameTypes.ResourceNodeType.COAL, "Coal Seam", GameTypes.ResourceType.COAL, COAL_DEPOSIT_MODEL, 0.752)
+	_add_deposit(GameTypes.ResourceNodeType.COPPER_ORE, "Copper Deposit", GameTypes.ResourceType.COPPER_ORE, COPPER_DEPOSIT_MODEL, 0.726)
 
 
 func get_definition(resource_node_type: int) -> ResourceNodeDefinition:

@@ -106,7 +106,7 @@ Because the lift is derived from the measured AABB, models with different origin
 ## Current models vs billboards
 
 - **Models:** the robot (`player_model.glb`), the forest (`pine_forest.glb`), the stone, iron
-  and coal deposits (`resources/<stone|iron|coal>_deposit.glb`, built by
+  coal and copper deposits (`resources/<stone|iron|coal|copper>_deposit.glb`, built by
   `tools/build_deposit.py -- <variant>`; `true_tile_model`s with their heading varied per cell by
   `visual_yaw_variation`), the crashed-spaceship building (`crashed_spaceship.glb`), and the dock
   (`dock.glb`, built by `tools/build_dock.py`), and the burner generator (`burner_generator.glb`,
