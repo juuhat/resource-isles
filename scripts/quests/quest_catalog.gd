@@ -118,6 +118,17 @@ static func build_all() -> Array[Quest]:
 		[QuestReward.reveal_world_rings(1, "Reveals the first ring of islands")]
 	))
 
+	quests.append(QuestScript.new(
+		GameTypes.QuestId.FOLLOW_THE_SIGNAL,
+		GameTypes.QuestKind.MILESTONE,
+		"Follow the Signal",
+		"K9-DA's signal is coming from a neighbouring island. Board your boat and "
+			+ "sail toward the signal marked on the map. Approach the island to clear its fog "
+			+ "and discover where he is stranded.",
+		[_objective("Discover K9-DA's island", GameTypes.Stat.DOG_ISLAND_DISCOVERED, 1)],
+		([] as Array[QuestReward])
+	))
+
 	# The frontier's discovery beat (docs/second-island-progression.md): hand-mine a little iron,
 	# mirroring the island-1 wood/stone intro, then unlock the buildings that automate it. Iron
 	# only spawns on frontier islands, so this is geographically self-gating.

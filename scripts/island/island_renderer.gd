@@ -208,7 +208,7 @@ func set_show_grid(value: bool) -> void:
 		_grid_instance.visible = value and _explored
 
 
-# Keep the coastline readable before landing, without revealing resources or buildings.
+# Keep the coastline readable before discovery, without revealing resources or buildings.
 func set_explored(value: bool) -> void:
 	if value == _explored:
 		return

@@ -5,7 +5,8 @@ extends Node3D
 # with every island at full scale on it. One calm ocean sits inside a snow-capped mountain range on a rocky,
 # tapering underside; sea water spills off the edge into the starfield. Each revealed island has
 # its own IslandRenderer standing on its slot, and the rings not yet revealed sit under thick
-# soft fog that fades when a ring is revealed. Unvisited islands show muted coastlines;
+# soft fog that fades when the player approaches and discovers an island. Ring unlocks
+# make islands reachable; unvisited islands show muted coastlines beneath their veil;
 # landing restores their full detail. Trade routes run across the open sea with their
 # boats, and island names float over the slots once the camera pulls back.
 #
@@ -151,7 +152,7 @@ func _ready() -> void:
 
 
 # Bring everything in line with world state: the disc size and charted area, a renderer for every
-# revealed island, cloud banks over the rest (lifting any whose ring was just revealed), labels
+# reachable island, fog banks over undiscovered islands, labels
 # and routes. Islands already rendered are left alone, so this is cheap to call after any change.
 func refresh() -> void:
 	if world == null or _planet == null:
@@ -300,8 +301,7 @@ func set_hovered(coord: Vector2i) -> void:
 
 
 func set_current_coord(_coord: Vector2i) -> void:
-	for coord in _renderers:
-		(_renderers[coord] as IslandRenderer).set_explored(world.get_island(coord).visited or world.get_island(coord).sighted)
+	_sync_islands()
 	_style_labels()
 
 
@@ -328,9 +328,10 @@ func _sync_islands() -> void:
 			if not _renderers.has(coord):
 				_add_renderer(coord, island)
 			(_renderers[coord] as IslandRenderer).set_explored(island.visited or island.sighted)
-			if _fog_banks.has(coord):
+			if (island.visited or island.sighted) and _fog_banks.has(coord):
 				_lift_fog_bank(coord)
-		elif not _fog_banks.has(coord):
+		if (island == null or not world.is_revealed(coord) or not (island.visited or island.sighted)) \
+				and not _fog_banks.has(coord):
 			var bank := _make_fog_bank(coord)
 			_fog.add_child(bank)
 			_fog_banks[coord] = bank
@@ -372,7 +373,7 @@ func _make_fog_bank(coord: Vector2i) -> Node3D:
 	return bank
 
 
-# Fade the veil to expose the reachable island's silhouette.
+# Fade the veil as discovery exposes the island and its contents.
 func _lift_fog_bank(coord: Vector2i) -> void:
 	var bank: Node3D = _fog_banks[coord]
 	_fog_banks.erase(coord)

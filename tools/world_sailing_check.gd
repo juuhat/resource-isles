@@ -44,6 +44,8 @@ func _run() -> void:
 		expect(not game._command_boat_to(locked_cell), "Cannot command boat through locked fog")
 		var radius := navigation.sailing_radius()
 		game._reveal_rings(1)
+		expect(not game.dog.visible, "Ring unlock alone must not reveal K9-DA")
+		expect(game.world_view._fog_banks.has(target), "K9-DA's island stays fogged until approach")
 		expect(navigation.sailing_radius() > radius, "Quest unlock expands navigable sea")
 		expect(is_equal_approx(game.world_view._frontier_fog.material_override.get_shader_parameter("frontier_radius"), navigation.sailing_radius()), "Fog and navigation share boundary")
 		expect(navigation.inside_frontier(locked_cell), "First ring becomes reachable")
@@ -84,10 +86,14 @@ func _run() -> void:
 			steps += 1
 		expect(not game.player_unit.is_moving(), "Boat reaches destination coast")
 		expect(game.world.get_island(target).sighted and game.world.get_island(target).visited, "Approach reveals and discovers island before landing")
+		expect(game.player_unit.boat_id == boat_id and game.dog.visible, "K9-DA appears while the player is still aboard")
+		expect(not game.world_view._fog_banks.has(target), "Approach clears K9-DA's island fog")
+		expect(game.stat_tracker.get_value(GameTypes.Stat.DOG_ISLAND_DISCOVERED) == 1, "Approach records the rescue island discovery")
 		expect(game.world_view._labels[target].text.contains(game.world.get_island(target).island_name), "Approach reveals island name")
 		var discoveries: int = game.stat_tracker.get_value(GameTypes.Stat.ISLANDS_REACHED)
 		game._reveal_nearby_island(game.player_unit.current_cell)
 		expect(game.stat_tracker.get_value(GameTypes.Stat.ISLANDS_REACHED) == discoveries, "Repeated approach does not duplicate discovery")
+		expect(game.stat_tracker.get_value(GameTypes.Stat.DOG_ISLAND_DISCOVERED) == 1, "Repeated approach does not duplicate rescue island discovery")
 		var landing: Vector2i = game._landing_tile()
 		expect(landing != Vector2i(-1, -1), "Reach a valid shore landing")
 		var water_cell: Vector2i = game.player_unit.current_cell

@@ -63,6 +63,7 @@ enum QuestId {
 	LIVE_WIRE,       # hand-power a building, stockpile wood + stone -> the sawmill
 	LIGHT_THE_FORGE,
 	POWER_ON,
+	FOLLOW_THE_SIGNAL, # discover K9-DA's island after building the dock
 }
 
 # Loose pickups scattered on the ground that the robot collects by walking onto them.
@@ -138,6 +139,7 @@ enum Stat {
 	IRON_INGOTS_GATHERED,
 	FURNACES_BUILT,
 	COPPER_ORE_GATHERED,
+	DOG_ISLAND_DISCOVERED,
 }
 
 
@@ -199,6 +201,8 @@ static func stat_display_name(stat: int) -> String:
 			return "Islands reached"
 		Stat.DOG_RESCUED:
 			return "K9-DA rescued"
+		Stat.DOG_ISLAND_DISCOVERED:
+			return "K9-DA's island discovered"
 		Stat.BUILDINGS_OPERATED:
 			return "Buildings operated"
 		Stat.IRON_INGOTS_GATHERED:

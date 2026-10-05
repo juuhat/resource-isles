@@ -222,6 +222,11 @@ func _ready() -> void:
 	# app without further warning).
 	get_tree().set_auto_accept_quit(false)
 	_switch_to_island(world.current_coord if loaded else WorldData.CENTER, true)
+	# Older saves already discovered this island before the dedicated stat existed.
+	if (world.get_island(world.dog_coord).visited or world.dog_rescued) \
+			and stat_tracker.get_value(GameTypes.Stat.DOG_ISLAND_DISCOVERED) == 0:
+		stat_tracker.add(GameTypes.Stat.DOG_ISLAND_DISCOVERED, 1)
+		_save_game()
 
 
 # Save on the ways the game can end: a desktop window close, or a mobile app suspend (which
@@ -1246,9 +1251,11 @@ func _discover_island(coord: Vector2i) -> bool:
 	island.sighted = true
 	island.visited = true
 	world_view.set_current_coord(world.current_coord)
+	_sync_dog()
 	if coord != WorldData.CENTER:
 		stat_tracker.add(GameTypes.Stat.ISLANDS_REACHED, 1)
 	if world.is_dog_stranded_on(coord):
+		stat_tracker.add(GameTypes.Stat.DOG_ISLAND_DISCOVERED, 1)
 		toast.show_message("K9-DA's island discovered! Land and walk over to him to rescue him.")
 	return true
 
@@ -1875,7 +1882,7 @@ func _choose_dog_cell(island: IslandData, island_seed: int) -> Vector2i:
 
 
 # Put K9-DA where the rescue state says: beside the robot once rescued; otherwise waiting at its
-# spot, but only once its island has been landed on (unexplored islands show no detail).
+# spot as soon as its island is discovered, alongside the resources revealed on approach.
 func _sync_dog() -> void:
 	if world.dog_rescued and player_unit.boat_id != -1:
 		dog.halt()

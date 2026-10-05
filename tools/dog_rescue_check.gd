@@ -38,8 +38,21 @@ func _run() -> void:
 	assert(not dog.visible, "K9-DA stays hidden before his island is reached")
 	assert(not game.quest_manager.is_completed(GameTypes.QuestId.RESCUE_THE_DOG))
 
-	# Set Sail's reveal, then land on the dog's island.
-	game._reveal_rings(1)
+	# Finishing the dock introduces the specific rescue-island discovery milestone.
+	game.quest_manager.restore_completed({GameTypes.QuestId.REFINE: true})
+	game.stat_tracker.add(GameTypes.Stat.DOCKS_BUILT, 1)
+	assert(game.quest_manager.get_current_milestone().id == GameTypes.QuestId.FOLLOW_THE_SIGNAL)
+	assert(not dog.visible, "Unlocking sailing alone does not reveal K9-DA")
+	for coord in world.slots_within(1):
+		if coord != WorldData.CENTER and coord != world.dog_coord:
+			game._discover_island(coord)
+			break
+	assert(not game.quest_manager.is_completed(GameTypes.QuestId.FOLLOW_THE_SIGNAL),
+		"Discovering another island cannot complete Follow the Signal")
+	game._discover_island(world.dog_coord)
+	assert(dog.visible, "Discovery reveals K9-DA before landing")
+	assert(game.quest_manager.is_completed(GameTypes.QuestId.FOLLOW_THE_SIGNAL))
+	assert(game.quest_manager.get_current_milestone().id == GameTypes.QuestId.STRIKE_IRON)
 	game._switch_to_island(world.dog_coord, true)
 	assert(dog.visible, "K9-DA is visible once his island is reached")
 	assert(dog.mode == Dog.Mode.STRANDED)

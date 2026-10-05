@@ -26,6 +26,7 @@ func _check_discovery() -> void:
 	view.refresh()
 	var renderer := view.renderer_for(frontier)
 	assert(renderer != null, "Revealed islands must be reachable")
+	assert(view._fog_banks.has(frontier), "Reachable islands keep fog until discovered")
 	assert(not renderer._objects_root.visible, "Unvisited resources must stay hidden")
 	assert(not renderer._grid_instance.visible, "Unvisited islands must hide plot lines")
 	view.set_show_grid(true)
@@ -36,6 +37,7 @@ func _check_discovery() -> void:
 	world.get_island(frontier).visited = true
 	world.set_current(frontier)
 	view.set_current_coord(frontier)
+	assert(not view._fog_banks.has(frontier), "Discovery starts clearing the island's fog")
 	assert(renderer._objects_root.visible, "Landing must restore detail")
 	assert(renderer._water_instance.visible, "Landing must restore shoreline water")
 	assert(renderer._grid_instance.visible, "Landing must restore enabled plot lines")
