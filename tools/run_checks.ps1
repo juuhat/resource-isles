@@ -39,6 +39,8 @@ function Resolve-Godot {
 $godotPath = Resolve-Godot
 
 $checks = @(Get-ChildItem (Join-Path $root "tools") -Filter "*_check.gd" | Sort-Object Name)
+# Run with -File, "-Filter boat,furnace" arrives as one string.
+$Filter = @($Filter | ForEach-Object { $_ -split "," } | Where-Object { $_ -ne "" })
 if ($Filter.Count -gt 0) {
 	$checks = @($checks | Where-Object {
 		$name = $_.BaseName
