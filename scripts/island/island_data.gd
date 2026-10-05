@@ -15,7 +15,19 @@ var terrain: Dictionary = {}
 var resources: Dictionary = {}
 var items: Dictionary = {}
 var scavenged_cells: Dictionary = {}
+# Anchor cell -> building entry {type, cells, rotation, [build_progress], [boat_launched]}. Add,
+# remove or replace entries only through place_building / remove_building / set_building_record /
+# detach_building / set_buildings, which keep _anchor_by_cell and building_revision in step;
+# editing the fields of an existing entry (boat_launched) is fine.
 var buildings: Dictionary = {}
+# Every footprint cell -> its building's anchor, so a cell lookup doesn't scan every building.
+var _anchor_by_cell: Dictionary = {}
+# Bumped whenever a building is added, removed or finished, so data derived from the buildings
+# (HexPathfinder.deck_cells) knows to recompute.
+var building_revision := 0
+# HexPathfinder.deck_cells' result, valid while deck_cells_revision == building_revision.
+var deck_cells_cache: Dictionary = {}
+var deck_cells_revision := -1
 # Legacy local boats are read for migration to WorldData by WorldNavigation at startup.
 var boats: Dictionary = {}
 var piloted_boat := -1
@@ -83,17 +95,17 @@ func place_building(
 	if not can_place_building(cell, footprint_cells, required_terrains, cell_terrains):
 		return false
 
-	buildings[cell] = {type = building_type, cells = footprint_cells, rotation = rotation}
+	var building := {type = building_type, cells = footprint_cells, rotation = rotation}
 	if under_construction:
-		buildings[cell].build_progress = 0.0
+		building.build_progress = 0.0
+	set_building_record(cell, building)
 	return true
 
 
 func remove_building(anchor_cell: Vector2i) -> bool:
-	if not buildings.has(anchor_cell):
+	if detach_building(anchor_cell).is_empty():
 		return false
 
-	buildings.erase(anchor_cell)
 	# Drop every per-building bit of state keyed on this anchor so a future building on
 	# the same cell starts fresh rather than inheriting stale timers / power flags.
 	building_next_production_times.erase(anchor_cell)
@@ -101,6 +113,47 @@ func remove_building(anchor_cell: Vector2i) -> bool:
 	generator_running_states.erase(anchor_cell)
 	consumer_powered_states.erase(anchor_cell)
 	return true
+
+
+# Puts a building entry on the map as is, replacing any entry already at anchor_cell. No placement
+# rules are checked: for restoring an entry taken off with detach_building, or writing an old-save
+# shape in a check.
+func set_building_record(anchor_cell: Vector2i, building: Dictionary) -> void:
+	_unindex_building(anchor_cell)
+	buildings[anchor_cell] = building
+	for cell in building.get("cells", []):
+		_anchor_by_cell[cell] = anchor_cell
+	building_revision += 1
+
+
+# Takes a building's entry off the map and returns it ({} if none), keeping its timers and power
+# state, unlike remove_building: for code that puts it straight back (footprint migration).
+func detach_building(anchor_cell: Vector2i) -> Dictionary:
+	if not buildings.has(anchor_cell):
+		return {}
+
+	var building: Dictionary = buildings[anchor_cell]
+	_unindex_building(anchor_cell)
+	buildings.erase(anchor_cell)
+	building_revision += 1
+	return building
+
+
+# Replaces every building at once (loading a save).
+func set_buildings(new_buildings: Dictionary) -> void:
+	buildings = {}
+	_anchor_by_cell.clear()
+	for anchor_cell in new_buildings:
+		set_building_record(anchor_cell, new_buildings[anchor_cell])
+
+
+func _unindex_building(anchor_cell: Vector2i) -> void:
+	if not buildings.has(anchor_cell):
+		return
+	for cell in buildings[anchor_cell].get("cells", []):
+		# Leave a cell another building has since claimed.
+		if _anchor_by_cell.get(cell, Vector2i(-1, -1)) == anchor_cell:
+			_anchor_by_cell.erase(cell)
 
 
 func has_building(cell: Vector2i) -> bool:
@@ -116,11 +169,7 @@ func get_building_type(cell: Vector2i) -> int:
 
 
 func get_building_anchor_cell(cell: Vector2i) -> Vector2i:
-	for anchor_cell in buildings.keys():
-		if (buildings[anchor_cell].cells as Array).has(cell):
-			return anchor_cell
-
-	return Vector2i(-1, -1)
+	return _anchor_by_cell.get(cell, Vector2i(-1, -1))
 
 
 func get_building_footprint_cells(anchor_cell: Vector2i) -> Array[Vector2i]:
@@ -165,8 +214,8 @@ func set_build_progress(anchor_cell: Vector2i, progress: float) -> void:
 
 
 func complete_construction(anchor_cell: Vector2i) -> void:
-	if buildings.has(anchor_cell):
-		buildings[anchor_cell].erase("build_progress")
+	if buildings.has(anchor_cell) and buildings[anchor_cell].erase("build_progress"):
+		building_revision += 1
 
 
 # Anchors of every blueprint on the island.
@@ -322,7 +371,7 @@ static func from_dict(data: Dictionary, reference_time: float) -> IslandData:
 	island.resources = (data.get("resources", {}) as Dictionary).duplicate()
 	island.items = (data.get("items", {}) as Dictionary).duplicate()
 	island.scavenged_cells = (data.get("scavenged_cells", {}) as Dictionary).duplicate()
-	island.buildings = _buildings_from_dict(data.get("buildings", {}))
+	island.set_buildings(_buildings_from_dict(data.get("buildings", {})))
 	island.boats = (data.get("boats", {}) as Dictionary).duplicate(true)
 	island.piloted_boat = int(data.get("piloted_boat", -1))
 	island.building_next_production_times = _to_absolute_times(
@@ -397,4 +446,4 @@ func _terrain_for_resource(resource_node_type: int) -> int:
 
 
 func _has_building_on_cell(cell: Vector2i) -> bool:
-	return get_building_anchor_cell(cell) != Vector2i(-1, -1)
+	return _anchor_by_cell.has(cell)

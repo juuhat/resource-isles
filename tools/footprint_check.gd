@@ -173,9 +173,11 @@ func _check_pier(game: Node, anchor: Vector2i, rotation: int, cells: Array[Vecto
 	game.player_unit.place_at(pier)
 	game._land_stranded_units(anchor)  # nothing to do while the dock stands
 	_expect(game.player_unit.current_cell == pier, "The robot stays on a standing pier")
-	island.buildings[anchor].build_progress = 0.5
+	var blueprint := island.detach_building(anchor)
+	blueprint.build_progress = 0.5
+	island.set_building_record(anchor, blueprint)
 	_expect(not HexPathfinder.is_walkable(island, pier), "A blueprint dock has no pier to walk on")
-	island.buildings[anchor].erase("build_progress")
+	island.complete_construction(anchor)
 	renderer.remove_building(anchor)
 	game._land_stranded_units(anchor)
 	_expect(game.player_unit.current_cell == anchor, "A robot left on a removed pier goes back ashore")
@@ -191,7 +193,7 @@ func _check_migration(game: Node) -> void:
 	for cell in island.terrain.keys():
 		if manager.can_place(cell, dock, island, manager.fit_rotation(cell, dock, island, 0)):
 			var old_cells: Array[Vector2i] = [cell]
-			island.buildings[cell] = {type = dock, cells = old_cells}
+			island.set_building_record(cell, {type = dock, cells = old_cells})
 			manager.migrate_footprints(island)
 			var cells := island.get_building_footprint_cells(cell)
 			_expect(cells.size() == 3 and island.get_terrain(cells[1]) == GameTypes.Terrain.COAST,

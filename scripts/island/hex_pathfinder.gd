@@ -37,8 +37,12 @@ static func is_deck(island: IslandData, cell: Vector2i) -> bool:
 
 
 # Every tile of a finished building's walkable floor (BuildingDefinition.deck_tiles), like the
-# dock's pier, mapped to that building's anchor. A blueprint has no floor yet.
+# dock's pier, mapped to that building's anchor. A blueprint has no floor yet. Cached on the island
+# until its buildings change, so the result is shared: read it, don't modify it.
 static func deck_cells(island: IslandData) -> Dictionary:
+	if island.deck_cells_revision == island.building_revision:
+		return island.deck_cells_cache
+
 	var decks := {}
 	for anchor_cell in island.buildings:
 		var building: Dictionary = island.buildings[anchor_cell]
@@ -50,6 +54,8 @@ static func deck_cells(island: IslandData) -> Dictionary:
 		for index in definition.deck_tiles:
 			if index < cells.size():
 				decks[cells[index]] = anchor_cell
+	island.deck_cells_cache = decks
+	island.deck_cells_revision = island.building_revision
 	return decks
 
 

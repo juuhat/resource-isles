@@ -104,8 +104,7 @@ func migrate_footprints(island: IslandData) -> void:
 		var definition := get_definition(building_type)
 		if definition == null or island.get_building_footprint_cells(anchor_cell).size() == definition.footprint.size():
 			continue
-		var old: Dictionary = island.buildings[anchor_cell]
-		island.buildings.erase(anchor_cell)
+		var old := island.detach_building(anchor_cell)
 		var placed := false
 		for rotation in 6:
 			if try_place(anchor_cell, building_type, island, rotation, old.has("build_progress")):
@@ -113,7 +112,7 @@ func migrate_footprints(island: IslandData) -> void:
 				placed = true
 				break
 		if not placed:
-			island.buildings[anchor_cell] = old
+			island.set_building_record(anchor_cell, old)
 
 
 func remove(anchor_cell: Vector2i, island: IslandData) -> bool:

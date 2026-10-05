@@ -101,7 +101,8 @@ func _check_quests() -> void:
 		[GameTypes.Stat.STONE_GATHERED, 100], [GameTypes.Stat.LOGGER_CAMPS_BUILT, 1],
 		[GameTypes.Stat.QUARRIES_BUILT, 1], [GameTypes.Stat.BUILDINGS_OPERATED, 1],
 		[GameTypes.Stat.SAWMILLS_BUILT, 1], [GameTypes.Stat.PLANKS_GATHERED, 12],
-		[GameTypes.Stat.DOCKS_BUILT, 1], [GameTypes.Stat.IRON_ORE_GATHERED, 5]]:
+		[GameTypes.Stat.DOCKS_BUILT, 1], [GameTypes.Stat.DOG_ISLAND_DISCOVERED, 1],
+		[GameTypes.Stat.IRON_ORE_GATHERED, 5]]:
 		stats.add(entry[0], entry[1])
 	expect(quests.get_current_milestone().id == GameTypes.QuestId.LIGHT_THE_FORGE, "Smelting lesson precedes automatic trade")
 	expect(not quests.is_building_unlocked(GameTypes.BuildingType.BURNER_GENERATOR), "Early milestones no longer grant electricity")

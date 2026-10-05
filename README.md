@@ -143,6 +143,18 @@ See [3D Models](docs/3d-models.md) for the model style and pipeline.
 4. Open the project.
 5. Run the current scene or set `game.tscn` as the main scene once gameplay begins.
 
+## Running the Checks
+
+`tools/*_check.gd` are headless check scripts. Run them all (or `-Filter boat,furnace` for some):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/run_checks.ps1
+```
+
+It uses Godot from `-Godot <path>`, `$env:GODOT`, or the console build on `PATH`. Each check has a
+timeout, because a failed `assert()` hangs headless Godot instead of exiting. Your save in
+`user://` is backed up first and always restored.
+
 ## Repository Structure
 
 ```text
