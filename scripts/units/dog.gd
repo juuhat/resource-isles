@@ -18,9 +18,9 @@ enum Mode {
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
-const DOG_MODEL := preload("res://assets/models/units/dog.glb")
-# Walking animation lives in its own glTF (same rig); merged into the model's player below.
-const DOG_WALK_ANIM := preload("res://assets/models/units/dog_animation_walking.glb")
+const DOG_MODEL := preload("res://assets/models/units/k9_da.glb")
+# Rigid mechanical model, built by tools/build_k9_da.py with embedded clips.
+const WALK_CYCLE_DISTANCE := 0.4
 
 # How far the model's footprint should span, as a fraction of a tile's width. The dog is
 # scaled by its widest horizontal extent so a long, low body fits the tile naturally.
@@ -61,6 +61,7 @@ var _pause_timer := 0.0
 var _model: Node3D
 var _anim_player: AnimationPlayer
 var _walk_anim := ""
+var _idle_anim := ""
 var _hop_tween: Tween
 # The model's resting height (set when it is fitted to the tile); hops return to it.
 var _model_base_y := 0.0
@@ -76,6 +77,7 @@ func _ready() -> void:
 	_scale_model_to_tile()
 	_model_base_y = _model.position.y
 	_setup_animation()
+	_stop_walk_anim()
 	visible = false
 
 
@@ -301,71 +303,40 @@ func _gather_mesh_aabbs(node: Node, parent_xform: Transform3D, out: Array[AABB])
 		_gather_mesh_aabbs(child, node_xform, out)
 
 
-# Find an AnimationPlayer on the model (or merge one in from the dedicated walking glTF) and
-# remember the name of a looping walk animation to play while moving. Best-effort: if nothing
-# is found the dog still walks, just without leg motion.
+# Find the model's embedded idle and walk clips. Movement remains gameplay-driven.
 func _setup_animation() -> void:
 	_anim_player = _model.find_child("AnimationPlayer", true, false) as AnimationPlayer
-	_merge_walk_animation()
 	_walk_anim = _pick_walk_anim_name()
-	if _walk_anim != "":
-		var anim := _anim_player.get_animation(_walk_anim)
-		if anim != null:
-			anim.loop_mode = Animation.LOOP_LINEAR
-
-
-# Copy animations from the separate walking glTF into the model's AnimationPlayer (both were
-# exported from the same rig, so the bone track paths line up). Creates a player if the base
-# model has none.
-func _merge_walk_animation() -> void:
-	var walk_scene := DOG_WALK_ANIM.instantiate()
-	var source := walk_scene.find_child("AnimationPlayer", true, false) as AnimationPlayer
-	if source != null:
-		if _anim_player == null:
-			_anim_player = AnimationPlayer.new()
-			_model.add_child(_anim_player)
-
-		for library_name in source.get_animation_library_list():
-			var source_library := source.get_animation_library(library_name)
-			var dest_library: AnimationLibrary
-			if _anim_player.has_animation_library(library_name):
-				dest_library = _anim_player.get_animation_library(library_name)
-			else:
-				dest_library = AnimationLibrary.new()
-				_anim_player.add_animation_library(library_name, dest_library)
-
-			for anim_name in source_library.get_animation_list():
-				if not dest_library.has_animation(anim_name):
-					dest_library.add_animation(anim_name, source_library.get_animation(anim_name))
-
-	walk_scene.queue_free()
+	if _anim_player != null:
+		for anim_name in _anim_player.get_animation_list():
+			if anim_name.to_lower().contains("idle"):
+				_idle_anim = anim_name
+			_anim_player.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
 
 
 func _pick_walk_anim_name() -> String:
 	if _anim_player == null:
 		return ""
 
-	# Meshy/Unreal exports don't name the clip "walk" (e.g. "Armature|Unreal Take|baselayer"),
-	# and the base model ships a 1-frame rest clip ("...|clip0|..."). So prefer a name that does
-	# say "walk", otherwise take the longest clip — the real walk cycle, not the static pose.
-	var best := ""
-	var best_length := -1.0
 	for anim_name in _anim_player.get_animation_list():
 		if anim_name.to_lower().contains("walk"):
 			return anim_name
-		var length := _anim_player.get_animation(anim_name).length
-		if length > best_length:
-			best_length = length
-			best = anim_name
-
-	return best
+	return ""
 
 
 func _play_walk_anim() -> void:
-	if _anim_player != null and _walk_anim != "" and _anim_player.current_animation != _walk_anim:
-		_anim_player.play(_walk_anim)
+	if _anim_player != null and _walk_anim != "":
+		var clip := _anim_player.get_animation(_walk_anim)
+		_anim_player.speed_scale = _speed * clip.length / (WALK_CYCLE_DISTANCE * _model.scale.z)
+		if _anim_player.current_animation != _walk_anim:
+			_anim_player.play(_walk_anim, 0.12)
 
 
 func _stop_walk_anim() -> void:
-	if _anim_player != null and _anim_player.is_playing():
-		_anim_player.stop()
+	if _anim_player != null:
+		_anim_player.speed_scale = 1.0
+		if _idle_anim != "":
+			if _anim_player.current_animation != _idle_anim:
+				_anim_player.play(_idle_anim, 0.12)
+		else:
+			_anim_player.stop()
