@@ -48,7 +48,9 @@ const WORK_CLIPS := {"chop": "HeldAxe", "mine": "HeldPickaxe", "operate": "HeldP
 # How long a tool takes to pop into the hand when a swing starts.
 const EQUIP_TIME := 0.15
 
-var renderer: IslandRenderer
+# Where cells are and how high: anything with get_cell_center, get_step_height and cell_size. In
+# the game that's the WorldView (every island and the sea); a check may use one IslandRenderer.
+var ground
 var navigation: WorldNavigation
 var current_cell := GameTypes.NO_CELL
 var selected := false
@@ -103,7 +105,7 @@ func _ready() -> void:
 	# Scale the model so its height matches the intended on-map size (visual_size_tiles in
 	# tile fractions). Its feet are at y=0, so it sits straight on the tile.
 	_model = PLAYER_MODEL.instantiate()
-	var cell_size := renderer.cell_size if renderer != null else Vector2(128.0, 128.0)
+	var cell_size: Vector2 = ground.cell_size if ground != null else Vector2(128.0, 128.0)
 	var model_scale := (visual_size_tiles.y * cell_size.y) / MODEL_NATIVE_HEIGHT
 	_model.scale = Vector3(model_scale, model_scale, model_scale)
 	_model.rotation.y = MODEL_YAW_OFFSET
@@ -116,14 +118,14 @@ func _ready() -> void:
 	add_child(_select_player)
 
 
-func setup(new_renderer: IslandRenderer, world_navigation: WorldNavigation = null) -> void:
-	renderer = new_renderer
+func setup(new_ground, world_navigation: WorldNavigation = null) -> void:
+	ground = new_ground
 	navigation = world_navigation
 
 
 func place_at(cell: Vector2i) -> void:
 	current_cell = cell
-	position = renderer.get_cell_center(cell)
+	position = ground.get_cell_center(cell)
 	_path.clear()
 	_spot_cell = GameTypes.NO_CELL
 	_at_spot = false
@@ -137,13 +139,12 @@ func mount_boat(id: int, cell: Vector2i, yaw: float) -> void:
 	leave_boat()
 	boat_id = id
 	place_at(cell)
-	position = navigation.cell_center(cell) if navigation != null else renderer.get_water_center(cell)
 	_vessel = Node3D.new()
 	add_child(_vessel)
 	_vessel.rotation.y = yaw
 	var hull := IslandRenderer.SALVAGE_SKIFF_MODEL.instantiate() as Node3D
 	_vessel.add_child(hull)
-	var size := renderer.cell_size.x / IslandRenderer.TRUE_TILE_UNITS
+	var size: float = ground.cell_size.x / IslandRenderer.TRUE_TILE_UNITS
 	hull.scale = Vector3.ONE * size
 	var helm := hull.find_child("PilotSpot", true, false) as Node3D
 	_model.reparent(_vessel, false)
@@ -209,8 +210,8 @@ func face_toward(world_target: Vector3, nudge_tiles := 0.0) -> void:
 	var flat := Vector3(world_target.x - position.x, 0.0, world_target.z - position.z)
 	if flat.length() < 0.001:
 		return
-	var cell_size := renderer.cell_size if renderer != null else Vector2(128.0, 128.0)
-	var base := position if _at_spot else renderer.get_cell_center(current_cell)
+	var cell_size: Vector2 = ground.cell_size if ground != null else Vector2(128.0, 128.0)
+	var base: Vector3 = position if _at_spot else ground.get_cell_center(current_cell)
 	_rest_position = base + flat.normalized() * nudge_tiles * cell_size.x
 	_rest_yaw = atan2(flat.x, flat.z) + MODEL_YAW_OFFSET
 	_has_rest = true
@@ -241,15 +242,15 @@ func _update_marker() -> void:
 		return
 	_marker.visible = selected
 	_marker.position = Vector3(0.0, 0.6, 0.0)
-	if not _moving and renderer != null and current_cell != GameTypes.NO_CELL:
-		var center := navigation.cell_center(current_cell) if boat_id != -1 and navigation != null else renderer.get_cell_center(current_cell)
+	if not _moving and ground != null and current_cell != GameTypes.NO_CELL:
+		var center: Vector3 = ground.get_cell_center(current_cell)
 		_marker.position = Vector3(center.x - position.x, 0.6, center.z - position.z)
 
 
 # A flat hex outline-fill matching the tile, for the selection highlight (mirrors the
 # renderer's _build_hex_cap_mesh).
 func _build_hex_cap_mesh() -> ArrayMesh:
-	var size := renderer.cell_size if renderer != null else Vector2(128.0, 128.0)
+	var size: Vector2 = ground.cell_size if ground != null else Vector2(128.0, 128.0)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var ring := HexGridScript.hex_corners_3d(Vector3.ZERO, size)
@@ -310,7 +311,7 @@ func _process(delta: float) -> void:
 	else:
 		position += to_target / distance * step
 		if boat_id == -1:
-			position.y = renderer.get_step_height(current_cell, _pending_cell, position)
+			position.y = ground.get_step_height(current_cell, _pending_cell, position)
 
 
 # Parked: ease into the pose from face_toward(), if any.
@@ -343,9 +344,8 @@ func _advance_to_next() -> void:
 		return
 
 	_pending_cell = _path.pop_front()
-	_target_world = renderer.get_cell_center(_pending_cell)
-	if boat_id != -1:
-		_target_world = navigation.cell_center(_pending_cell) if navigation != null else renderer.get_water_center(_pending_cell)
+	# Sailable cells' centres are at the water's surface, so a boat floats there.
+	_target_world = ground.get_cell_center(_pending_cell)
 	_moving = true
 	_update_marker()
 

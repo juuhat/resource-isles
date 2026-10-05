@@ -36,6 +36,7 @@ func _run() -> void:
 		game._board_boat()
 		var boat_id: int = game.player_unit.boat_id
 		var navigation: WorldNavigation = game.world_navigation
+		_check_sailing_hover(game)
 		var target: Vector2i = game.world.dog_coord
 		var locked_point := Nav.slot_center(target)
 		var locked_cell := navigation.cell_from_position(locked_point)
@@ -102,6 +103,15 @@ func _run() -> void:
 		expect(game.resource_manager.inventory == game.current_island.inventory, "Landing switches island inventory")
 		expect(game.world.boats[boat_id].cell == water_cell, "Boat stays at actual destination")
 		expect(game.player_unit.current_cell == landing, "Robot lands on chosen shore tile")
+		# Ashore, the robot walks the new island's ground; nothing hands it that island's renderer.
+		expect(game.player_unit.position.is_equal_approx(game.renderer.get_cell_center(landing)), "Robot stands on the new island's ground")
+		var inland := _open_neighbor(game.current_island, landing)
+		expect(inland != GameTypes.NO_CELL and game._command_unit_to(inland), "Robot walks on the new island")
+		_walk(game.player_unit)
+		expect(game.player_unit.current_cell == inland
+			and game.player_unit.position.is_equal_approx(game.renderer.get_cell_center(inland)), "Robot keeps to the new island's ground")
+		expect(game._command_unit_to(landing), "Robot walks back to its boat")
+		_walk(game.player_unit)
 		game._board_boat()
 		expect(game.player_unit.boat_id == boat_id and game.world.boats.size() == 1, "Same boat can be reboarded on new island")
 		game._command_boat_to(navigation.cell_from_position(Vector3(navigation.sailing_radius() + 500.0, Nav.SEA_Y, 0.0)))
@@ -151,6 +161,22 @@ func _check_coordinates(game: Node) -> void:
 		if game.world_view.renderer_for(coord) != null:
 			_check_water_grid(game, game.world_view.renderer_for(coord))
 
+	# One picking path for land and sea: a tile is found at its own height, open sea at the surface,
+	# also right past an island's edge (where the island's own picking snaps onto its last tile).
+	var home: IslandData = game.current_island
+	var land := GameTypes.NO_CELL
+	var row_start := Vector2i(1_000_000, 0)
+	for cell in home.terrain:
+		if land == GameTypes.NO_CELL and HexPathfinder.is_open(home, cell):
+			land = cell
+		if cell.x < row_start.x:
+			row_start = cell
+	expect(_pick(game, land) == land, "Picking finds a tile at its height")
+	var past_edge := row_start + Vector2i.LEFT
+	expect(not home.has_cell(past_edge) and _pick(game, past_edge) == past_edge, "Picking finds the sea right past an island")
+	var open_sea := row_start + Vector2i.LEFT * 6
+	expect(game.world_navigation.slot_at(open_sea) == WorldData.NO_COORD and _pick(game, open_sea) == open_sea, "Picking finds open sea")
+
 	# Moving an island keeps its shape, also by an odd number of rows (where adding the offset
 	# to odd-r cells directly would shear it).
 	var island := IslandData.new(4, 3)
@@ -172,6 +198,50 @@ func _check_coordinates(game: Node) -> void:
 	renderer.render(island)
 	_check_water_grid(game, renderer)
 	renderer.queue_free()
+
+
+# Steering the boat, the cursor's cell (the same single pick as on foot) moves the sailing marker
+# instead of lighting tiles up, and clicking the boat's cell selects the robot.
+func _check_sailing_hover(game: Node) -> void:
+	var robot: PlayerUnit = game.player_unit
+	var camera: Camera3D = game.camera_rig.get_camera()
+	var sea := GameTypes.NO_CELL
+	for cell in HexGrid.neighbors(robot.current_cell):
+		if game.world_navigation.can_sail(cell, robot.boat_id):
+			sea = cell
+			break
+	expect(sea != GameTypes.NO_CELL, "Open water beside the boat")
+	game._update_hover(camera.unproject_position(game.world_view.get_cell_center(sea)))
+	var marker: MeshInstance3D = game.world_view._sailing_hover
+	expect(game.hovered_cell == sea and game.renderer.hovered_cell == GameTypes.NO_CELL, "Sailing hover picks the water, not a tile")
+	expect(marker != null and marker.visible
+		and Vector2(marker.position.x, marker.position.z).is_equal_approx(Vector2(Nav.cell_center(sea).x, Nav.cell_center(sea).z)),
+		"The sailing marker sits on the hovered water")
+	robot.set_selected(false)
+	game._update_hover(camera.unproject_position(game.world_view.get_cell_center(robot.current_cell)))
+	expect(game._try_select_unit() and robot.selected, "Clicking the boat selects the robot")
+
+
+# The cell a camera-like ray toward the top of `cell` picks.
+func _pick(game: Node, cell: Vector2i) -> Vector2i:
+	var target: Vector3 = game.world_view.get_cell_center(cell)
+	var origin := target + Vector3(0.0, 900.0, 600.0)
+	return game.world_view.cell_from_ray(origin, (target - origin).normalized())
+
+
+func _open_neighbor(island: IslandData, cell: Vector2i) -> Vector2i:
+	for neighbor in HexGrid.neighbors(cell):
+		if HexPathfinder.is_open(island, neighbor) and not island.has_item(neighbor):
+			return neighbor
+	return GameTypes.NO_CELL
+
+
+func _walk(robot: PlayerUnit) -> void:
+	for step in 400:
+		if not robot.is_moving():
+			return
+		robot._process(0.05)
+	expect(false, "The robot never arrived")
 
 
 # The water shader finds the cell under each fragment in its own grid, counted from island_origin

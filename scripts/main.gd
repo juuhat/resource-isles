@@ -119,6 +119,9 @@ var toast: Toast
 var game_menu: GameMenu
 var _placement_player: AudioStreamPlayer
 var pending_action_cell := GameTypes.NO_CELL
+# The cell under the cursor, on any island or the open sea (see _update_hover). Walking and sailing
+# commands, and selecting the robot, all go by it.
+var hovered_cell := GameTypes.NO_CELL
 var landing_cell := GameTypes.NO_CELL
 var harvestable_cell := GameTypes.NO_CELL
 
@@ -178,9 +181,10 @@ func _ready() -> void:
 	_placement_player.stream = PLACEMENT_SOUND
 	add_child(_placement_player)
 
-	# The robot walks the current island; it is handed that island's renderer on every switch.
+	# The robot walks and sails the whole world; the world view tells it where every cell is.
 	player_unit = PlayerUnitScript.new()
 	player_unit.name = "PlayerUnit"
+	player_unit.setup(world_view, world_navigation)
 	player_unit.arrived.connect(_on_unit_arrived)
 	player_unit.entered_cell.connect(_on_unit_entered_cell)
 	add_child(player_unit)
@@ -189,6 +193,7 @@ func _ready() -> void:
 	# it up, then it follows the robot between islands (see _sync_dog).
 	dog = DogScript.new()
 	dog.name = "Dog"
+	dog.setup(world_view)
 	add_child(dog)
 
 	camera_rig = CameraRigScript.new()
@@ -206,7 +211,7 @@ func _ready() -> void:
 	world_navigation.setup(world)
 	# Pick K9-DA's island and spot (or fill them in for an older save) before the map is drawn.
 	_ensure_dog_placed()
-	world_view.setup(world, resource_node_database, building_manager)
+	world_view.setup(world, resource_node_database, building_manager, world_navigation)
 	world_view.refresh()
 	camera_rig.set_overview(world_view.overview_pivot(), world_view.overview_distance())
 	# Built after loading so it runs the loaded world's routes.
@@ -507,6 +512,8 @@ func _reveal_rings(count: int) -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var is_over_ui := get_viewport().gui_get_hovered_control() != null
+		# Clicks act on the cell under the cursor now, even if the camera moved since it last did.
+		_update_hover(event.position)
 
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
 			camera_rig.zoom_in()
@@ -538,22 +545,27 @@ func _input(event: InputEvent) -> void:
 		if is_panning or is_left_panning:
 			camera_rig.pan(event.relative)
 
-		var camera := camera_rig.get_camera()
-		if camera != null:
-			var origin := camera.project_ray_origin(event.position)
-			var direction := camera.project_ray_normal(event.position)
-			if player_unit.boat_id != -1 and player_unit.selected and selected_building_type == NO_BUILDING:
-				var cell := world_navigation.cell_from_ray(origin, direction)
-				var point := WorldNavigationScript.cell_center(cell)
-				var can_land := world_navigation.can_land(player_unit.current_cell, cell)
-				if can_land:
-					point = world_view.renderer_for(world_navigation.slot_at(cell)).get_cell_center(cell)
-				var color := Color(0.3, 0.85, 0.95, 0.4) if world_navigation.can_sail(cell, player_unit.boat_id) else Color(1.0, 0.3, 0.25, 0.4)
-				world_view.show_sailing_hover(point, Color(0.3, 1.0, 0.55, 0.4) if can_land else color)
-			else:
-				world_view.hide_sailing_hover()
-				renderer.set_hovered_from_ray(origin, direction)
-			world_view.set_hovered(world_view.slot_at_ray(origin, direction))
+		_update_hover(event.position)
+
+
+# Hover the cell under a screen position: an island tile at its own height, or the sea. Steering
+# the boat, a marker shows whether the robot can land there (green), sail there (cyan) or neither
+# (red); otherwise the current island lights the tile up, placement previews included.
+func _update_hover(screen_position: Vector2) -> void:
+	var camera := camera_rig.get_camera()
+	if camera == null:
+		return
+	var origin := camera.project_ray_origin(screen_position)
+	var direction := camera.project_ray_normal(screen_position)
+	hovered_cell = world_view.cell_from_ray(origin, direction)
+	world_view.set_hovered(world_view.slot_at_ray(origin, direction))
+	if player_unit.boat_id != -1 and player_unit.selected and selected_building_type == NO_BUILDING:
+		var can_land := world_navigation.can_land(player_unit.current_cell, hovered_cell)
+		var color := Color(0.3, 0.85, 0.95, 0.4) if world_navigation.can_sail(hovered_cell, player_unit.boat_id) else Color(1.0, 0.3, 0.25, 0.4)
+		world_view.show_sailing_hover(world_view.get_cell_center(hovered_cell), Color(0.3, 1.0, 0.55, 0.4) if can_land else color)
+		return
+	world_view.hide_sailing_hover()
+	renderer.set_hovered_cell(hovered_cell)
 
 
 func _handle_left_click(screen_position: Vector2) -> void:
@@ -631,11 +643,7 @@ func _setup_lighting() -> void:
 # building or resource node, so for one it walks to where it can work it instead (see
 # _plan_approach) and the target stays the clicked cell.
 func _command_unit_to_hovered() -> bool:
-	if player_unit != null and player_unit.boat_id != -1:
-		var camera := camera_rig.get_camera()
-		var mouse := get_viewport().get_mouse_position()
-		return _command_boat_to(world_navigation.cell_from_ray(camera.project_ray_origin(mouse), camera.project_ray_normal(mouse)))
-	return _command_unit_to(renderer.hovered_cell)
+	return _command_unit_to(hovered_cell)
 
 
 func _command_unit_to(cell: Vector2i) -> bool:
@@ -798,7 +806,7 @@ func _is_unit_cell(cell: Vector2i) -> bool:
 			return true
 	if player_unit != null and cell in [player_unit.current_cell, player_unit.next_cell()]:
 		return true
-	if dog != null and dog.visible and dog.renderer == renderer:
+	if dog != null and dog.is_on(current_island):
 		return cell == dog.current_cell or cell == dog.next_cell()
 	return false
 
@@ -1217,8 +1225,6 @@ func _disembark_boat() -> void:
 	world_view.hide_sailing_hover()
 	if destination != world.current_coord:
 		_switch_to_island(destination)
-	else:
-		player_unit.setup(renderer, world_navigation)
 	player_unit.place_at(shore)
 	camera_rig.center_on(player_unit.position)
 	_sync_dog()
@@ -1549,17 +1555,7 @@ func _resource_color(resource_type: int) -> Color:
 func _try_select_unit() -> bool:
 	if player_unit == null or player_unit.current_cell == GameTypes.NO_CELL:
 		return false
-	if player_unit.boat_id != -1:
-		var camera := camera_rig.get_camera()
-		var mouse := get_viewport().get_mouse_position()
-		var cell := world_navigation.cell_from_ray(camera.project_ray_origin(mouse), camera.project_ray_normal(mouse))
-		if cell not in [player_unit.current_cell, player_unit.next_cell()]:
-			return false
-		player_unit.set_selected(true)
-		_refresh_action_bar()
-		return true
-
-	if renderer.hovered_cell != player_unit.current_cell:
+	if hovered_cell not in [player_unit.current_cell, player_unit.next_cell()]:
 		return false
 
 	player_unit.set_selected(true)
@@ -1760,7 +1756,6 @@ func _switch_to_island(coord: Vector2i, instant := false) -> void:
 	resource_manager.set_inventory(current_island.inventory)
 	building_menu.refresh_stock()
 	building_info_panel.hide_info()
-	player_unit.setup(renderer, world_navigation)
 	_spawn_player_unit()
 	_sync_dog()
 	resource_bar.refresh()
@@ -1881,17 +1876,15 @@ func _sync_dog() -> void:
 		dog.halt()
 		return
 	if world.dog_rescued:
-		dog.setup(renderer)
 		dog.follow(current_island, _find_dog_follow_cell(), player_unit)
 		return
 
+	# Waits where it was left, once its island is drawn and discovered.
 	var dog_island := world.get_island(world.dog_coord)
-	var dog_renderer := world_view.renderer_for(world.dog_coord)
-	if dog_island == null or dog_renderer == null or not dog_island.visited:
+	if dog_island == null or world_view.renderer_for(world.dog_coord) == null or not dog_island.visited:
 		dog.halt()
 		return
 
-	dog.setup(dog_renderer)
 	dog.strand(dog_island, world.dog_cell)
 
 
@@ -2016,7 +2009,7 @@ func _land_stranded_units(anchor_cell: Vector2i) -> void:
 		pending_action_cell = GameTypes.NO_CELL
 		player_unit.place_at(anchor_cell)
 	_reroute_unit()
-	if dog != null and dog.visible and dog.renderer == renderer \
+	if dog != null and dog.is_on(current_island) \
 			and not HexPathfinderScript.is_walkable(current_island, dog.next_cell()):
 		dog.follow(current_island, anchor_cell, player_unit)
 

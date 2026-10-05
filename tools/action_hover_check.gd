@@ -79,6 +79,8 @@ func _run() -> void:
 	_expect(not game.is_operating and not game.is_harvesting and robot._work == "",
 		"Right-clicking open ground just moves")
 
+	_check_hover_path(game)
+
 	root.remove_child(game)
 	game.free()
 	_restore_save()
@@ -137,8 +139,33 @@ func _open_cell_away_from(island: IslandData, from: Vector2i, min_distance: int)
 	return from
 
 
+# On foot, the cursor's cell (picked once for land and sea) lights its tile up on the robot's
+# island, nothing out at sea, and is what clicking the robot selects it by.
+func _check_hover_path(game: Node) -> void:
+	var robot: PlayerUnit = game.player_unit
+	var island: IslandData = game.current_island
+	var land := _open_cell_away_from(island, robot.current_cell, 1)
+	_hover(game, land)
+	_expect(game.hovered_cell == land and game.renderer.hovered_cell == land, "Hovering a tile lights it up")
+	var sea := land
+	while island.has_cell(sea):
+		sea += Vector2i.LEFT
+	_hover(game, sea)
+	_expect(game.hovered_cell == sea and game.renderer.hovered_cell == GameTypes.NO_CELL, "Hovering the sea on foot lights nothing up")
+	_expect(not game.world_view._sailing_hover or not game.world_view._sailing_hover.visible, "No sailing marker on foot")
+	robot.set_selected(false)
+	_hover(game, robot.current_cell)
+	_expect(game._try_select_unit() and robot.selected, "Clicking the robot's tile selects it")
+
+
+# Moves the cursor to where `cell`'s top shows on screen.
+func _hover(game: Node, cell: Vector2i) -> void:
+	var camera: Camera3D = game.camera_rig.get_camera()
+	game._update_hover(camera.unproject_position(game.world_view.get_cell_center(cell)))
+
+
 func _command(game: Node, cell: Vector2i) -> void:
-	game.renderer.hovered_cell = cell
+	game.hovered_cell = cell
 	_expect(game._command_unit_to_hovered(), "The robot accepts the command to %s" % cell)
 
 

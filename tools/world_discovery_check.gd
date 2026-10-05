@@ -12,8 +12,10 @@ func _check_discovery() -> void:
 		island.set_terrain(Vector2i(1, 1), GameTypes.Terrain.GRASS)
 		world.add_island(coord, island)
 	world.get_current().visited = true
+	var navigation := WorldNavigation.new()
+	navigation.setup(world)
 	var view := WorldView.new()
-	view.setup(world, null, null)
+	view.setup(world, null, null, navigation)
 	root.add_child(view)
 	view.refresh()
 	view.set_overview_amount(1.0)

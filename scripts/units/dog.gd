@@ -45,7 +45,9 @@ const WALK_CYCLE_DISTANCE := 0.4
 # Pause before re-checking the robot's position after a walk, so it reacts promptly.
 @export var follow_check_seconds := 0.3
 
-var renderer: IslandRenderer
+# Where cells are and how high, as for PlayerUnit.ground: the WorldView in the game, or one
+# IslandRenderer in a check.
+var ground
 var current_cell := GameTypes.NO_CELL
 var mode := Mode.STRANDED
 # The unit the dog follows in FOLLOWING mode (the player robot).
@@ -67,8 +69,8 @@ var _hop_tween: Tween
 var _model_base_y := 0.0
 
 
-func setup(new_renderer: IslandRenderer) -> void:
-	renderer = new_renderer
+func setup(new_ground) -> void:
+	ground = new_ground
 
 
 func _ready() -> void:
@@ -100,6 +102,11 @@ func next_cell() -> Vector2i:
 	return _pending_cell if _moving else current_cell
 
 
+# Whether the dog is out and about on `island`.
+func is_on(island: IslandData) -> bool:
+	return visible and _island != null and _island == island
+
+
 # Park the dog out of sight (e.g. its island hasn't been reached yet).
 func halt() -> void:
 	_island = null
@@ -117,7 +124,7 @@ func celebrate() -> void:
 	_pause_timer = maxf(_pause_timer, 1.2)
 	if _hop_tween != null:
 		_hop_tween.kill()
-	var hop_height := (renderer.cell_size.y if renderer != null else 128.0) * 0.25
+	var hop_height: float = (ground.cell_size.y if ground != null else 128.0) * 0.25
 	_hop_tween = create_tween()
 	for _hop in range(2):
 		_hop_tween.tween_property(_model, "position:y", _model_base_y + hop_height, 0.18) \
@@ -127,13 +134,13 @@ func celebrate() -> void:
 
 
 func _place(island: IslandData, cell: Vector2i) -> void:
-	if island == null or renderer == null or cell == GameTypes.NO_CELL:
+	if island == null or ground == null or cell == GameTypes.NO_CELL:
 		halt()
 		return
 
 	_island = island
 	current_cell = cell
-	position = renderer.get_cell_center(current_cell)
+	position = ground.get_cell_center(current_cell)
 	_path.clear()
 	_moving = false
 	_pause_timer = follow_check_seconds
@@ -165,7 +172,7 @@ func _advance_movement(delta: float) -> void:
 		_advance_to_next()
 	else:
 		position += to_target / distance * step
-		position.y = renderer.get_step_height(current_cell, _pending_cell, position)
+		position.y = ground.get_step_height(current_cell, _pending_cell, position)
 
 
 func _advance_to_next() -> void:
@@ -176,7 +183,7 @@ func _advance_to_next() -> void:
 		return
 
 	_pending_cell = _path.pop_front()
-	_target_world = renderer.get_cell_center(_pending_cell)
+	_target_world = ground.get_cell_center(_pending_cell)
 	_moving = true
 
 
@@ -259,7 +266,7 @@ func _scale_model_to_tile() -> void:
 	if horizontal < 0.0001:
 		horizontal = maxf(aabb.size.y, 0.0001)
 
-	var cell_size := renderer.cell_size if renderer != null else Vector2(128.0, 128.0)
+	var cell_size: Vector2 = ground.cell_size if ground != null else Vector2(128.0, 128.0)
 	var scale := (visual_size_tiles * cell_size.x) / horizontal
 	_model.scale = Vector3(scale, scale, scale)
 

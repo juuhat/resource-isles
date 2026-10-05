@@ -259,7 +259,7 @@ func _expect(condition: bool, message := "check") -> void:
 
 func _command(game: Node, cell: Vector2i) -> void:
 	_entered.clear()
-	game.renderer.hovered_cell = cell
+	game.hovered_cell = cell
 	_expect(game._command_unit_to_hovered(), "The robot accepts the command to %s" % cell)
 
 

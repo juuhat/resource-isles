@@ -172,6 +172,8 @@ The conversion was concentrated in the four presentation files above. `IslandRen
 interface was kept stable so callers barely changed (mostly `Vector2` → `Vector3` return types);
 two methods were renamed — `set_hovered_world_position(Vector2)` → `set_hovered_from_ray(origin,
 direction)` (the camera passes a ray now) and the old `queue_redraw()` contract → `refresh()`.
+(Hover has since moved up a level: `WorldView.cell_from_ray` picks the cell under the cursor for
+every island and the sea, and the renderer just shows it via `set_hovered_cell`.)
 
 The water surface is a single translucent plane driven by a toon shader
 ([`water_toon.gdshader`](../assets/shaders/water_toon.gdshader)), built in `_rebuild_water` /

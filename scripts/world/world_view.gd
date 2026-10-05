@@ -84,6 +84,10 @@ const PLANET_LAYER := 2
 var world: WorldData
 var resource_node_database: ResourceNodeDatabase
 var building_manager: BuildingManager
+var navigation: WorldNavigation
+# The width and depth of a cell. With get_cell_center and get_step_height this makes the world view
+# the ground units walk on, across every island and the sea.
+var cell_size := Navigation.CELL_SIZE
 
 var _disc_radius := 0.0 # disc units
 var _charted_radius := -1.0 # disc units
@@ -117,11 +121,13 @@ var _shared_materials: Dictionary = {}
 func setup(
 	new_world: WorldData,
 	new_resource_node_database: ResourceNodeDatabase,
-	new_building_manager: BuildingManager
+	new_building_manager: BuildingManager,
+	new_navigation: WorldNavigation
 ) -> void:
 	world = new_world
 	resource_node_database = new_resource_node_database
 	building_manager = new_building_manager
+	navigation = new_navigation
 
 
 func _ready() -> void:
@@ -178,6 +184,35 @@ func refresh() -> void:
 # The renderer drawing the island at `coord`, or null if it is not revealed (or not generated).
 func renderer_for(coord: Vector2i) -> IslandRenderer:
 	return _renderers.get(coord)
+
+
+# The renderer of the island the cell belongs to, or null for open sea (or an island not drawn).
+func renderer_at(cell: Vector2i) -> IslandRenderer:
+	return _renderers.get(navigation.slot_at(cell))
+
+
+# World-space centre of a cell's top: an island tile at its own height, open sea at its surface.
+func get_cell_center(cell: Vector2i) -> Vector3:
+	var renderer := renderer_at(cell)
+	return renderer.get_cell_center(cell) if renderer != null else Navigation.cell_center(cell)
+
+
+# A walking unit's height between two neighbouring cells (see IslandRenderer.get_step_height).
+func get_step_height(from_cell: Vector2i, to_cell: Vector2i, world_position: Vector3) -> float:
+	var renderer := renderer_at(to_cell)
+	return renderer.get_step_height(from_cell, to_cell, world_position) if renderer != null else world_position.y
+
+
+# The cell under a camera ray: on an island, the tile it meets at that tile's own height; off every
+# island, the sea cell it meets at the surface.
+func cell_from_ray(origin: Vector3, direction: Vector3) -> Vector2i:
+	var sea_cell := navigation.cell_from_ray(origin, direction)
+	var renderer := renderer_at(sea_cell)
+	if renderer != null:
+		var cell := renderer.cell_from_ray(origin, direction)
+		if renderer.island.has_cell(cell):
+			return cell
+	return sea_cell
 
 
 func show_sailing_hover(point: Vector3, color: Color) -> void:

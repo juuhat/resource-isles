@@ -8,14 +8,14 @@ extends Node3D
 #
 # The public interface is kept compatible with the 2D renderer it replaces so main.gd
 # and player_unit.gd are largely unchanged: render(), refresh(), get_cell_center(),
-# cell_to_world(), world_to_cell(), set_hovered_world_position(), set_placement_preview(),
+# cell_to_world(), world_to_cell(), set_hovered_cell(), set_placement_preview(),
 # try_place_hovered_building(), get_hovered_building_type(), hovered_cell, cell_size.
 #
 # Every island on the disc has its own renderer (see WorldView). Island cells are world lattice
 # cells (WorldNavigation), and every renderer sits at the same offset from the world origin, so a
 # cell's renderer-local centre is just HexGrid.cell_center_3d(cell). The public positional API
-# (get_cell_center, get_map_center, world_to_cell, cell_from_ray, set_hovered_from_ray) speaks
-# world space, so units, popups and the camera never need to know the renderer's offset.
+# (get_cell_center, get_step_height, get_map_center, world_to_cell, cell_from_ray) speaks world
+# space, so units, popups and the camera never need to know the renderer's offset.
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
@@ -334,9 +334,9 @@ func _cell_center_bounds() -> Rect2:
 	return Rect2(min_xz, max_xz - min_xz)
 
 
-func set_hovered_from_ray(origin: Vector3, direction: Vector3) -> void:
-	var cell := cell_from_ray(origin, direction)
-
+# Highlights the cell under the cursor (picked by WorldView.cell_from_ray), or nothing for a cell
+# that isn't this island's. Placement previews follow it.
+func set_hovered_cell(cell: Vector2i) -> void:
 	if island == null or not island.has_cell(cell):
 		cell = GameTypes.NO_CELL
 

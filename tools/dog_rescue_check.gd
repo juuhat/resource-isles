@@ -83,7 +83,9 @@ func _run() -> void:
 	# The rescued dog travels with the robot.
 	game._switch_to_island(WorldData.CENTER, true)
 	assert(dog.visible and dog.mode == Dog.Mode.FOLLOWING)
-	assert(dog.renderer == world_view_renderer(game, WorldData.CENTER), "K9-DA follows to the robot's island")
+	assert(dog.is_on(game.world.get_island(WorldData.CENTER)), "K9-DA follows to the robot's island")
+	assert(dog.position.is_equal_approx(game.world_view.renderer_for(WorldData.CENTER).get_cell_center(dog.current_cell)),
+		"K9-DA stands on that island's ground")
 	assert(HexGridScript.neighbors(robot.current_cell).has(dog.current_cell) or dog.current_cell == robot.current_cell,
 		"K9-DA lands beside the robot")
 
@@ -113,10 +115,6 @@ func _run() -> void:
 	_restore_save()
 	print("K9-DA rescue: PASS")
 	quit()
-
-
-func world_view_renderer(game: Node, coord: Vector2i) -> IslandRenderer:
-	return game.world_view.renderer_for(coord)
 
 
 func _walkable_neighbor(island: IslandData, cell: Vector2i) -> Vector2i:
