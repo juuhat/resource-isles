@@ -1,10 +1,10 @@
 class_name GameTypes
 extends RefCounted
 
-# "No cell": an unset or not-found cell (nothing hovered, no target, no building there). Island
-# cells start at (0, 0), so it never names a real island tile. World-map slots use
-# WorldData.NO_COORD instead.
-const NO_CELL := Vector2i(-1, -1)
+# "No cell": an unset or not-found cell (nothing hovered, no target, no building there). Cells are
+# on the world lattice, which runs negative too, so this sits far outside any world. World-map
+# slots use WorldData.NO_COORD instead.
+const NO_CELL := Vector2i(-1_000_000, -1_000_000)
 
 enum Terrain {
 	WATER,  # deep water (ocean) — the default for unset cells

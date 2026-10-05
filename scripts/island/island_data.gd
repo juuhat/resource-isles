@@ -1,6 +1,11 @@
 class_name IslandData
 extends RefCounted
 
+# One island: its terrain, resources, items and buildings, keyed by cell. Cells are on the world
+# lattice shared by every island and the sea between them (see WorldNavigation), so a cell means
+# the same tile everywhere. The island's own cells are exactly the keys of `terrain`, water
+# included; see has_cell.
+
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 
 var island_name: String = ""
@@ -9,8 +14,6 @@ var island_name: String = ""
 var visited := false
 var sighted := false
 var inventory := Inventory.new()
-var width: int
-var height: int
 var terrain: Dictionary = {}
 var resources: Dictionary = {}
 var items: Dictionary = {}
@@ -28,26 +31,27 @@ var building_revision := 0
 # HexPathfinder.deck_cells' result, valid while deck_cells_revision == building_revision.
 var deck_cells_cache: Dictionary = {}
 var deck_cells_revision := -1
-# Legacy local boats are read for migration to WorldData by WorldNavigation at startup.
-var boats: Dictionary = {}
-var piloted_boat := -1
 var building_next_production_times: Dictionary = {}
 var building_next_fuel_times: Dictionary = {}
 var generator_running_states: Dictionary = {}
 var consumer_powered_states: Dictionary = {}
 
 
-func _init(new_width: int = 0, new_height: int = 0) -> void:
-	width = new_width
-	height = new_height
+# A new island covers a width x height block of cells from (0, 0), all water: the generator's
+# canvas (and a test island's). shift() then moves it to its place in the world.
+func _init(width: int = 0, height: int = 0) -> void:
+	for y in range(height):
+		for x in range(width):
+			terrain[Vector2i(x, y)] = GameTypes.Terrain.WATER
 
 
-func is_in_bounds(cell: Vector2i) -> bool:
-	return cell.x >= 0 and cell.y >= 0 and cell.x < width and cell.y < height
+# Whether the cell is part of this island (water included).
+func has_cell(cell: Vector2i) -> bool:
+	return terrain.has(cell)
 
 
 func set_terrain(cell: Vector2i, terrain_type: int) -> void:
-	if is_in_bounds(cell):
+	if has_cell(cell):
 		terrain[cell] = terrain_type
 
 
@@ -69,7 +73,7 @@ func can_place_building(
 		if index < cell_terrains.size() and not (cell_terrains[index] as Array).is_empty():
 			allowed = cell_terrains[index]
 		if (
-			not is_in_bounds(footprint_cell)
+			not has_cell(footprint_cell)
 			or not allowed.has(get_terrain(footprint_cell))
 			or resources.has(footprint_cell)
 			or _has_building_on_cell(footprint_cell)
@@ -269,7 +273,7 @@ func set_consumer_powered(anchor_cell: Vector2i, powered: bool) -> void:
 
 func can_place_resource(cell: Vector2i, resource_node_type: int = GameTypes.ResourceNodeType.TREE) -> bool:
 	return (
-		is_in_bounds(cell)
+		has_cell(cell)
 		and get_terrain(cell) == _terrain_for_resource(resource_node_type)
 		and not resources.has(cell)
 		and not _has_building_on_cell(cell)
@@ -303,7 +307,7 @@ func get_resource_node_type(cell: Vector2i) -> int:
 # Loose ground pickups (GameTypes.ItemType). The robot collects one by walking onto its
 # cell; see main.gd's entered-cell handler.
 func place_item(cell: Vector2i, item_type: int) -> bool:
-	if not is_in_bounds(cell) or items.has(cell):
+	if not has_cell(cell) or items.has(cell):
 		return false
 
 	items[cell] = item_type
@@ -328,6 +332,36 @@ func take_item(cell: Vector2i) -> int:
 	return item_type
 
 
+# Moves the whole island by an axial offset (see HexGrid.shift), keeping the order of every
+# cell-keyed collection and each building's footprint. Used once, to put a freshly generated
+# island (built on cells from (0, 0)) at its place in the world.
+func shift(axial_offset: Vector2i) -> void:
+	terrain = _shifted_keys(terrain, axial_offset)
+	resources = _shifted_keys(resources, axial_offset)
+	items = _shifted_keys(items, axial_offset)
+	scavenged_cells = _shifted_keys(scavenged_cells, axial_offset)
+	building_next_production_times = _shifted_keys(building_next_production_times, axial_offset)
+	building_next_fuel_times = _shifted_keys(building_next_fuel_times, axial_offset)
+	generator_running_states = _shifted_keys(generator_running_states, axial_offset)
+	consumer_powered_states = _shifted_keys(consumer_powered_states, axial_offset)
+	var shifted_buildings := {}
+	for anchor_cell in buildings:
+		var building: Dictionary = buildings[anchor_cell].duplicate()
+		var cells: Array[Vector2i] = []
+		for cell in building.cells:
+			cells.append(HexGridScript.shift(cell, axial_offset))
+		building.cells = cells
+		shifted_buildings[HexGridScript.shift(anchor_cell, axial_offset)] = building
+	set_buildings(shifted_buildings)
+
+
+static func _shifted_keys(by_cell: Dictionary, axial_offset: Vector2i) -> Dictionary:
+	var result := {}
+	for cell in by_cell:
+		result[HexGridScript.shift(cell, axial_offset)] = by_cell[cell]
+	return result
+
+
 # --- Save/load ---
 # Serialize the full mutable island state to plain Variant-native data (ints, floats,
 # Strings, bools, Vector2i, and nested Dictionaries/Arrays) so SaveManager can write it with
@@ -344,15 +378,11 @@ func to_dict(reference_time: float) -> Dictionary:
 		island_name = island_name,
 		visited = visited,
 		sighted = sighted,
-		width = width,
-		height = height,
 		terrain = terrain.duplicate(),
 		resources = resources.duplicate(),
 		items = items.duplicate(),
 		scavenged_cells = scavenged_cells.duplicate(),
 		buildings = _buildings_to_dict(),
-		boats = boats.duplicate(true),
-		piloted_boat = piloted_boat,
 		next_production_times = _to_relative_times(building_next_production_times, reference_time),
 		next_fuel_times = _to_relative_times(building_next_fuel_times, reference_time),
 		generator_running_states = generator_running_states.duplicate(),
@@ -362,7 +392,7 @@ func to_dict(reference_time: float) -> Dictionary:
 
 
 static func from_dict(data: Dictionary, reference_time: float) -> IslandData:
-	var island := IslandData.new(int(data.get("width", 0)), int(data.get("height", 0)))
+	var island := IslandData.new()
 	island.island_name = data.get("island_name", "")
 	# Saves from before the shared world only ever held islands the robot had landed on.
 	island.visited = bool(data.get("visited", true))
@@ -372,8 +402,6 @@ static func from_dict(data: Dictionary, reference_time: float) -> IslandData:
 	island.items = (data.get("items", {}) as Dictionary).duplicate()
 	island.scavenged_cells = (data.get("scavenged_cells", {}) as Dictionary).duplicate()
 	island.set_buildings(_buildings_from_dict(data.get("buildings", {})))
-	island.boats = (data.get("boats", {}) as Dictionary).duplicate(true)
-	island.piloted_boat = int(data.get("piloted_boat", -1))
 	island.building_next_production_times = _to_absolute_times(
 		data.get("next_production_times", {}), reference_time
 	)

@@ -67,7 +67,7 @@ static func can_step(island: IslandData, from: Vector2i, to: Vector2i) -> bool:
 
 
 static func _is_walkable(island: IslandData, decks: Dictionary, cell: Vector2i) -> bool:
-	return island.is_in_bounds(cell) and (not GameTypes.is_water(island.get_terrain(cell)) or decks.has(cell))
+	return island.has_cell(cell) and (not GameTypes.is_water(island.get_terrain(cell)) or decks.has(cell))
 
 
 static func _can_step(island: IslandData, decks: Dictionary, from: Vector2i, to: Vector2i) -> bool:

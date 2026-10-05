@@ -40,6 +40,12 @@ static func axial_to_offset(axial: Vector2i) -> Vector2i:
 	return Vector2i(axial.x + (axial.y - (axial.y & 1)) / 2, axial.y)
 
 
+# Moves a cell by an axial offset: the same step on every row. Adding an offset directly to an
+# odd-r cell is only a true move when it shifts an even number of rows.
+static func shift(cell: Vector2i, axial_offset: Vector2i) -> Vector2i:
+	return axial_to_offset(offset_to_axial(cell) + axial_offset)
+
+
 # Turns an axial offset by steps x 60 degrees counter-clockwise (seen from above), so
 # AXIAL_EAST becomes AXIAL_NORTH_EAST after one step.
 static func rotate_axial(axial: Vector2i, steps: int) -> Vector2i:

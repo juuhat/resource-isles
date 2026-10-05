@@ -14,11 +14,16 @@ const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const MAX_GENERATION_ATTEMPTS := 12
 
 var rng := RandomNumberGenerator.new()
+# The block of cells the island being generated covers, from (0, 0) (the profile's size). The
+# finished island is moved into the world afterwards (IslandData.shift).
+var _size := Vector2i.ZERO
 
 
 # Generate the island for `profile` using `seed_value` as the per-island seed (derive it from the
 # world seed and coord in main.gd). building_manager is needed only for landmark placement
-# (the crashed spaceship footprint/terrain); it may be null for biomes without landmarks.
+# (the crashed spaceship footprint/terrain); it may be null for biomes without landmarks. The
+# island covers cells from (0, 0) to the profile's size: shift it into the world before use (see
+# main._generate_island_at).
 func generate(
 	profile: IslandProfile,
 	seed_value: int,
@@ -38,8 +43,9 @@ func generate(
 
 
 func _generate_once(profile: IslandProfile, building_manager: BuildingManager) -> IslandData:
+	_size = Vector2i(profile.width, profile.height)
+	# Starts as all water.
 	var island := IslandDataScript.new(profile.width, profile.height)
-	_fill_water(island)
 	_carve_land_blob(island, profile.primary_terrain)
 	_smooth_land_edges(island, profile.primary_terrain, 2)
 	_add_sand_border(island, profile.primary_terrain, profile.sand_border_width)
@@ -91,8 +97,8 @@ func _classify_coastal_water(island: IslandData, rings: int) -> void:
 	var visited := {}
 	var frontier: Array[Vector2i] = []
 
-	for y in range(island.height):
-		for x in range(island.width):
+	for y in range(_size.y):
+		for x in range(_size.x):
 			var cell := Vector2i(x, y)
 			if not GameTypes.is_water(island.get_terrain(cell)):
 				visited[cell] = true
@@ -104,7 +110,7 @@ func _classify_coastal_water(island: IslandData, rings: int) -> void:
 		var next_frontier: Array[Vector2i] = []
 		for cell in frontier:
 			for neighbor in HexGridScript.neighbors(cell):
-				if visited.has(neighbor) or not island.is_in_bounds(neighbor):
+				if visited.has(neighbor) or not island.has_cell(neighbor):
 					continue
 				visited[neighbor] = true
 				if island.get_terrain(neighbor) == GameTypes.Terrain.WATER:
@@ -136,17 +142,11 @@ func _place_starter_tools(island: IslandData) -> void:
 		island.place_item(candidates[index], tools[index])
 
 
-func _fill_water(island: IslandData) -> void:
-	for y in range(island.height):
-		for x in range(island.width):
-			island.set_terrain(Vector2i(x, y), GameTypes.Terrain.WATER)
-
-
 func _carve_land_blob(island: IslandData, land_terrain: int) -> void:
-	var center := Vector2(island.width * 0.5, island.height * 0.52)
+	var center := Vector2(_size.x * 0.5, _size.y * 0.52)
 
-	for y in range(island.height):
-		for x in range(island.width):
+	for y in range(_size.y):
+		for x in range(_size.x):
 			var cell := Vector2i(x, y)
 			var point := Vector2(x, y)
 			var normalized_distance := Vector2(
@@ -164,8 +164,8 @@ func _smooth_land_edges(island: IslandData, land_terrain: int, passes: int) -> v
 		var to_land: Array[Vector2i] = []
 		var to_water: Array[Vector2i] = []
 
-		for y in range(island.height):
-			for x in range(island.width):
+		for y in range(_size.y):
+			for x in range(_size.x):
 				var cell := Vector2i(x, y)
 				var land_neighbors := _neighbor_land_count(island, cell, land_terrain)
 
@@ -217,8 +217,8 @@ func _add_sand_border(island: IslandData, land_terrain: int, width: int) -> void
 func _expand_sand_into_water(island: IslandData) -> void:
 	var to_sand: Array[Vector2i] = []
 
-	for y in range(island.height):
-		for x in range(island.width):
+	for y in range(_size.y):
+		for x in range(_size.x):
 			var cell := Vector2i(x, y)
 			if island.get_terrain(cell) != GameTypes.Terrain.WATER:
 				continue
@@ -254,7 +254,7 @@ func _place_resource_entry(island: IslandData, entry: Dictionary) -> void:
 
 
 func _place_required_crashed_spaceship(island: IslandData, building_manager: BuildingManager) -> void:
-	var center := Vector2(island.width * 0.5, island.height * 0.52)
+	var center := Vector2(_size.x * 0.5, _size.y * 0.52)
 	var best_cell := GameTypes.NO_CELL
 	var best_distance := INF
 	var crashed_spaceship_definition := building_manager.get_definition(GameTypes.BuildingType.CRASHED_SPACESHIP) if building_manager else null
@@ -278,8 +278,8 @@ func _place_required_crashed_spaceship(island: IslandData, building_manager: Bui
 	# Last resort: force a central cell to a terrain the wreck accepts, then stamp it there.
 	var fallback_terrain: int = required_terrains[0] if not required_terrains.is_empty() else GameTypes.Terrain.GRASS
 	var fallback_cell := Vector2i(
-		clampi(roundi(center.x), 0, island.width - 1),
-		clampi(roundi(center.y), 0, island.height - 1)
+		clampi(roundi(center.x), 0, _size.x - 1),
+		clampi(roundi(center.y), 0, _size.y - 1)
 	)
 	island.set_terrain(fallback_cell, fallback_terrain)
 	var fallback_footprint := building_manager.get_footprint_cells(fallback_cell, GameTypes.BuildingType.CRASHED_SPACESHIP) if building_manager else [fallback_cell] as Array[Vector2i]

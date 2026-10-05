@@ -343,11 +343,11 @@ func _add_renderer(coord: Vector2i, island: IslandData) -> void:
 	renderer.setup(resource_node_database, building_manager)
 	renderer.world_data = world
 	renderer.show_grid = _show_grid
-	# In the tree first (its _ready builds the scene roots), then positioned so the island's grid
-	# centre sits on the slot, then rendered (the water shader needs the final world position).
+	# In the tree first (its _ready builds the scene roots), then positioned, then rendered (the
+	# water shader needs the final world position). Island cells are world lattice cells, so every
+	# renderer gets the same offset: the one putting each cell where WorldNavigation has it.
 	_islands.add_child(renderer)
-	var global_zero := Navigation.local_to_world(coord, island, Vector2i.ZERO)
-	var origin := Navigation.cell_center(global_zero) - HexGrid.cell_center_3d(Vector2i.ZERO, renderer.cell_size)
+	var origin := Navigation.cell_center(Vector2i.ZERO) - HexGrid.cell_center_3d(Vector2i.ZERO, renderer.cell_size)
 	origin.y = 0.0
 	renderer.position = origin
 	renderer.render(island)

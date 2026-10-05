@@ -79,8 +79,9 @@ Operate pose) and `salvage_skiff_dock_check.png` (spindle in the post socket, cl
   the robot. Approaching close enough to reveal an island discovers it and shows its name;
   landing activates the destination inventory.
 - A continuous fog bank covers locked sea and islands. Its radius is the navigation frontier,
-  expanded by quest ring rewards. Paths cannot cross it. Old island-local boat saves migrate
-  to world coordinates, including the robot aboard; loading in open ocean preserves the boat.
+  expanded by quest ring rewards. Paths cannot cross it. Old saves with boats kept per island
+  are upgraded to world boats (`SaveMigration`), including the robot aboard; loading in open
+  ocean preserves the boat.
 - K9-DA's boat pose, the screw animation and bobbing are future work. The companion resumes
   following after landing.
 

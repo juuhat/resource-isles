@@ -1,11 +1,14 @@
 class_name BoatNavigation
 extends RefCounted
 
+# Boat rules on one island's own cells: where a boat may float, and where it may land. Open sea and
+# other boats are WorldNavigation's concern.
+
 const Grid := preload("res://scripts/island/hex_grid.gd")
 const Ground := preload("res://scripts/island/hex_pathfinder.gd")
 
-static func can_sail(island: IslandData, cell: Vector2i, own_id := -1) -> bool:
-	if not island.is_in_bounds(cell) or not GameTypes.is_water(island.get_terrain(cell)) or Ground.is_deck(island, cell):
+static func can_sail(island: IslandData, cell: Vector2i) -> bool:
+	if not island.has_cell(cell) or not GameTypes.is_water(island.get_terrain(cell)) or Ground.is_deck(island, cell):
 		return false
 	if island.has_building(cell):
 		var anchor := island.get_building_anchor_cell(cell)
@@ -14,27 +17,7 @@ static func can_sail(island: IslandData, cell: Vector2i, own_id := -1) -> bool:
 			return false
 		if not building.get("boat_launched", false):
 			return false
-	for id in island.boats:
-		if id != own_id and island.boats[id].cell == cell:
-			return false
 	return true
-
-static func find_path(island: IslandData, start: Vector2i, goal: Vector2i, own_id := -1) -> Array[Vector2i]:
-	if not can_sail(island, start, own_id) or not can_sail(island, goal, own_id):
-		return []
-	var frontier: Array[Vector2i] = [start]
-	var previous := {start: start}
-	var head := 0
-	while head < frontier.size():
-		var cell := frontier[head]
-		head += 1
-		if cell == goal:
-			break
-		for neighbor in Grid.neighbors(cell):
-			if not previous.has(neighbor) and can_sail(island, neighbor, own_id):
-				previous[neighbor] = cell
-				frontier.append(neighbor)
-	return Ground.path_to({came_from = previous}, goal)
 
 # Decks and unobstructed shoreline ground are valid transfers. The boat stays afloat.
 static func can_land(island: IslandData, boat_cell: Vector2i, shore: Vector2i) -> bool:

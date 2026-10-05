@@ -204,7 +204,6 @@ func _ready() -> void:
 	# Also fills in slots an older save never generated.
 	_ensure_world_generated()
 	world_navigation.setup(world)
-	world_navigation.migrate_boats()
 	# Pick K9-DA's island and spot (or fill them in for an older save) before the map is drawn.
 	_ensure_dog_placed()
 	world_view.setup(world, resource_node_database, building_manager)
@@ -548,8 +547,7 @@ func _input(event: InputEvent) -> void:
 				var point := WorldNavigationScript.cell_center(cell)
 				var can_land := world_navigation.can_land(player_unit.current_cell, cell)
 				if can_land:
-					var region := world_navigation.region_at(cell)
-					point = world_view.renderer_for(region.coord).get_cell_center(region.cell)
+					point = world_view.renderer_for(world_navigation.slot_at(cell)).get_cell_center(cell)
 				var color := Color(0.3, 0.85, 0.95, 0.4) if world_navigation.can_sail(cell, player_unit.boat_id) else Color(1.0, 0.3, 0.25, 0.4)
 				world_view.show_sailing_hover(point, Color(0.3, 1.0, 0.55, 0.4) if can_land else color)
 			else:
@@ -644,7 +642,7 @@ func _command_unit_to(cell: Vector2i) -> bool:
 	if player_unit == null or current_island == null:
 		return false
 	if player_unit.boat_id != -1:
-		return _command_boat_to(WorldNavigationScript.local_to_world(world.current_coord, current_island, cell))
+		return _command_boat_to(cell)
 
 	# A building's tiles are all targets, even one standing in the water (the dock's pier).
 	if cell == GameTypes.NO_CELL or not (HexPathfinderScript.is_walkable(current_island, cell) or current_island.has_building(cell) or not _boat_at(cell).is_empty()):
@@ -795,15 +793,11 @@ func _is_working_position(target: Vector2i) -> bool:
 # Placement veto (IslandRenderer.is_cell_occupied_by_unit): the robot's and K9-DA's cells,
 # including the ones they're stepping into.
 func _is_unit_cell(cell: Vector2i) -> bool:
-	if current_island != null:
-		var global_cell := WorldNavigationScript.local_to_world(world.current_coord, current_island, cell)
-		for id in world.boats:
-			if world.boats[id].cell == global_cell:
-				return true
-	if player_unit != null and player_unit.boat_id == -1 and (cell == player_unit.current_cell or cell == player_unit.next_cell()):
+	for id in world.boats:
+		if world.boats[id].cell == cell:
+			return true
+	if player_unit != null and cell in [player_unit.current_cell, player_unit.next_cell()]:
 		return true
-	if player_unit != null and player_unit.boat_id != -1:
-		return WorldNavigationScript.local_to_world(world.current_coord, current_island, cell) in [player_unit.current_cell, player_unit.next_cell()]
 	if dog != null and dog.visible and dog.renderer == renderer:
 		return cell == dog.current_cell or cell == dog.next_cell()
 	return false
@@ -896,7 +890,7 @@ func _is_actionable_cell(cell: Vector2i) -> bool:
 	if selected_building_type != NO_BUILDING:
 		return false
 	if player_unit.boat_id != -1:
-		return world_navigation.can_land(player_unit.current_cell, WorldNavigationScript.local_to_world(world.current_coord, current_island, cell))
+		return world_navigation.can_land(player_unit.current_cell, cell)
 	if not _boat_at(cell).is_empty():
 		return true
 	if current_island.is_under_construction(cell):
@@ -1086,9 +1080,8 @@ func _on_action_pressed(action_id: int) -> void:
 func _boat_at(cell: Vector2i) -> Dictionary:
 	if current_island == null:
 		return {}
-	var global_cell := WorldNavigationScript.local_to_world(world.current_coord, current_island, cell)
 	for id in world.boats:
-		if world.boats[id].cell == global_cell:
+		if world.boats[id].cell == cell:
 			return {id = id, cell = cell}
 	var anchor := current_island.get_building_anchor_cell(cell)
 	if anchor == GameTypes.NO_CELL:
@@ -1116,7 +1109,7 @@ func _launch_boat(boat: Dictionary) -> int:
 		id = world.next_boat_id()
 		var building: Dictionary = current_island.buildings[boat.anchor]
 		var direction := renderer.get_water_center(boat.cell) - renderer.get_cell_center(building.cells[1])
-		world.boats[id] = {cell = WorldNavigationScript.local_to_world(world.current_coord, current_island, boat.cell), yaw = atan2(-direction.z, direction.x)}
+		world.boats[id] = {cell = boat.cell, yaw = atan2(-direction.z, direction.x)}
 		building.boat_launched = true
 	return id
 
@@ -1143,7 +1136,7 @@ func _cargo_island(id: int) -> IslandData:
 	if player_unit.boat_id == id:
 		var shore := _landing_tile()
 		if shore != GameTypes.NO_CELL:
-			return world.get_island(world_navigation.region_at(shore).coord)
+			return world.get_island(world_navigation.slot_at(shore))
 	elif player_unit.boat_id == -1:
 		var boat := _nearby_boat()
 		if not boat.is_empty() and boat.id == id:
@@ -1218,15 +1211,15 @@ func _disembark_boat() -> void:
 	if shore == GameTypes.NO_CELL:
 		return
 	_store_boat_position()
-	var destination := world_navigation.region_at(shore)
+	var destination := world_navigation.slot_at(shore)
 	world.piloted_boat = -1
 	player_unit.leave_boat()
 	world_view.hide_sailing_hover()
-	if destination.coord != world.current_coord:
-		_switch_to_island(destination.coord)
+	if destination != world.current_coord:
+		_switch_to_island(destination)
 	else:
 		player_unit.setup(renderer, world_navigation)
-	player_unit.place_at(destination.cell)
+	player_unit.place_at(shore)
 	camera_rig.center_on(player_unit.position)
 	_sync_dog()
 	landing_cell = GameTypes.NO_CELL
@@ -1236,10 +1229,10 @@ func _disembark_boat() -> void:
 
 
 func _reveal_nearby_island(cell: Vector2i) -> void:
-	var region := world_navigation.region_at(cell)
-	if region.is_empty() or not world.is_revealed(region.coord):
+	var coord := world_navigation.slot_at(cell)
+	if coord == WorldData.NO_COORD or not world.is_revealed(coord):
 		return
-	if _discover_island(region.coord):
+	if _discover_island(coord):
 		_save_game()
 
 
@@ -1645,6 +1638,8 @@ func _generate_island_at(coord: Vector2i) -> void:
 	var is_starter := coord == WorldData.CENTER
 	var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord, seed_value))
 	var island := generator.generate(profile, _island_seed(coord), building_manager)
+	# Generated on cells from (0, 0); centre it on its slot of the world lattice.
+	island.shift(WorldNavigationScript.island_origin(coord, Vector2i(profile.width, profile.height)))
 	if not is_starter:
 		_stock_bootstrap_supplies(island)
 	world.add_island(coord, island)
@@ -1714,8 +1709,7 @@ func _sail_to_island(coord: Vector2i) -> bool:
 	player_unit.set_selected(true)
 	var island: IslandData = world.islands[coord]
 	var candidates: Array = []
-	for local in island.terrain:
-		var cell := WorldNavigationScript.local_to_world(coord, island, local)
+	for cell: Vector2i in island.terrain:
 		if not world_navigation.can_sail(cell, player_unit.boat_id):
 			continue
 		for shore in HexGridScript.neighbors(cell):
@@ -1806,13 +1800,12 @@ func _find_unit_spawn_cell(island: IslandData) -> Vector2i:
 			if HexPathfinderScript.is_open(island, neighbor) and not island.has_item(neighbor):
 				return neighbor
 
-	for y in range(island.height):
-		for x in range(island.width):
-			var cell := Vector2i(x, y)
-			if _is_open_ground(island, cell):
-				return cell
+	for cell in island.terrain:
+		if _is_open_ground(island, cell):
+			return cell
 
-	return Vector2i.ZERO
+	# No open ground at all: the island's first cell, as good as any.
+	return island.terrain.keys().front() if not island.terrain.is_empty() else GameTypes.NO_CELL
 
 
 # Walkable land with nothing on it — somewhere a unit can stand without overlapping anything.

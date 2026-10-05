@@ -11,11 +11,11 @@ extends Node3D
 # cell_to_world(), world_to_cell(), set_hovered_world_position(), set_placement_preview(),
 # try_place_hovered_building(), get_hovered_building_type(), hovered_cell, cell_size.
 #
-# Every island on the disc has its own renderer, positioned at the island's spot in the shared
-# world (see WorldView). Everything it builds lives in island-local space as its children, but
-# the public positional API (get_cell_center, get_map_center, world_to_cell, cell_from_ray,
-# set_hovered_from_ray) speaks world space, so units, popups and the camera never need to know
-# where on the disc the island sits.
+# Every island on the disc has its own renderer (see WorldView). Island cells are world lattice
+# cells (WorldNavigation), and every renderer sits at the same offset from the world origin, so a
+# cell's renderer-local centre is just HexGrid.cell_center_3d(cell). The public positional API
+# (get_cell_center, get_map_center, world_to_cell, cell_from_ray, set_hovered_from_ray) speaks
+# world space, so units, popups and the camera never need to know the renderer's offset.
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 const HexPathfinderScript := preload("res://scripts/island/hex_pathfinder.gd")
@@ -295,7 +295,7 @@ func _local_to_cell(local_position: Vector3) -> Vector2i:
 	for candidate_y in range(row - 1, row + 2):
 		for candidate_x in range(column - 1, column + 2):
 			var cell := Vector2i(candidate_x, candidate_y)
-			if not island.is_in_bounds(cell):
+			if not island.has_cell(cell):
 				continue
 
 			if _cell_contains_xz(cell, point):
@@ -307,47 +307,37 @@ func _local_to_cell(local_position: Vector3) -> Vector2i:
 				nearest_distance = distance
 				nearest_cell = cell
 
-	return nearest_cell if island.is_in_bounds(nearest_cell) else GameTypes.NO_CELL
+	return nearest_cell if island.has_cell(nearest_cell) else GameTypes.NO_CELL
 
 
 func get_map_center() -> Vector3:
 	return position + _local_map_center()
 
 
+# Renderer-local centre of the bounds of the island's cell centres, at grass height.
 func _local_map_center() -> Vector3:
-	if island == null:
+	if island == null or island.terrain.is_empty():
 		return Vector3.ZERO
-	return grid_center(island.width, island.height, cell_size)
-
-
-# Island-local centre of a width x height cell grid's bounds, at grass height. Static so
-# WorldView can centre an island on its slot before the renderer exists.
-static func grid_center(grid_width: int, grid_height: int, size: Vector2) -> Vector3:
-	var min_xz := Vector2(INF, INF)
-	var max_xz := Vector2(-INF, -INF)
-	for y in range(grid_height):
-		for x in range(grid_width):
-			var center := HexGridScript.cell_center_3d(Vector2i(x, y), size)
-			min_xz.x = minf(min_xz.x, center.x)
-			min_xz.y = minf(min_xz.y, center.z)
-			max_xz.x = maxf(max_xz.x, center.x)
-			max_xz.y = maxf(max_xz.y, center.z)
-
-	var mid := (min_xz + max_xz) * 0.5
+	var bounds := _cell_center_bounds()
+	var mid := bounds.get_center()
 	return Vector3(mid.x, GRASS_TOP_Y, mid.y)
 
 
-func get_map_radius() -> float:
-	if island == null:
-		return cell_size.x
-
-	return 0.5 * maxf(island.width * cell_size.x, island.height * cell_size.y * 0.75)
+# The renderer-local XZ rectangle spanned by the centres of all the island's cells.
+func _cell_center_bounds() -> Rect2:
+	var min_xz := Vector2(INF, INF)
+	var max_xz := Vector2(-INF, -INF)
+	for cell in island.terrain:
+		var center := HexGridScript.cell_center_3d(cell, cell_size)
+		min_xz = min_xz.min(Vector2(center.x, center.z))
+		max_xz = max_xz.max(Vector2(center.x, center.z))
+	return Rect2(min_xz, max_xz - min_xz)
 
 
 func set_hovered_from_ray(origin: Vector3, direction: Vector3) -> void:
 	var cell := cell_from_ray(origin, direction)
 
-	if island == null or not island.is_in_bounds(cell):
+	if island == null or not island.has_cell(cell):
 		cell = GameTypes.NO_CELL
 
 	if hovered_cell == cell:
@@ -369,7 +359,7 @@ func cell_from_ray(origin: Vector3, direction: Vector3) -> Vector2i:
 		return GameTypes.NO_CELL
 
 	var cell := _local_to_cell(approx)
-	if island != null and island.is_in_bounds(cell):
+	if island != null and island.has_cell(cell):
 		var refined = _ray_plane_xz(local_origin, direction, _local_cell_center(cell).y)
 		if refined != null:
 			cell = _local_to_cell(refined)
@@ -519,38 +509,36 @@ func _rebuild_terrain() -> void:
 	if island == null:
 		return
 
-	for y in range(island.height):
-		for x in range(island.width):
-			var cell := Vector2i(x, y)
-			var terrain_type := island.get_terrain(cell)
-			# Deep ocean needs no seabed prism — the translucent water surface plane covers
-			# it. Only the shallow coast shelf and land are built as tiles.
-			if terrain_type == GameTypes.Terrain.WATER:
-				continue
-			var is_water := GameTypes.is_water(terrain_type)
+	for cell in island.terrain:
+		var terrain_type := island.get_terrain(cell)
+		# Deep ocean needs no seabed prism — the translucent water surface plane covers
+		# it. Only the shallow coast shelf and land are built as tiles.
+		if terrain_type == GameTypes.Terrain.WATER:
+			continue
+		var is_water := GameTypes.is_water(terrain_type)
 
-			var tile := MeshInstance3D.new()
-			tile.set_meta("terrain_type", terrain_type)
-			tile.mesh = _prism_mesh
-			# Land caps use their terrain colour; the submerged seabed uses sandy ground so
-			# the blue reads as the translucent water above it, not painted-on floor.
-			tile.material_override = _base_tile_material(terrain_type)
-			# The prism mesh is centered on its origin, so place it at the cell center (not
-			# the top-left anchor) to line up with units, objects, and mouse picking.
-			var center := HexGridScript.cell_center_3d(cell, cell_size)
-			if is_water:
-				# Seabed prism: top dropped below the water surface, walls falling to the
-				# shared floor — visible through the translucent surface plane as depth.
-				var seabed_top := _water_seabed_top_y(terrain_type)
-				tile.position = Vector3(center.x, WATER_FLOOR_Y, center.z)
-				tile.scale = Vector3(1.0, seabed_top - WATER_FLOOR_Y, 1.0)
-			else:
-				tile.position = Vector3(center.x, 0.0, center.z)
-				tile.scale = Vector3(1.0, _terrain_top_y(terrain_type), 1.0)
-			_terrain_root.add_child(tile)
-			# Land and shallow coast are hover targets; deep ocean is purely visual.
-			if _is_plot_cell(terrain_type):
-				_tiles[cell] = tile
+		var tile := MeshInstance3D.new()
+		tile.set_meta("terrain_type", terrain_type)
+		tile.mesh = _prism_mesh
+		# Land caps use their terrain colour; the submerged seabed uses sandy ground so
+		# the blue reads as the translucent water above it, not painted-on floor.
+		tile.material_override = _base_tile_material(terrain_type)
+		# The prism mesh is centered on its origin, so place it at the cell center (not
+		# the top-left anchor) to line up with units, objects, and mouse picking.
+		var center := HexGridScript.cell_center_3d(cell, cell_size)
+		if is_water:
+			# Seabed prism: top dropped below the water surface, walls falling to the
+			# shared floor — visible through the translucent surface plane as depth.
+			var seabed_top := _water_seabed_top_y(terrain_type)
+			tile.position = Vector3(center.x, WATER_FLOOR_Y, center.z)
+			tile.scale = Vector3(1.0, seabed_top - WATER_FLOOR_Y, 1.0)
+		else:
+			tile.position = Vector3(center.x, 0.0, center.z)
+			tile.scale = Vector3(1.0, _terrain_top_y(terrain_type), 1.0)
+		_terrain_root.add_child(tile)
+		# Land and shallow coast are hover targets; deep ocean is purely visual.
+		if _is_plot_cell(terrain_type):
+			_tiles[cell] = tile
 
 
 # Flat colour for a land cap (grass/sand/stone). The submerged seabed uses _seabed_material.
@@ -612,7 +600,7 @@ func _rebuild_water() -> void:
 	if _water_instance == null:
 		return
 
-	if island == null:
+	if island == null or island.terrain.is_empty():
 		_water_instance.visible = false
 		return
 
@@ -621,17 +609,22 @@ func _rebuild_water() -> void:
 	plane.size = Vector2.ONE * WATER_PLANE_RADIUS * 2.0
 	_water_instance.mesh = plane
 
+	# The shader looks cells up in its own grid, numbered from the frame's corner; island_origin
+	# and grid_min are given relative to that corner.
+	var frame := _water_frame()
+	var frame_offset := HexGridScript.cell_to_world_3d(frame.position, cell_size)
+	var frame_origin := Vector2(position.x + frame_offset.x, position.z + frame_offset.z)
 	var center := _local_map_center()
-	_water_material.set_shader_parameter("island_origin", Vector2(position.x, position.z))
+	_water_material.set_shader_parameter("island_origin", frame_origin)
 	_water_material.set_shader_parameter("fade_center", Vector2(position.x + center.x, position.z + center.z))
 	_water_material.set_shader_parameter("fade_radius", WATER_PLANE_RADIUS)
 	_water_material.set_shader_parameter("fade_width", WATER_FADE_WIDTH)
 
-	_water_material.set_shader_parameter("cell_mask", _build_land_mask_texture())
-	_water_material.set_shader_parameter("cell_count", Vector2i(island.width, island.height))
+	_water_material.set_shader_parameter("cell_mask", _build_land_mask_texture(frame))
+	_water_material.set_shader_parameter("cell_count", frame.size)
 	_water_material.set_shader_parameter("cell_size", cell_size)
 	_water_material.set_shader_parameter("shore_distance", bake["texture"])
-	_water_material.set_shader_parameter("grid_min", bake["min"])
+	_water_material.set_shader_parameter("grid_min", bake["min"] - Vector2(frame_offset.x, frame_offset.z))
 	_water_material.set_shader_parameter("grid_size", bake["size"])
 	_water_material.set_shader_parameter("far_distance", bake["far_distance"])
 
@@ -649,14 +642,26 @@ func _make_toon_water_material() -> ShaderMaterial:
 	return material
 
 
-# One texel per cell, R = 1 for land. The shader tests the cells around each fragment against
-# this to get the exact distance to the hexagonal coastline.
-func _build_land_mask_texture() -> ImageTexture:
-	var image := Image.create(island.width, island.height, false, Image.FORMAT_R8)
-	for y in range(island.height):
-		for x in range(island.width):
-			var is_land := not GameTypes.is_water(island.get_terrain(Vector2i(x, y)))
-			image.set_pixel(x, y, Color(1.0 if is_land else 0.0, 0.0, 0.0))
+# The rectangle of cells the water shader numbers its own grid by: it covers the island and starts
+# on an even row, so the shader's odd rows (shifted half a tile) are the world's odd rows too.
+func _water_frame() -> Rect2i:
+	var min_cell := Vector2i.MAX
+	var max_cell := Vector2i.MIN
+	for cell in island.terrain:
+		min_cell = min_cell.min(cell)
+		max_cell = max_cell.max(cell)
+	min_cell.y -= posmod(min_cell.y, 2)
+	return Rect2i(min_cell, max_cell - min_cell + Vector2i.ONE)
+
+
+# One texel per cell of the frame, R = 1 for land. The shader tests the cells around each fragment
+# against this to get the exact distance to the hexagonal coastline.
+func _build_land_mask_texture(frame: Rect2i) -> ImageTexture:
+	var image := Image.create(frame.size.x, frame.size.y, false, Image.FORMAT_R8)
+	for cell in island.terrain:
+		if not GameTypes.is_water(island.get_terrain(cell)):
+			var texel: Vector2i = cell - frame.position
+			image.set_pixel(texel.x, texel.y, Color(1.0, 0.0, 0.0))
 	return ImageTexture.create_from_image(image)
 
 
@@ -669,17 +674,15 @@ func _build_shore_distance_texture() -> Dictionary:
 	var max_xz := Vector2(-INF, -INF)
 	var land_centers: Array[Vector2] = []
 
-	for y in range(island.height):
-		for x in range(island.width):
-			var cell := Vector2i(x, y)
-			var center := HexGridScript.cell_center_3d(cell, cell_size)
-			var xz := Vector2(center.x, center.z)
-			min_xz.x = minf(min_xz.x, xz.x)
-			min_xz.y = minf(min_xz.y, xz.y)
-			max_xz.x = maxf(max_xz.x, xz.x)
-			max_xz.y = maxf(max_xz.y, xz.y)
-			if not GameTypes.is_water(island.get_terrain(cell)):
-				land_centers.append(xz)
+	for cell in island.terrain:
+		var center := HexGridScript.cell_center_3d(cell, cell_size)
+		var xz := Vector2(center.x, center.z)
+		min_xz.x = minf(min_xz.x, xz.x)
+		min_xz.y = minf(min_xz.y, xz.y)
+		max_xz.x = maxf(max_xz.x, xz.x)
+		max_xz.y = maxf(max_xz.y, xz.y)
+		if not GameTypes.is_water(island.get_terrain(cell)):
+			land_centers.append(xz)
 
 	var size := max_xz - min_xz
 	if size.x <= 0.0:
@@ -736,20 +739,18 @@ func _rebuild_grid() -> void:
 	st.begin(Mesh.PRIMITIVE_LINES)
 	var has_segments := false
 
-	for y in range(island.height):
-		for x in range(island.width):
-			var cell := Vector2i(x, y)
-			var terrain_type := island.get_terrain(cell)
-			if not _is_plot_cell(terrain_type):
-				continue
+	for cell in island.terrain:
+		var terrain_type := island.get_terrain(cell)
+		if not _is_plot_cell(terrain_type):
+			continue
 
-			var center := HexGridScript.cell_center_3d(cell, cell_size)
-			center.y = _tile_top_y(terrain_type) + 0.5
-			var corners := HexGridScript.hex_corners_3d(center, cell_size)
-			for i in range(6):
-				st.add_vertex(corners[i])
-				st.add_vertex(corners[(i + 1) % 6])
-				has_segments = true
+		var center := HexGridScript.cell_center_3d(cell, cell_size)
+		center.y = _tile_top_y(terrain_type) + 0.5
+		var corners := HexGridScript.hex_corners_3d(center, cell_size)
+		for i in range(6):
+			st.add_vertex(corners[i])
+			st.add_vertex(corners[(i + 1) % 6])
+			has_segments = true
 
 	_grid_instance.mesh = st.commit() if has_segments else null
 
@@ -806,21 +807,18 @@ func _rebuild_objects() -> void:
 	for anchor_cell in island.buildings.keys():
 		var building_type: int = island.buildings[anchor_cell].type
 		_spawn_building(anchor_cell, building_type)
-	var boat_data := world_data.boats if world_data != null else island.boats
-	for id in boat_data:
-		if id == (world_data.piloted_boat if world_data != null else island.piloted_boat):
+
+	# Parked boats on this island's cells; the piloted one is drawn by the robot.
+	var boats: Dictionary = world_data.boats if world_data != null else {}
+	for id in boats:
+		var boat_cell: Vector2i = boats[id].cell
+		if id == world_data.piloted_boat or not island.has_cell(boat_cell):
 			continue
-		var boat_cell: Vector2i = boat_data[id].cell
-		if world_data != null:
-			var coord := world_data.coord_of(island)
-			boat_cell = WorldNavigation.world_to_local(coord, island, boat_cell)
-			if not island.is_in_bounds(boat_cell):
-				continue
 		var boat := SALVAGE_SKIFF_MODEL.instantiate() as Node3D
 		_objects_root.add_child(boat)
 		boat.scale = Vector3.ONE * cell_size.x / TRUE_TILE_UNITS
 		boat.position = get_water_center(boat_cell) - position
-		boat.rotation.y = float(boat_data[id].get("yaw", 0.0))
+		boat.rotation.y = float(boats[id].get("yaw", 0.0))
 
 
 func _spawn_resource(cell: Vector2i, resource_node_type: int) -> void:
@@ -1109,7 +1107,7 @@ func _rebuild_preview() -> void:
 	var tint := Color(0.45, 1.0, 0.5, 0.4) if can_place else Color(1.0, 0.3, 0.3, 0.4)
 
 	for cell in footprint:
-		if not island.is_in_bounds(cell):
+		if not island.has_cell(cell):
 			continue
 		var marker := MeshInstance3D.new()
 		marker.mesh = _cap_mesh

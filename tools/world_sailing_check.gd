@@ -20,7 +20,6 @@ func _run() -> void:
 	root.add_child(game)
 	await process_frame
 	_check_coordinates(game)
-	_check_legacy_migration()
 	var origin: IslandData = game.current_island
 	var anchor := GameTypes.NO_CELL
 	var rotation := 0
@@ -61,7 +60,7 @@ func _run() -> void:
 			game.player_unit._process(0.25)
 			expect(before.distance_to(game.player_unit.position) <= game.player_unit.move_speed * 0.25 + 0.01, "Continuous movement across island boundaries")
 			expect(game.world.current_coord == WorldData.CENTER, "Sailing does not change active inventory")
-			if navigation.region_at(game.player_unit.current_cell).is_empty():
+			if navigation.slot_at(game.player_unit.current_cell) == WorldData.NO_COORD:
 				crossed_sea = true
 				break
 			steps += 1
@@ -102,7 +101,7 @@ func _run() -> void:
 		expect(game.stat_tracker.get_value(GameTypes.Stat.ISLANDS_REACHED) == discoveries, "Landing does not count discovery twice")
 		expect(game.resource_manager.inventory == game.current_island.inventory, "Landing switches island inventory")
 		expect(game.world.boats[boat_id].cell == water_cell, "Boat stays at actual destination")
-		expect(game.player_unit.current_cell == Nav.world_to_local(target, game.current_island, landing), "Robot lands on chosen shore tile")
+		expect(game.player_unit.current_cell == landing, "Robot lands on chosen shore tile")
 		game._board_boat()
 		expect(game.player_unit.boat_id == boat_id and game.world.boats.size() == 1, "Same boat can be reboarded on new island")
 		game._command_boat_to(navigation.cell_from_position(Vector3(navigation.sailing_radius() + 500.0, Nav.SEA_Y, 0.0)))
@@ -136,32 +135,66 @@ func _run() -> void:
 	print("World sailing: PASS" if failures == 0 else "World sailing: FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
 
+# Island cells are world lattice cells: each island is centred on its own slot, picking finds its
+# cells (negative rows too), and every renderer draws a cell exactly where the lattice has it.
 func _check_coordinates(game: Node) -> void:
 	for coord in game.world.islands:
 		var island: IslandData = game.world.islands[coord]
-		for local in [Vector2i.ZERO, Vector2i(3, 3), Vector2i(4, 4), Vector2i(island.width - 1, island.height - 1)]:
-			var cell := Nav.local_to_world(coord, island, local)
-			expect(Nav.world_to_local(coord, island, cell) == local, "Local/world coordinates round trip")
+		expect(island.has_cell(HexGrid.axial_to_offset(Nav.slot_axial(coord))), "Island is centred on its slot")
+		var cells: Array = island.terrain.keys()
+		for cell in [cells.front(), cells[cells.size() / 2], cells.back()]:
+			expect(game.world_navigation.slot_at(cell) == coord, "Island cells belong to its slot")
 			expect(game.world_navigation.cell_from_position(Nav.cell_center(cell)) == cell, "World picking handles negative rows")
-			for neighbor in HexGrid.neighbors(local):
-				expect(HexGrid.neighbors(cell).has(Nav.local_to_world(coord, island, neighbor)), "Shared lattice preserves neighbours")
 			var renderer: IslandRenderer = game.world_view.renderer_for(coord)
 			if renderer != null:
-				expect(renderer.get_water_center(local).is_equal_approx(Nav.cell_center(cell)), "Renderer aligns exactly to shared grid")
+				expect(renderer.get_water_center(cell).is_equal_approx(Nav.cell_center(cell)), "Renderer aligns exactly to shared grid")
+		if game.world_view.renderer_for(coord) != null:
+			_check_water_grid(game, game.world_view.renderer_for(coord))
 
-func _check_legacy_migration() -> void:
-	var old := WorldData.new()
-	var island := IslandData.new(30, 24)
-	island.boats[2] = {cell = Vector2i(5, 5), yaw = 1.0}
-	island.piloted_boat = 2
-	old.add_island(Vector2i.ZERO, island)
-	var navigation := Nav.new()
-	navigation.setup(old)
-	navigation.migrate_boats()
-	expect(old.boats.size() == 1 and old.piloted_boat == 0, "Old local boats migrate with occupant")
-	expect(old.boats[0].cell == Nav.local_to_world(Vector2i.ZERO, island, Vector2i(5, 5)), "Migration preserves world location")
-	navigation.migrate_boats()
-	expect(old.boats.size() == 1 and island.boats.is_empty(), "Migration runs only once")
+	# Moving an island keeps its shape, also by an odd number of rows (where adding the offset
+	# to odd-r cells directly would shear it).
+	var island := IslandData.new(4, 3)
+	island.set_terrain(Vector2i(1, 1), GameTypes.Terrain.GRASS)
+	var before: Array = island.terrain.keys()
+	var offset := Vector2i(5, -7)
+	island.shift(offset)
+	var after: Array = island.terrain.keys()
+	for index in before.size():
+		var moved: Vector3 = Nav.cell_center(after[index]) - Nav.cell_center(before[index])
+		expect(moved.is_equal_approx(Nav.cell_center(after[0]) - Nav.cell_center(before[0])), "Shift moves every cell the same way")
+	expect(island.get_terrain(HexGrid.shift(Vector2i(1, 1), offset)) == GameTypes.Terrain.GRASS, "Shift keeps terrain")
+
+	# An island whose cells start on an odd row: the water shader's own grid must still line up.
+	var renderer := IslandRenderer.new()
+	renderer.setup(game.resource_node_database, game.building_manager)
+	game.world_view.add_child(renderer)
+	renderer.position = game.renderer.position
+	renderer.render(island)
+	_check_water_grid(game, renderer)
+	renderer.queue_free()
+
+
+# The water shader finds the cell under each fragment in its own grid, counted from island_origin
+# with odd rows shifted half a tile, and looks it up in a land mask built from the renderer's water
+# frame. Emulates that lookup at the centre of every tile.
+func _check_water_grid(game: Node, renderer: IslandRenderer) -> void:
+	var material: ShaderMaterial = renderer._water_material
+	var origin: Vector2 = material.get_shader_parameter("island_origin")
+	var frame: Rect2i = renderer._water_frame()
+	expect(material.get_shader_parameter("cell_count") == frame.size, "Water mask covers the frame")
+	var size := renderer.cell_size
+	var min_center := Vector2(INF, INF)
+	for cell in renderer.island.terrain:
+		var center := renderer.get_water_center(cell)
+		var local := Vector2(center.x, center.z) - origin
+		var shader_cell: Vector2i = game.world_navigation.cell_from_position(Vector3(local.x - size.x * 0.5, 0.0, local.y - size.y * 0.5))
+		expect(shader_cell + frame.position == cell, "Water shader finds each cell under its tile")
+		var row_offset := 0.5 if (shader_cell.y & 1) != 0 else 0.0
+		var shader_center := Vector2((shader_cell.x + row_offset + 0.5) * size.x, (shader_cell.y * 0.75 + 0.5) * size.y)
+		expect(shader_center.is_equal_approx(local), "Water shader puts each hexagon on its tile")
+		min_center = min_center.min(Vector2(center.x, center.z))
+	var grid_min: Vector2 = material.get_shader_parameter("grid_min")
+	expect((grid_min + origin).is_equal_approx(min_center), "Water depth field starts at the island's first tile")
 
 func _capture(game: Node, name: String, point: Vector3, overview: bool) -> void:
 	root.size = Vector2i(1400, 900)

@@ -283,7 +283,7 @@ func _any_neighbor_matches(neighbors: Array[Vector2i], reference: Dictionary, is
 func _cell_matches(cell: Vector2i, reference: Dictionary, island: IslandData) -> bool:
 	match int(reference.kind):
 		GameTypes.AdjacencyKind.TERRAIN:
-			return island.is_in_bounds(cell) and island.get_terrain(cell) == int(reference.type)
+			return island.has_cell(cell) and island.get_terrain(cell) == int(reference.type)
 		GameTypes.AdjacencyKind.RESOURCE:
 			return island.get_resource_node_type(cell) == int(reference.type)
 		GameTypes.AdjacencyKind.BUILDING:
