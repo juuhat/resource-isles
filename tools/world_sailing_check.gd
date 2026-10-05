@@ -22,15 +22,15 @@ func _run() -> void:
 	_check_coordinates(game)
 	_check_legacy_migration()
 	var origin: IslandData = game.current_island
-	var anchor := Vector2i(-1, -1)
+	var anchor := GameTypes.NO_CELL
 	var rotation := 0
 	for local in origin.terrain:
 		rotation = game.building_manager.fit_rotation(local, GameTypes.BuildingType.DOCK, origin, 0)
 		if game.building_manager.can_place(local, GameTypes.BuildingType.DOCK, origin, rotation):
 			anchor = local
 			break
-	expect(anchor != Vector2i(-1, -1), "Dock available")
-	if anchor != Vector2i(-1, -1):
+	expect(anchor != GameTypes.NO_CELL, "Dock available")
+	if anchor != GameTypes.NO_CELL:
 		game.renderer.place_building_at(anchor, GameTypes.BuildingType.DOCK, rotation)
 		game.player_unit.place_at(origin.buildings[anchor].cells[1])
 		game.player_unit.set_selected(true)
@@ -95,7 +95,7 @@ func _run() -> void:
 		expect(game.stat_tracker.get_value(GameTypes.Stat.ISLANDS_REACHED) == discoveries, "Repeated approach does not duplicate discovery")
 		expect(game.stat_tracker.get_value(GameTypes.Stat.DOG_ISLAND_DISCOVERED) == 1, "Repeated approach does not duplicate rescue island discovery")
 		var landing: Vector2i = game._landing_tile()
-		expect(landing != Vector2i(-1, -1), "Reach a valid shore landing")
+		expect(landing != GameTypes.NO_CELL, "Reach a valid shore landing")
 		var water_cell: Vector2i = game.player_unit.current_cell
 		game._disembark_boat()
 		expect(game.world.current_coord == target and game.current_island.visited, "Landing activates already-discovered destination")

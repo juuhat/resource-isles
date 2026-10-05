@@ -46,7 +46,7 @@ const DOG_WALK_ANIM := preload("res://assets/models/units/dog_animation_walking.
 @export var follow_check_seconds := 0.3
 
 var renderer: IslandRenderer
-var current_cell := Vector2i(-1, -1)
+var current_cell := GameTypes.NO_CELL
 var mode := Mode.STRANDED
 # The unit the dog follows in FOLLOWING mode (the player robot).
 var leader: PlayerUnit
@@ -54,7 +54,7 @@ var leader: PlayerUnit
 var _island: IslandData
 var _path: Array[Vector2i] = []
 var _target_world := Vector3.ZERO
-var _pending_cell := Vector2i(-1, -1)
+var _pending_cell := GameTypes.NO_CELL
 var _moving := false
 var _speed := 180.0
 var _pause_timer := 0.0
@@ -125,7 +125,7 @@ func celebrate() -> void:
 
 
 func _place(island: IslandData, cell: Vector2i) -> void:
-	if island == null or renderer == null or cell == Vector2i(-1, -1):
+	if island == null or renderer == null or cell == GameTypes.NO_CELL:
 		halt()
 		return
 
@@ -198,7 +198,7 @@ func _start_next_move() -> void:
 # The path to a cell beside the robot, or [] when the dog is already close enough (or the robot
 # is unreachable). Stops one step short so the dog sits next to the robot, not on it.
 func _pick_follow_path() -> Array[Vector2i]:
-	if leader == null or leader.current_cell == Vector2i(-1, -1):
+	if leader == null or leader.current_cell == GameTypes.NO_CELL:
 		return []
 
 	var path := HexPathfinderScript.find_path(_island, current_cell, leader.current_cell)

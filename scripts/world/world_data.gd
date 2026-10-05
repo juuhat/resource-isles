@@ -30,7 +30,7 @@ var trade_routes: Array[TradeRoute] = []
 # at there, and whether the robot has picked it up. Until rescued it stays put on dog_coord; once
 # rescued it follows the robot between islands. NO_COORD / (-1, -1) until main assigns them.
 var dog_coord := NO_COORD
-var dog_cell := Vector2i(-1, -1)
+var dog_cell := GameTypes.NO_CELL
 var dog_rescued := false
 
 
@@ -202,6 +202,6 @@ static func from_dict(data: Dictionary, reference_time: float) -> WorldData:
 	# Saves from before the rescue have no dog data; main assigns a fresh spot (and treats an
 	# already-completed rescue quest as rescued) — see main._ensure_dog_placed.
 	world.dog_coord = data.get("dog_coord", NO_COORD)
-	world.dog_cell = data.get("dog_cell", Vector2i(-1, -1))
+	world.dog_cell = data.get("dog_cell", GameTypes.NO_CELL)
 	world.dog_rescued = bool(data.get("dog_rescued", false))
 	return world

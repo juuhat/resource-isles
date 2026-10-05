@@ -113,7 +113,7 @@ func _tree_with_open_neighbour(game: Node, island: IslandData) -> Vector2i:
 			if HexPathfinderScript.is_open(island, neighbor):
 				return cell
 	_expect(false, "Need a tree with an open neighbour")
-	return Vector2i(-1, -1)
+	return GameTypes.NO_CELL
 
 
 func _place_near(game: Node, island: IslandData, from: Vector2i, building_type: int) -> Vector2i:
@@ -124,7 +124,7 @@ func _place_near(game: Node, island: IslandData, from: Vector2i, building_type: 
 			_expect(game.renderer.place_building_at(cell, building_type))
 			return cell
 	_expect(false, "Need a site for building %d" % building_type)
-	return Vector2i(-1, -1)
+	return GameTypes.NO_CELL
 
 
 func _open_cell_away_from(island: IslandData, from: Vector2i, min_distance: int) -> Vector2i:

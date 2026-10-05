@@ -38,7 +38,7 @@ func _run() -> void:
 		assert(game.building_menu._building_art(definition) is ViewportTexture,
 			"%s shows its 3D model in the build menu" % definition.display_name)
 		var cell := _free_cell(game, island, renderer, definition.id)
-		if cell == Vector2i(-1, -1):
+		if cell == GameTypes.NO_CELL:
 			print("Placement preview: no free spot for %s, skipped" % definition.display_name)
 			continue
 		var rotation := renderer.placement_rotation_at(cell, definition.id)
@@ -74,7 +74,7 @@ func _free_cell(game: Node, island: IslandData, renderer: IslandRenderer, buildi
 		var rotation := renderer.placement_rotation_at(cell, building_type)
 		if renderer._can_place_at(cell, building_type, rotation):
 			return cell
-	return Vector2i(-1, -1)
+	return GameTypes.NO_CELL
 
 
 # The model ghost among the preview's tile caps and yield labels.

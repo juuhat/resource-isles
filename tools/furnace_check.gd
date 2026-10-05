@@ -182,13 +182,13 @@ func _check_scene() -> void:
 	await process_frame
 	game.quest_manager.restore_completed({GameTypes.QuestId.FOUNDATIONS: true})
 	game.stat_tracker.add(GameTypes.Stat.DOG_RESCUED, 1)
-	var cell := Vector2i(-1, -1)
+	var cell := GameTypes.NO_CELL
 	for candidate in game.current_island.terrain:
 		if game.building_manager.can_place(candidate, FURNACE, game.current_island) and not game._is_unit_cell(candidate):
 			cell = candidate
 			break
-	expect(cell != Vector2i(-1, -1), "Find Furnace placement in real scene")
-	if cell != Vector2i(-1, -1):
+	expect(cell != GameTypes.NO_CELL, "Find Furnace placement in real scene")
+	if cell != GameTypes.NO_CELL:
 		game.current_island.inventory.set_amount(GameTypes.ResourceType.WOOD, 4)
 		game.current_island.inventory.set_amount(GameTypes.ResourceType.STONE, 12)
 		game.selected_building_type = FURNACE

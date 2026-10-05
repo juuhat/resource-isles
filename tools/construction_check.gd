@@ -55,7 +55,7 @@ func _run() -> void:
 
 	# Place the camp a few steps from the robot so it has to walk.
 	var cell := _free_cell(game, island, CAMP, robot.current_cell)
-	assert(cell != Vector2i(-1, -1), "Need a free spot for a logger camp")
+	assert(cell != GameTypes.NO_CELL, "Need a free spot for a logger camp")
 	renderer.hovered_cell = cell
 	game.selected_building_type = CAMP
 	assert(game._try_place_selected_building(), "The camp blueprint is placed")
@@ -121,7 +121,7 @@ func _run() -> void:
 
 	# Cancelling a blueprint refunds it.
 	var quarry_cell := _free_cell(game, island, QUARRY, robot.current_cell)
-	assert(quarry_cell != Vector2i(-1, -1), "Need a free spot for a quarry")
+	assert(quarry_cell != GameTypes.NO_CELL, "Need a free spot for a quarry")
 	renderer.hovered_cell = quarry_cell
 	game.selected_building_type = QUARRY
 	assert(game._try_place_selected_building(), "The quarry blueprint is placed")
@@ -142,7 +142,7 @@ func _run() -> void:
 # A cell where building_type fits, 2+ steps from `near` but reachable from it.
 func _free_cell(game: Node, island: IslandData, building_type: int, near: Vector2i) -> Vector2i:
 	var search := HexPathfinderScript.search(island, near)
-	var best := Vector2i(-1, -1)
+	var best := GameTypes.NO_CELL
 	var best_cost := INF
 	for cell in island.terrain.keys():
 		var cost: float = search.cost.get(cell, INF)
@@ -160,7 +160,7 @@ func _open_cell_away_from(island: IslandData, cell: Vector2i, from: Vector2i) ->
 		if HexPathfinderScript.is_open(island, candidate) and not island.has_item(candidate) \
 				and candidate != cell and not HexGridScript.neighbors(cell).has(candidate) and search.cost[candidate] >= 2:
 			return candidate
-	return Vector2i(-1, -1)
+	return GameTypes.NO_CELL
 
 
 func _site_for(renderer: IslandRenderer, cell: Vector2i) -> ConstructionSite:

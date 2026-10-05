@@ -152,7 +152,7 @@ func _unindex_building(anchor_cell: Vector2i) -> void:
 		return
 	for cell in buildings[anchor_cell].get("cells", []):
 		# Leave a cell another building has since claimed.
-		if _anchor_by_cell.get(cell, Vector2i(-1, -1)) == anchor_cell:
+		if _anchor_by_cell.get(cell, GameTypes.NO_CELL) == anchor_cell:
 			_anchor_by_cell.erase(cell)
 
 
@@ -162,14 +162,14 @@ func has_building(cell: Vector2i) -> bool:
 
 func get_building_type(cell: Vector2i) -> int:
 	var anchor_cell := get_building_anchor_cell(cell)
-	if anchor_cell == Vector2i(-1, -1):
+	if anchor_cell == GameTypes.NO_CELL:
 		return -1
 
 	return buildings[anchor_cell].type
 
 
 func get_building_anchor_cell(cell: Vector2i) -> Vector2i:
-	return _anchor_by_cell.get(cell, Vector2i(-1, -1))
+	return _anchor_by_cell.get(cell, GameTypes.NO_CELL)
 
 
 func get_building_footprint_cells(anchor_cell: Vector2i) -> Array[Vector2i]:
@@ -194,7 +194,7 @@ func get_building_rotation(anchor_cell: Vector2i) -> int:
 # True for a blueprint, given any of its cells.
 func is_under_construction(cell: Vector2i) -> bool:
 	var anchor_cell := get_building_anchor_cell(cell)
-	return anchor_cell != Vector2i(-1, -1) and buildings[anchor_cell].has("build_progress")
+	return anchor_cell != GameTypes.NO_CELL and buildings[anchor_cell].has("build_progress")
 
 
 # True for a finished building, given any of its cells.

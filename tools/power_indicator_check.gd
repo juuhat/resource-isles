@@ -31,7 +31,7 @@ func _run() -> void:
 	var island: IslandData = game.current_island
 	var renderer: IslandRenderer = game.renderer
 	var cell := _free_cell(game, island, GameTypes.BuildingType.SAWMILL)
-	assert(cell != Vector2i(-1, -1), "Need a free spot for a sawmill")
+	assert(cell != GameTypes.NO_CELL, "Need a free spot for a sawmill")
 	assert(renderer.place_building_at(cell, GameTypes.BuildingType.SAWMILL))
 
 	var indicator := _indicator_for(renderer, cell)
@@ -53,13 +53,13 @@ func _run() -> void:
 	assert(not indicator.visible, "Operate powers the building, so the bolt hides")
 
 	game.is_operating = false
-	game.operate_cell = Vector2i(-1, -1)
+	game.operate_cell = GameTypes.NO_CELL
 	await _frames(3)
 	assert(indicator.visible, "The bolt returns once the robot stops operating")
 
 	# Non-consumers never get one.
 	var windmill_cell := _free_cell(game, island, GameTypes.BuildingType.WINDMILL)
-	if windmill_cell != Vector2i(-1, -1) and renderer.place_building_at(windmill_cell, GameTypes.BuildingType.WINDMILL):
+	if windmill_cell != GameTypes.NO_CELL and renderer.place_building_at(windmill_cell, GameTypes.BuildingType.WINDMILL):
 		assert(_indicator_for(renderer, windmill_cell) == null, "Generators get no bolt")
 
 	print("POWER INDICATOR CHECK PASSED")
@@ -73,7 +73,7 @@ func _free_cell(game: Node, island: IslandData, building_type: int) -> Vector2i:
 	for cell in island.terrain.keys():
 		if game.building_manager.can_place(cell, building_type, island):
 			return cell
-	return Vector2i(-1, -1)
+	return GameTypes.NO_CELL
 
 
 func _indicator_for(renderer: IslandRenderer, cell: Vector2i) -> PowerIndicator:

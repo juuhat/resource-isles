@@ -95,7 +95,7 @@ static func find_path(island: IslandData, start: Vector2i, goal: Vector2i) -> Ar
 
 # Dijkstra from start over walkable ground. Returns {cost = {cell: total cost}, came_from = {cell:
 # previous cell}}, covering every reachable cell, or stopping early once `goal` is settled.
-static func search(island: IslandData, start: Vector2i, goal := Vector2i(-1, -1)) -> Dictionary:
+static func search(island: IslandData, start: Vector2i, goal := GameTypes.NO_CELL) -> Dictionary:
 	var cost := {start: 0}
 	var came_from := {start: start}
 	var settled := {}

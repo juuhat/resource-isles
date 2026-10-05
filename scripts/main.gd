@@ -89,7 +89,7 @@ var selected_building_type := NO_BUILDING
 # that lands mid-move (so quitting/crashing mid-move leaves it where it started — never lost).
 # selected_building_type carries the type meanwhile, driving the (free) placement preview.
 var is_moving_building := false
-var moving_from_cell := Vector2i(-1, -1)
+var moving_from_cell := GameTypes.NO_CELL
 var moving_building_type := NO_BUILDING
 var moving_rotation := 0
 var moving_boat_launched := false
@@ -118,9 +118,9 @@ var quest_tracker_view: QuestTrackerView
 var toast: Toast
 var game_menu: GameMenu
 var _placement_player: AudioStreamPlayer
-var pending_action_cell := Vector2i(-1, -1)
-var landing_cell := Vector2i(-1, -1)
-var harvestable_cell := Vector2i(-1, -1)
+var pending_action_cell := GameTypes.NO_CELL
+var landing_cell := GameTypes.NO_CELL
+var harvestable_cell := GameTypes.NO_CELL
 
 # Throttled crash backstop: resource changes (harvesting, production, fuel) mark the game
 # dirty, and _process flushes a save at most once per AUTOSAVE_INTERVAL_SECONDS. The discrete
@@ -130,7 +130,7 @@ var _autosave_dirty := false
 var _autosave_accum := 0.0
 
 var is_harvesting := false
-var harvest_cell := Vector2i(-1, -1)
+var harvest_cell := GameTypes.NO_CELL
 var harvest_resource_type := -1
 var _harvest_accum := 0.0
 
@@ -138,16 +138,16 @@ var _harvest_accum := 0.0
 # power-consuming building anchored at operate_cell (power_manager treats that cell as
 # powered for free). operable_cell is the parked tile where the Operate action is offered.
 var is_operating := false
-var operate_cell := Vector2i(-1, -1)
-var operable_cell := Vector2i(-1, -1)
+var operate_cell := GameTypes.NO_CELL
+var operable_cell := GameTypes.NO_CELL
 
 # Construction: placing a building puts down a blueprint (IslandData.is_under_construction) and
 # sends the robot to raise it. While is_constructing it works the blueprint anchored at
 # construct_cell, adding to its build progress; buildable_cell is the blueprint it is parked at,
 # where the Build action is offered to start or resume the work.
 var is_constructing := false
-var construct_cell := Vector2i(-1, -1)
-var buildable_cell := Vector2i(-1, -1)
+var construct_cell := GameTypes.NO_CELL
+var buildable_cell := GameTypes.NO_CELL
 
 
 func _ready() -> void:
@@ -279,7 +279,7 @@ func _save_game() -> bool:
 	var restore_for_save := (
 		is_moving_building
 		and current_island != null
-		and moving_from_cell != Vector2i(-1, -1)
+		and moving_from_cell != GameTypes.NO_CELL
 		and not current_island.has_building(moving_from_cell)
 	)
 	if restore_for_save:
@@ -372,7 +372,7 @@ func _process(delta: float) -> void:
 	for coord in world.islands:
 		var island: IslandData = world.islands[coord]
 		var is_current := island == current_island
-		var operated_cell := operate_cell if is_current and is_operating else Vector2i(-1, -1)
+		var operated_cell := operate_cell if is_current and is_operating else GameTypes.NO_CELL
 		power_manager.update(island, current_time_seconds, operated_cell, is_current)
 		production_manager.update(island, current_time_seconds)
 	trade_manager.update(current_time_seconds)
@@ -647,7 +647,7 @@ func _command_unit_to(cell: Vector2i) -> bool:
 		return _command_boat_to(WorldNavigationScript.local_to_world(world.current_coord, current_island, cell))
 
 	# A building's tiles are all targets, even one standing in the water (the dock's pier).
-	if cell == Vector2i(-1, -1) or not (HexPathfinderScript.is_walkable(current_island, cell) or current_island.has_building(cell) or not _boat_at(cell).is_empty()):
+	if cell == GameTypes.NO_CELL or not (HexPathfinderScript.is_walkable(current_island, cell) or current_island.has_building(cell) or not _boat_at(cell).is_empty()):
 		return false
 
 	var plan := _plan_approach(cell, player_unit.current_cell)
@@ -656,7 +656,7 @@ func _command_unit_to(cell: Vector2i) -> bool:
 
 	pending_action_cell = cell
 
-	if plan.path.is_empty() and plan.spot_cell == Vector2i(-1, -1):
+	if plan.path.is_empty() and plan.spot_cell == GameTypes.NO_CELL:
 		# Already where it can work the target: switch to it without moving.
 		if cell != harvest_cell:
 			_stop_harvesting()
@@ -670,9 +670,9 @@ func _command_unit_to(cell: Vector2i) -> bool:
 	_stop_harvesting()
 	_stop_operating()
 	_stop_constructing()
-	harvestable_cell = Vector2i(-1, -1)
-	operable_cell = Vector2i(-1, -1)
-	buildable_cell = Vector2i(-1, -1)
+	harvestable_cell = GameTypes.NO_CELL
+	operable_cell = GameTypes.NO_CELL
+	buildable_cell = GameTypes.NO_CELL
 	player_unit.follow_path(plan.path, plan.spot_cell, plan.spot_position)
 	_refresh_action_bar()
 	return true
@@ -692,7 +692,7 @@ func _command_boat_to(cell: Vector2i) -> bool:
 	var path := world_navigation.find_path(player_unit.next_cell(), cell, player_unit.boat_id)
 	if path.is_empty():
 		return false
-	landing_cell = Vector2i(-1, -1)
+	landing_cell = GameTypes.NO_CELL
 	pending_action_cell = cell
 	if player_unit.is_moving():
 		player_unit.reroute(path)
@@ -717,13 +717,13 @@ func _plan_approach(target: Vector2i, start: Vector2i) -> Dictionary:
 	var no_path: Array[Vector2i] = []
 	if not _boat_at(target).is_empty():
 		var search := HexPathfinderScript.search(island, start)
-		var best := Vector2i(-1, -1)
+		var best := GameTypes.NO_CELL
 		var cost := INF
 		for shore in HexGridScript.neighbors(target):
 			if BoatNavigationScript.can_land(island, target, shore) and search.cost.has(shore) and search.cost[shore] < cost:
 				best = shore
 				cost = search.cost[shore]
-		return _approach(HexPathfinderScript.path_to(search, best)) if best != Vector2i(-1, -1) else {}
+		return _approach(HexPathfinderScript.path_to(search, best)) if best != GameTypes.NO_CELL else {}
 
 	# Checked before the work spot: a deck is a building's tile, but one to walk out onto.
 	if HexPathfinderScript.is_open(island, target):
@@ -751,7 +751,7 @@ func _plan_approach(target: Vector2i, start: Vector2i) -> Dictionary:
 	var costs: Dictionary = search.cost
 	var center := renderer.get_cell_center(target)
 
-	var best := Vector2i(-1, -1)
+	var best := GameTypes.NO_CELL
 	var best_score := INF
 	for neighbor in HexGridScript.neighbors(target):
 		if not HexPathfinderScript.is_open(island, neighbor) or not costs.has(neighbor):
@@ -764,20 +764,20 @@ func _plan_approach(target: Vector2i, start: Vector2i) -> Dictionary:
 			best = neighbor
 			best_score = score
 
-	if best != Vector2i(-1, -1):
+	if best != GameTypes.NO_CELL:
 		return _approach(HexPathfinderScript.path_to(search, best))
 
 	return _approach(HexPathfinderScript.path_to(search, target))
 
 
-func _approach(path: Array[Vector2i], spot_cell := Vector2i(-1, -1), spot_position := Vector3.ZERO) -> Dictionary:
+func _approach(path: Array[Vector2i], spot_cell := GameTypes.NO_CELL, spot_position := Vector3.ZERO) -> Dictionary:
 	return {path = path, spot_cell = spot_cell, spot_position = spot_position}
 
 
 # True when the robot can work `target` from where it stands: on it (open ground, a work spot,
 # or the enclosed-target fallback) or on a neighbouring tile.
 func _is_working_position(target: Vector2i) -> bool:
-	if player_unit == null or target == Vector2i(-1, -1):
+	if player_unit == null or target == GameTypes.NO_CELL:
 		return false
 	if player_unit.boat_id != -1:
 		return false
@@ -814,10 +814,10 @@ func _is_unit_cell(cell: Vector2i) -> bool:
 # one on the way is fine). The last leg into a work spot stays inside the building's own tile.
 func _reroute_unit() -> void:
 	if player_unit != null and player_unit.boat_id != -1:
-		if player_unit.is_moving() and pending_action_cell != Vector2i(-1, -1):
+		if player_unit.is_moving() and pending_action_cell != GameTypes.NO_CELL:
 			player_unit.reroute(world_navigation.find_path(player_unit.next_cell(), pending_action_cell, player_unit.boat_id))
 		return
-	if player_unit == null or not player_unit.is_moving() or pending_action_cell == Vector2i(-1, -1):
+	if player_unit == null or not player_unit.is_moving() or pending_action_cell == GameTypes.NO_CELL:
 		return
 	if player_unit.is_at_spot():
 		return
@@ -851,19 +851,19 @@ func _on_unit_entered_cell(cell: Vector2i) -> void:
 func _on_unit_arrived(_cell: Vector2i) -> void:
 	if player_unit.boat_id != -1:
 		_store_boat_position()
-		pending_action_cell = Vector2i(-1, -1)
+		pending_action_cell = GameTypes.NO_CELL
 		_refresh_action_bar()
 		_save_game()
 		return
 	var target := pending_action_cell
-	if target == Vector2i(-1, -1):
+	if target == GameTypes.NO_CELL:
 		return
 
-	pending_action_cell = Vector2i(-1, -1)
+	pending_action_cell = GameTypes.NO_CELL
 	if _is_working_position(target):
-		harvestable_cell = target if current_island.get_resource_node_type(target) != -1 else Vector2i(-1, -1)
-		operable_cell = target if _building_consumes_power(target) else Vector2i(-1, -1)
-		buildable_cell = target if current_island.is_under_construction(target) else Vector2i(-1, -1)
+		harvestable_cell = target if current_island.get_resource_node_type(target) != -1 else GameTypes.NO_CELL
+		operable_cell = target if _building_consumes_power(target) else GameTypes.NO_CELL
+		buildable_cell = target if current_island.is_under_construction(target) else GameTypes.NO_CELL
 		if player_unit.is_at_spot():
 			player_unit.face_toward(renderer.get_cell_center(target))
 		elif target != player_unit.current_cell:
@@ -925,7 +925,7 @@ func _refresh_action_bar() -> void:
 	):
 		if player_unit.boat_id != -1:
 			actions.append({id = UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = "Boat cargo — load or unload at the shore", active = false})
-			if _landing_tile() != Vector2i(-1, -1):
+			if _landing_tile() != GameTypes.NO_CELL:
 				actions.append({id = UnitAction.DISEMBARK, icon = BOAT_ICON, label = "Disembark (right-click shore to choose landing)", active = false})
 			action_bar.set_actions(actions)
 			action_bar.set_selected(player_unit.selected)
@@ -956,7 +956,7 @@ func _refresh_action_bar() -> void:
 
 # The portrait selects the robot and brings the camera back to its current position.
 func _on_portrait_select_requested() -> void:
-	if player_unit == null or player_unit.current_cell == Vector2i(-1, -1):
+	if player_unit == null or player_unit.current_cell == GameTypes.NO_CELL:
 		return
 
 	player_unit.set_selected(true)
@@ -971,7 +971,7 @@ func _harvest_action() -> Dictionary:
 	if not quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.HARVESTING):
 		return {}
 
-	if harvestable_cell == Vector2i(-1, -1) or not _is_working_position(harvestable_cell):
+	if harvestable_cell == GameTypes.NO_CELL or not _is_working_position(harvestable_cell):
 		return {}
 
 	var resource_node_type := current_island.get_resource_node_type(harvestable_cell)
@@ -994,7 +994,7 @@ func _operate_action() -> Dictionary:
 	if not _can_operate():
 		return {}
 
-	if operable_cell == Vector2i(-1, -1) or not _is_working_position(operable_cell):
+	if operable_cell == GameTypes.NO_CELL or not _is_working_position(operable_cell):
 		return {}
 
 	if not _building_consumes_power(operable_cell):
@@ -1013,7 +1013,7 @@ func _operate_action() -> Dictionary:
 
 # Offered while the robot is parked at a blueprint: start (or resume) raising it, or pause.
 func _build_action() -> Dictionary:
-	if buildable_cell == Vector2i(-1, -1) or not _is_working_position(buildable_cell):
+	if buildable_cell == GameTypes.NO_CELL or not _is_working_position(buildable_cell):
 		return {}
 	if not current_island.is_under_construction(buildable_cell):
 		return {}
@@ -1091,7 +1091,7 @@ func _boat_at(cell: Vector2i) -> Dictionary:
 		if world.boats[id].cell == global_cell:
 			return {id = id, cell = cell}
 	var anchor := current_island.get_building_anchor_cell(cell)
-	if anchor == Vector2i(-1, -1):
+	if anchor == GameTypes.NO_CELL:
 		return {}
 	var building: Dictionary = current_island.buildings[anchor]
 	if int(building.type) == GameTypes.BuildingType.DOCK and not building.has("build_progress") \
@@ -1142,7 +1142,7 @@ func _cargo_island(id: int) -> IslandData:
 		return null
 	if player_unit.boat_id == id:
 		var shore := _landing_tile()
-		if shore != Vector2i(-1, -1):
+		if shore != GameTypes.NO_CELL:
 			return world.get_island(world_navigation.region_at(shore).coord)
 	elif player_unit.boat_id == -1:
 		var boat := _nearby_boat()
@@ -1185,11 +1185,11 @@ func _board_boat() -> void:
 	# Keep the companion safely ashore until a boat-sized companion pose is authored.
 	if world.dog_rescued:
 		dog.halt()
-	pending_action_cell = Vector2i(-1, -1)
-	harvestable_cell = Vector2i(-1, -1)
-	operable_cell = Vector2i(-1, -1)
-	buildable_cell = Vector2i(-1, -1)
-	landing_cell = Vector2i(-1, -1)
+	pending_action_cell = GameTypes.NO_CELL
+	harvestable_cell = GameTypes.NO_CELL
+	operable_cell = GameTypes.NO_CELL
+	buildable_cell = GameTypes.NO_CELL
+	landing_cell = GameTypes.NO_CELL
 	renderer.clear_interaction()
 	renderer.refresh()
 	_refresh_action_bar()
@@ -1208,14 +1208,14 @@ func _landing_tile() -> Vector2i:
 	for shore in HexGridScript.neighbors(player_unit.current_cell):
 		if world_navigation.can_land(player_unit.current_cell, shore):
 			return shore
-	return Vector2i(-1, -1)
+	return GameTypes.NO_CELL
 
 
 func _disembark_boat() -> void:
 	if player_unit.boat_id == -1 or player_unit.is_moving():
 		return
 	var shore := _landing_tile()
-	if shore == Vector2i(-1, -1):
+	if shore == GameTypes.NO_CELL:
 		return
 	_store_boat_position()
 	var destination := world_navigation.region_at(shore)
@@ -1229,7 +1229,7 @@ func _disembark_boat() -> void:
 	player_unit.place_at(destination.cell)
 	camera_rig.center_on(player_unit.position)
 	_sync_dog()
-	landing_cell = Vector2i(-1, -1)
+	landing_cell = GameTypes.NO_CELL
 	renderer.refresh()
 	_refresh_action_bar()
 	_save_game()
@@ -1282,7 +1282,7 @@ func _on_harvest_pressed() -> void:
 		_refresh_action_bar()
 		return
 
-	if harvestable_cell == Vector2i(-1, -1):
+	if harvestable_cell == GameTypes.NO_CELL:
 		return
 
 	var resource_node_type := current_island.get_resource_node_type(harvestable_cell)
@@ -1307,7 +1307,7 @@ func _stop_harvesting() -> void:
 		return
 
 	is_harvesting = false
-	harvest_cell = Vector2i(-1, -1)
+	harvest_cell = GameTypes.NO_CELL
 	harvest_resource_type = -1
 	_harvest_accum = 0.0
 	if player_unit != null:
@@ -1320,7 +1320,7 @@ func _on_operate_pressed() -> void:
 		_refresh_action_bar()
 		return
 
-	if operable_cell == Vector2i(-1, -1):
+	if operable_cell == GameTypes.NO_CELL:
 		return
 
 	if not _can_operate() or not _building_consumes_power(operable_cell):
@@ -1342,7 +1342,7 @@ func _stop_operating() -> void:
 		return
 
 	is_operating = false
-	operate_cell = Vector2i(-1, -1)
+	operate_cell = GameTypes.NO_CELL
 	if player_unit != null:
 		player_unit.set_work("")
 
@@ -1353,7 +1353,7 @@ func _on_build_pressed() -> void:
 		_refresh_action_bar()
 		return
 
-	if buildable_cell == Vector2i(-1, -1) or not current_island.is_under_construction(buildable_cell):
+	if buildable_cell == GameTypes.NO_CELL or not current_island.is_under_construction(buildable_cell):
 		return
 
 	is_constructing = true
@@ -1368,7 +1368,7 @@ func _stop_constructing() -> void:
 		return
 
 	is_constructing = false
-	construct_cell = Vector2i(-1, -1)
+	construct_cell = GameTypes.NO_CELL
 	if player_unit != null:
 		player_unit.set_work("")
 
@@ -1403,7 +1403,7 @@ func _finish_construction(anchor_cell: Vector2i) -> void:
 	var building_type := current_island.get_building_type(anchor_cell)
 	current_island.complete_construction(anchor_cell)
 	_stop_constructing()
-	buildable_cell = Vector2i(-1, -1)
+	buildable_cell = GameTypes.NO_CELL
 	renderer.refresh()
 	# Standing at a machine that needs power, the robot can Operate it straight away.
 	if _building_consumes_power(anchor_cell) and _is_working_position(anchor_cell):
@@ -1429,15 +1429,15 @@ func _build_next_blueprint() -> bool:
 
 	var search := HexPathfinderScript.search(current_island, player_unit.current_cell)
 	var costs: Dictionary = search.cost
-	var best := Vector2i(-1, -1)
+	var best := GameTypes.NO_CELL
 	var best_cost := INF
 	for site in sites:
 		for cell in current_island.get_building_footprint_cells(site):
 			var cost: float = costs.get(cell, INF)
-			if cost < best_cost or best == Vector2i(-1, -1):
+			if cost < best_cost or best == GameTypes.NO_CELL:
 				best = site
 				best_cost = cost
-	return best != Vector2i(-1, -1) and _command_unit_to(best)
+	return best != GameTypes.NO_CELL and _command_unit_to(best)
 
 
 # A blueprint was just placed: put the robot to work on it, unless it is already building (or on its
@@ -1445,7 +1445,7 @@ func _build_next_blueprint() -> bool:
 func _send_robot_to_build(anchor_cell: Vector2i) -> void:
 	if is_constructing:
 		return
-	if pending_action_cell != Vector2i(-1, -1) and current_island.is_under_construction(pending_action_cell):
+	if pending_action_cell != GameTypes.NO_CELL and current_island.is_under_construction(pending_action_cell):
 		return
 	_command_unit_to(anchor_cell)
 
@@ -1554,7 +1554,7 @@ func _resource_color(resource_type: int) -> Color:
 
 
 func _try_select_unit() -> bool:
-	if player_unit == null or player_unit.current_cell == Vector2i(-1, -1):
+	if player_unit == null or player_unit.current_cell == GameTypes.NO_CELL:
 		return false
 	if player_unit.boat_id != -1:
 		var camera := camera_rig.get_camera()
@@ -1787,21 +1787,21 @@ func _spawn_player_unit() -> void:
 	_stop_harvesting()
 	_stop_operating()
 	_stop_constructing()
-	pending_action_cell = Vector2i(-1, -1)
-	harvestable_cell = Vector2i(-1, -1)
-	operable_cell = Vector2i(-1, -1)
-	buildable_cell = Vector2i(-1, -1)
+	pending_action_cell = GameTypes.NO_CELL
+	harvestable_cell = GameTypes.NO_CELL
+	operable_cell = GameTypes.NO_CELL
+	buildable_cell = GameTypes.NO_CELL
 	player_unit.place_at(_find_unit_spawn_cell(current_island))
 	if world.boats.has(world.piloted_boat):
 		var saved_boat: Dictionary = world.boats[world.piloted_boat]
 		player_unit.mount_boat(world.piloted_boat, saved_boat.cell, float(saved_boat.yaw))
-	landing_cell = Vector2i(-1, -1)
+	landing_cell = GameTypes.NO_CELL
 	_refresh_action_bar()
 
 
 func _find_unit_spawn_cell(island: IslandData) -> Vector2i:
 	var crashed_spaceship_cell := _find_crashed_spaceship_cell(island)
-	if crashed_spaceship_cell != Vector2i(-1, -1):
+	if crashed_spaceship_cell != GameTypes.NO_CELL:
 		for neighbor in HexGridScript.neighbors(crashed_spaceship_cell):
 			if HexPathfinderScript.is_open(island, neighbor) and not island.has_item(neighbor):
 				return neighbor
@@ -1825,7 +1825,7 @@ func _find_crashed_spaceship_cell(island: IslandData) -> Vector2i:
 		if island.buildings[cell].type == GameTypes.BuildingType.CRASHED_SPACESHIP:
 			return cell
 
-	return Vector2i(-1, -1)
+	return GameTypes.NO_CELL
 
 
 # --- K9-DA ---
@@ -1836,10 +1836,10 @@ func _find_crashed_spaceship_cell(island: IslandData) -> Vector2i:
 func _ensure_dog_placed() -> void:
 	if world.dog_coord == WorldData.NO_COORD or not world.has_island(world.dog_coord):
 		world.dog_coord = WorldData.dog_slot_for_seed(seed_value)
-		world.dog_cell = Vector2i(-1, -1)
+		world.dog_cell = GameTypes.NO_CELL
 		world.dog_rescued = quest_manager.is_completed(GameTypes.QuestId.RESCUE_THE_DOG)
 
-	if world.dog_cell == Vector2i(-1, -1):
+	if world.dog_cell == GameTypes.NO_CELL:
 		world.dog_cell = _choose_dog_cell(world.get_island(world.dog_coord), _island_seed(world.dog_coord))
 
 
@@ -1969,7 +1969,7 @@ func _try_finish_move() -> void:
 	# Clear move state BEFORE clear_selection so its _select_no_building doesn't try to restore
 	# the building we just successfully placed.
 	is_moving_building = false
-	moving_from_cell = Vector2i(-1, -1)
+	moving_from_cell = GameTypes.NO_CELL
 	moving_building_type = NO_BUILDING
 	building_menu.clear_selection()
 	_save_game()
@@ -1984,10 +1984,10 @@ func _cancel_building_move() -> void:
 	is_moving_building = false
 	var from := moving_from_cell
 	var building_type := moving_building_type
-	moving_from_cell = Vector2i(-1, -1)
+	moving_from_cell = GameTypes.NO_CELL
 	moving_building_type = NO_BUILDING
 
-	if current_island != null and from != Vector2i(-1, -1):
+	if current_island != null and from != GameTypes.NO_CELL:
 		renderer.place_building_at(from, building_type, moving_rotation)
 		current_island.buildings[from].boat_launched = moving_boat_launched
 		renderer.refresh()
@@ -2020,7 +2020,7 @@ func _on_building_delete_requested(anchor_cell: Vector2i, island: IslandData) ->
 # tile (the quay's sand). A robot still on its way out there re-plans.
 func _land_stranded_units(anchor_cell: Vector2i) -> void:
 	if player_unit != null and player_unit.boat_id == -1 and not HexPathfinderScript.is_walkable(current_island, player_unit.next_cell()):
-		pending_action_cell = Vector2i(-1, -1)
+		pending_action_cell = GameTypes.NO_CELL
 		player_unit.place_at(anchor_cell)
 	_reroute_unit()
 	if dog != null and dog.visible and dog.renderer == renderer \

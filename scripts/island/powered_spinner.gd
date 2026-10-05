@@ -15,7 +15,7 @@ const CHOP_DROP_END := 0.12
 const CHOP_LIFT_START := 0.58
 
 var island: IslandData
-var anchor_cell := Vector2i(-1, -1)
+var anchor_cell := GameTypes.NO_CELL
 var _targets: Array[Node3D] = []
 var _axes: Array[Vector3] = []
 var _speeds: Array[float] = []

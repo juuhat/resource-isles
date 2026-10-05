@@ -24,15 +24,15 @@ func _run() -> void:
 	root.add_child(game)
 	await process_frame
 	var island: IslandData = game.current_island
-	var anchor := Vector2i(-1, -1)
+	var anchor := GameTypes.NO_CELL
 	var rotation := 0
 	for cell in island.terrain:
 		rotation = game.building_manager.fit_rotation(cell, GameTypes.BuildingType.DOCK, island, 0)
 		if game.building_manager.can_place(cell, GameTypes.BuildingType.DOCK, island, rotation):
 			anchor = cell
 			break
-	expect(anchor != Vector2i(-1, -1), "Find a dock location")
-	if anchor != Vector2i(-1, -1):
+	expect(anchor != GameTypes.NO_CELL, "Find a dock location")
+	if anchor != GameTypes.NO_CELL:
 		await _check_trip(game, anchor, rotation)
 	root.remove_child(game)
 	game.free()
@@ -77,14 +77,14 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 		root.get_texture().get_image().save_png("res://.godot/boat_preview.png")
 	expect(not game._command_unit_to(anchor), "Boat cannot move onto land")
 	expect(not Navigation.can_sail(island, pier, 0), "Boat cannot pass through pier")
-	var sea := Vector2i(-1, -1)
+	var sea := GameTypes.NO_CELL
 	for cell in island.terrain:
 		if Navigation.can_sail(island, cell, 0) and not Navigation.find_path(island, berth, cell, 0).is_empty() \
 				and not Grid.neighbors(cell).any(func(shore: Vector2i) -> bool: return Navigation.can_land(island, cell, shore)):
 			sea = cell
 			break
-	expect(sea != Vector2i(-1, -1), "Find reachable open sea")
-	if sea == Vector2i(-1, -1):
+	expect(sea != GameTypes.NO_CELL, "Find reachable open sea")
+	if sea == GameTypes.NO_CELL:
 		return
 	expect(game._command_unit_to(sea), "Command boat to water")
 	var global_sea := WorldNavigation.local_to_world(game.world.current_coord, island, sea)

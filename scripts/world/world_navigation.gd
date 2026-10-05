@@ -127,10 +127,10 @@ func cell_from_position(point: Vector3) -> Vector2i:
 
 func cell_from_ray(origin: Vector3, direction: Vector3) -> Vector2i:
 	if absf(direction.y) < 0.00001:
-		return Vector2i(-99999, -99999)
+		return WorldData.NO_COORD
 	var distance := (SEA_Y - origin.y) / direction.y
 	if distance < 0.0:
-		return Vector2i(-99999, -99999)
+		return WorldData.NO_COORD
 	return cell_from_position(origin + direction * distance)
 
 func migrate_boats() -> void:

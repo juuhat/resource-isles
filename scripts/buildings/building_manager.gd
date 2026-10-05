@@ -52,7 +52,7 @@ func can_place(anchor_cell: Vector2i, building_type: int, island: IslandData, ro
 
 # Blueprints reserve the island's only dock slot too. Moving lifts the existing dock before
 # checking its new placement, so relocation and cancellation still use this same gate.
-func has_dock(island: IslandData, except_anchor := Vector2i(-1, -1)) -> bool:
+func has_dock(island: IslandData, except_anchor := GameTypes.NO_CELL) -> bool:
 	for anchor in island.buildings:
 		if anchor != except_anchor and int(island.buildings[anchor].type) == GameTypes.BuildingType.DOCK:
 			return true

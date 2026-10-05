@@ -25,7 +25,7 @@ func setup(new_building_manager: BuildingManager) -> void:
 func update(
 	island: IslandData,
 	current_time_seconds: float,
-	operated_cell: Vector2i = Vector2i(-1, -1),
+	operated_cell: Vector2i = GameTypes.NO_CELL,
 	report_totals: bool = true
 ) -> void:
 	if island == null:

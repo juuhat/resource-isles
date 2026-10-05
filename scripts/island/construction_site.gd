@@ -22,7 +22,7 @@ static var _hologram_material: ShaderMaterial
 static var _spark_material: StandardMaterial3D
 
 var island: IslandData
-var anchor_cell := Vector2i(-1, -1)
+var anchor_cell := GameTypes.NO_CELL
 var _solid: Array[GeometryInstance3D] = []
 var _ghost: Array[GeometryInstance3D] = []
 var _bounds := AABB()

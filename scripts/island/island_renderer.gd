@@ -113,7 +113,7 @@ var island: IslandData
 var world_data: WorldData
 var resource_node_database: ResourceNodeDatabase
 var building_manager: BuildingManager
-var hovered_cell := Vector2i(-1, -1)
+var hovered_cell := GameTypes.NO_CELL
 var placement_preview_enabled := false
 var placement_building_type := GameTypes.BuildingType.LOGGER_CAMP
 var placement_can_afford := true
@@ -143,7 +143,7 @@ var _highlight_materials := {}
 var _action_highlight_materials := {}
 # cell -> the terrain MeshInstance3D for that cell, so hover can recolor it in place.
 var _tiles := {}
-var _highlighted_cell := Vector2i(-1, -1)
+var _highlighted_cell := GameTypes.NO_CELL
 var _explored := true
 var _silhouette_material: StandardMaterial3D
 
@@ -185,8 +185,8 @@ func setup(new_resource_node_database: ResourceNodeDatabase, new_building_manage
 # Full rebuild — terrain and all objects. Called on island entry/switch.
 func render(new_island: IslandData) -> void:
 	island = new_island
-	hovered_cell = Vector2i(-1, -1)
-	_highlighted_cell = Vector2i(-1, -1)
+	hovered_cell = GameTypes.NO_CELL
+	_highlighted_cell = GameTypes.NO_CELL
 	_rebuild_terrain()
 	_rebuild_water()
 	_rebuild_grid()
@@ -284,7 +284,7 @@ func world_to_cell(world_position: Vector3) -> Vector2i:
 
 func _local_to_cell(local_position: Vector3) -> Vector2i:
 	if island == null:
-		return Vector2i(-1, -1)
+		return GameTypes.NO_CELL
 
 	var point := Vector2(local_position.x, local_position.z)
 	var row := roundi(local_position.z / (cell_size.y * 0.75))
@@ -307,7 +307,7 @@ func _local_to_cell(local_position: Vector3) -> Vector2i:
 				nearest_distance = distance
 				nearest_cell = cell
 
-	return nearest_cell if island.is_in_bounds(nearest_cell) else Vector2i(-1, -1)
+	return nearest_cell if island.is_in_bounds(nearest_cell) else GameTypes.NO_CELL
 
 
 func get_map_center() -> Vector3:
@@ -348,7 +348,7 @@ func set_hovered_from_ray(origin: Vector3, direction: Vector3) -> void:
 	var cell := cell_from_ray(origin, direction)
 
 	if island == null or not island.is_in_bounds(cell):
-		cell = Vector2i(-1, -1)
+		cell = GameTypes.NO_CELL
 
 	if hovered_cell == cell:
 		return
@@ -366,7 +366,7 @@ func cell_from_ray(origin: Vector3, direction: Vector3) -> Vector2i:
 	var local_origin := origin - position
 	var approx = _ray_plane_xz(local_origin, direction, GRASS_TOP_Y)
 	if approx == null:
-		return Vector2i(-1, -1)
+		return GameTypes.NO_CELL
 
 	var cell := _local_to_cell(approx)
 	if island != null and island.is_in_bounds(cell):
@@ -381,7 +381,7 @@ func cell_from_ray(origin: Vector3, direction: Vector3) -> Vector2i:
 # one the player is working on.
 func clear_interaction() -> void:
 	placement_preview_enabled = false
-	hovered_cell = Vector2i(-1, -1)
+	hovered_cell = GameTypes.NO_CELL
 	_update_hover()
 	_rebuild_preview()
 
@@ -428,7 +428,7 @@ func placement_rotation_at(anchor_cell: Vector2i, building_type: int) -> int:
 
 # as_blueprint places it under construction, for the robot to build (IslandData.place_building).
 func try_place_hovered_building(building_type: int = GameTypes.BuildingType.LOGGER_CAMP, as_blueprint := false) -> bool:
-	if island == null or hovered_cell == Vector2i(-1, -1):
+	if island == null or hovered_cell == GameTypes.NO_CELL:
 		return false
 
 	var rotation := placement_rotation_at(hovered_cell, building_type)
@@ -498,14 +498,14 @@ func _local_position_in(node: Node3D, model: Node3D) -> Vector3:
 
 
 func get_hovered_building_type() -> int:
-	if island == null or hovered_cell == Vector2i(-1, -1):
+	if island == null or hovered_cell == GameTypes.NO_CELL:
 		return -1
 
 	return island.get_building_type(hovered_cell)
 
 
 func get_hovered_resource_node_type() -> int:
-	if island == null or hovered_cell == Vector2i(-1, -1):
+	if island == null or hovered_cell == GameTypes.NO_CELL:
 		return -1
 
 	return island.get_resource_node_type(hovered_cell)
@@ -1100,7 +1100,7 @@ func _rebuild_preview() -> void:
 
 	_clear(_preview_root)
 
-	if not placement_preview_enabled or island == null or hovered_cell == Vector2i(-1, -1):
+	if not placement_preview_enabled or island == null or hovered_cell == GameTypes.NO_CELL:
 		return
 
 	var rotation := placement_rotation_at(hovered_cell, placement_building_type)
@@ -1193,11 +1193,11 @@ func _make_yield_label(footprint: Array, output: int, unit: String) -> Label3D:
 # work it), restoring the previously hovered cell. Recoloring the actual tile avoids the depth/parallax artifacts
 # of a separate overlay mesh floating above the surface.
 func _update_hover() -> void:
-	if _highlighted_cell != Vector2i(-1, -1):
+	if _highlighted_cell != GameTypes.NO_CELL:
 		_restore_tile(_highlighted_cell)
-		_highlighted_cell = Vector2i(-1, -1)
+		_highlighted_cell = GameTypes.NO_CELL
 
-	if island == null or hovered_cell == Vector2i(-1, -1):
+	if island == null or hovered_cell == GameTypes.NO_CELL:
 		return
 
 	var tile = _tiles.get(hovered_cell)

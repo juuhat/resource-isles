@@ -25,15 +25,15 @@ func _run() -> void:
 	await process_frame
 	var origin: IslandData = game.current_island
 	origin.inventory.set_amount(GameTypes.ResourceType.WOOD, 100)
-	var anchor := Vector2i(-1, -1)
+	var anchor := GameTypes.NO_CELL
 	for cell in origin.terrain:
 		var rotation: int = game.building_manager.fit_rotation(cell, GameTypes.BuildingType.DOCK, origin, 0)
 		if game.building_manager.can_place(cell, GameTypes.BuildingType.DOCK, origin, rotation):
 			anchor = cell
 			game.renderer.place_building_at(cell, GameTypes.BuildingType.DOCK, rotation)
 			break
-	expect(anchor != Vector2i(-1, -1), "Find a dock site")
-	if anchor != Vector2i(-1, -1):
+	expect(anchor != GameTypes.NO_CELL, "Find a dock site")
+	if anchor != GameTypes.NO_CELL:
 		game.player_unit.place_at(origin.buildings[anchor].cells[1])
 		game.player_unit.set_selected(true)
 		game._refresh_action_bar()
@@ -106,12 +106,12 @@ func _run() -> void:
 		game._on_cargo_transfer(GameTypes.ResourceType.WOOD, 3, true)
 		var at_shore: Vector2i = game.world.boats[id].cell
 		game._board_boat()
-		var sea := Vector2i(-1, -1)
+		var sea := GameTypes.NO_CELL
 		for cell in HexGrid.neighbors(at_shore):
 			if game.world_navigation.can_sail(cell, id) and HexGrid.neighbors(cell).all(func(shore: Vector2i) -> bool: return not game.world_navigation.can_land(cell, shore)):
 				sea = cell
 				break
-		if sea != Vector2i(-1, -1):
+		if sea != GameTypes.NO_CELL:
 			game.player_unit.mount_boat(id, sea, 0.0)
 			game._store_boat_position()
 			game._refresh_boat_cargo()

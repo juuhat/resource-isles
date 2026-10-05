@@ -94,7 +94,7 @@ func _check_resource_from_neighbour(game: Node, robot: PlayerUnit) -> void:
 	var renderer: IslandRenderer = game.renderer
 	var start := robot.current_cell
 	var search := HexPathfinderScript.search(island, start)
-	var target := Vector2i(-1, -1)
+	var target := GameTypes.NO_CELL
 	for cell in island.resources.keys():
 		if HexGridScript.neighbors(cell).has(start):
 			continue
@@ -102,9 +102,9 @@ func _check_resource_from_neighbour(game: Node, robot: PlayerUnit) -> void:
 			if HexPathfinderScript.is_open(island, neighbor) and search.cost.get(neighbor, INF) < HexPathfinderScript.OBSTACLE_COST:
 				target = cell
 				break
-		if target != Vector2i(-1, -1):
+		if target != GameTypes.NO_CELL:
 			break
-	_expect(target != Vector2i(-1, -1), "Need a resource node reachable over open ground")
+	_expect(target != GameTypes.NO_CELL, "Need a resource node reachable over open ground")
 
 	_command(game, target)
 	_walk(robot)
@@ -138,14 +138,14 @@ func _check_work_spot(game: Node, robot: PlayerUnit, building_type: int) -> void
 	var island: IslandData = game.current_island
 	var renderer: IslandRenderer = game.renderer
 	var steps_from_robot: Dictionary = HexPathfinderScript.search(island, robot.current_cell).cost
-	var camp := Vector2i(-1, -1)
+	var camp := GameTypes.NO_CELL
 	for cell in island.terrain.keys():
 		if steps_from_robot.get(cell, 0) >= 3 and steps_from_robot[cell] < HexPathfinderScript.OBSTACLE_COST \
 				and game.building_manager.can_place(cell, building_type, island):
 			camp = cell
 			break
 	var label: String = game.building_manager.get_display_name(building_type)
-	_expect(camp != Vector2i(-1, -1), "Need a %s site a few steps from the robot" % label)
+	_expect(camp != GameTypes.NO_CELL, "Need a %s site a few steps from the robot" % label)
 	_expect(renderer.place_building_at(camp, building_type))
 	var spot = renderer.get_work_spot(camp)
 	_expect(spot != null, "The %s model exports a WorkSpot" % label)
@@ -193,7 +193,7 @@ func _check_walk_through_buildings(game: Node, robot: PlayerUnit) -> void:
 	var goal := _open_cell_away_from(island, robot.current_cell, 6)
 	_command(game, goal)
 	robot._process(0.05)
-	var blocked := Vector2i(-1, -1)
+	var blocked := GameTypes.NO_CELL
 	var blocked_type := -1
 	for cell in robot._path.slice(1, robot._path.size() - 1):
 		for building_type in GameTypes.BuildingType.values():
@@ -201,9 +201,9 @@ func _check_walk_through_buildings(game: Node, robot: PlayerUnit) -> void:
 				blocked = cell
 				blocked_type = building_type
 				break
-		if blocked != Vector2i(-1, -1):
+		if blocked != GameTypes.NO_CELL:
 			break
-	if blocked == Vector2i(-1, -1):
+	if blocked == GameTypes.NO_CELL:
 		print("Robot access: walk-through skipped (nothing placeable along this route)")
 		return
 

@@ -50,14 +50,14 @@ const EQUIP_TIME := 0.15
 
 var renderer: IslandRenderer
 var navigation: WorldNavigation
-var current_cell := Vector2i(-1, -1)
+var current_cell := GameTypes.NO_CELL
 var selected := false
 var boat_id := -1
 var _vessel: Node3D
 
 var _path: Array[Vector2i] = []
 var _target_world := Vector3.ZERO
-var _pending_cell := Vector2i(-1, -1)
+var _pending_cell := GameTypes.NO_CELL
 var _moving := false
 var _model: Node3D
 var _animation_player: AnimationPlayer
@@ -76,7 +76,7 @@ var _marker_material: StandardMaterial3D
 var _select_player: AudioStreamPlayer
 var _last_sound_index := -1
 # Optional last leg of a route, into a building's work spot (see follow_path).
-var _spot_cell := Vector2i(-1, -1)
+var _spot_cell := GameTypes.NO_CELL
 var _spot_position := Vector3.ZERO
 var _at_spot := false
 # Parked pose set by face_toward().
@@ -125,7 +125,7 @@ func place_at(cell: Vector2i) -> void:
 	current_cell = cell
 	position = renderer.get_cell_center(cell)
 	_path.clear()
-	_spot_cell = Vector2i(-1, -1)
+	_spot_cell = GameTypes.NO_CELL
 	_at_spot = false
 	_has_rest = false
 	_moving = false
@@ -169,8 +169,8 @@ func leave_boat() -> void:
 
 # Walk the cells in `path`, then, with a spot_cell, one last leg straight to spot_position inside
 # that cell (a building's work spot), which becomes the robot's cell.
-func follow_path(path: Array[Vector2i], spot_cell := Vector2i(-1, -1), spot_position := Vector3.ZERO) -> void:
-	if path.is_empty() and spot_cell == Vector2i(-1, -1):
+func follow_path(path: Array[Vector2i], spot_cell := GameTypes.NO_CELL, spot_position := Vector3.ZERO) -> void:
+	if path.is_empty() and spot_cell == GameTypes.NO_CELL:
 		return
 
 	_path = path.duplicate()
@@ -183,7 +183,7 @@ func follow_path(path: Array[Vector2i], spot_cell := Vector2i(-1, -1), spot_posi
 
 # Swap the rest of the route for `path` (from next_cell()), finishing the leg in progress first.
 # Used when construction changes the map under a moving robot.
-func reroute(path: Array[Vector2i], spot_cell := Vector2i(-1, -1), spot_position := Vector3.ZERO) -> void:
+func reroute(path: Array[Vector2i], spot_cell := GameTypes.NO_CELL, spot_position := Vector3.ZERO) -> void:
 	_path = path.duplicate()
 	_spot_cell = spot_cell
 	_spot_position = spot_position
@@ -241,7 +241,7 @@ func _update_marker() -> void:
 		return
 	_marker.visible = selected
 	_marker.position = Vector3(0.0, 0.6, 0.0)
-	if not _moving and renderer != null and current_cell != Vector2i(-1, -1):
+	if not _moving and renderer != null and current_cell != GameTypes.NO_CELL:
 		var center := navigation.cell_center(current_cell) if boat_id != -1 and navigation != null else renderer.get_cell_center(current_cell)
 		_marker.position = Vector3(center.x - position.x, 0.6, center.z - position.z)
 
@@ -328,11 +328,11 @@ func _advance_to_next() -> void:
 	if boat_id != -1 and navigation != null and not _path.is_empty() and not navigation.can_sail(_path[0], boat_id):
 		_path.clear()
 	if _path.is_empty():
-		if _spot_cell != Vector2i(-1, -1):
+		if _spot_cell != GameTypes.NO_CELL:
 			# Last leg: straight into the building's work spot.
 			_pending_cell = _spot_cell
 			_target_world = _spot_position
-			_spot_cell = Vector2i(-1, -1)
+			_spot_cell = GameTypes.NO_CELL
 			_at_spot = true
 			_moving = true
 			return

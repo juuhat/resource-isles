@@ -28,7 +28,7 @@ var delete_button: Button
 
 # The building currently described, so the action buttons know what they act on.
 var current_building_type := -1
-var current_anchor_cell := Vector2i(-1, -1)
+var current_anchor_cell := GameTypes.NO_CELL
 var current_island: IslandData
 
 # Dock only: [route, status Label] pairs refreshed on a timer, the route count they were built for
@@ -60,7 +60,7 @@ func show_building(building_type: int, cell: Vector2i, island: IslandData) -> vo
 	var anchor_cell := cell
 	if island != null:
 		var resolved := island.get_building_anchor_cell(cell)
-		if resolved != Vector2i(-1, -1):
+		if resolved != GameTypes.NO_CELL:
 			anchor_cell = resolved
 
 	current_building_type = building_type
@@ -173,14 +173,14 @@ func _build_ui() -> void:
 
 
 func _on_move_pressed() -> void:
-	if current_anchor_cell == Vector2i(-1, -1):
+	if current_anchor_cell == GameTypes.NO_CELL:
 		return
 	hide_info()
 	move_requested.emit(current_building_type, current_anchor_cell, current_island)
 
 
 func _on_delete_pressed() -> void:
-	if current_anchor_cell == Vector2i(-1, -1):
+	if current_anchor_cell == GameTypes.NO_CELL:
 		return
 	hide_info()
 	delete_requested.emit(current_anchor_cell, current_island)

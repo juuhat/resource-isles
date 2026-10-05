@@ -19,7 +19,7 @@ static var _material: StandardMaterial3D
 static var _outline_material: StandardMaterial3D
 
 var island: IslandData
-var anchor_cell := Vector2i(-1, -1)
+var anchor_cell := GameTypes.NO_CELL
 var _bolt: Node3D
 # Distance from this node (placed on the roof's top point) to the bolt's centre, along the
 # camera's screen-up axis, so the bolt's tip clears the roof on screen at any camera pitch.

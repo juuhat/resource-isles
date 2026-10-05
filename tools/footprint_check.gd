@@ -105,7 +105,7 @@ func _check_dock(game: Node) -> void:
 	var manager: BuildingManager = game.building_manager
 	var dock := GameTypes.BuildingType.DOCK
 
-	var anchor := Vector2i(-1, -1)
+	var anchor := GameTypes.NO_CELL
 	var rotation := 0
 	for cell in island.terrain.keys():
 		if island.get_terrain(cell) != GameTypes.Terrain.SAND:
@@ -115,8 +115,8 @@ func _check_dock(game: Node) -> void:
 			anchor = cell
 			rotation = fitted
 			break
-	_expect(anchor != Vector2i(-1, -1), "Some sand tile takes a dock")
-	if anchor == Vector2i(-1, -1):
+	_expect(anchor != GameTypes.NO_CELL, "Some sand tile takes a dock")
+	if anchor == GameTypes.NO_CELL:
 		return
 
 	var cells := manager.get_footprint_cells(anchor, dock, rotation)
@@ -165,7 +165,7 @@ func _check_pier(game: Node, anchor: Vector2i, rotation: int, cells: Array[Vecto
 	_expect(is_equal_approx(renderer.get_cell_center(pier).y, deck_y), "Units stand on the pier's boards")
 
 	var plan: Dictionary = game._plan_approach(pier, start)
-	_expect(not plan.is_empty() and plan.spot_cell == Vector2i(-1, -1) and not plan.path.is_empty()
+	_expect(not plan.is_empty() and plan.spot_cell == GameTypes.NO_CELL and not plan.path.is_empty()
 		and plan.path[-1] == pier and plan.path[-2] == anchor, "Clicking the pier walks the robot out onto it via the quay")
 	var mid := renderer.get_cell_center(anchor).lerp(renderer.get_cell_center(pier), 0.5)
 	_expect(is_equal_approx(renderer.get_step_height(anchor, pier, mid), deck_y), "Halfway out, the robot is up on the boards")

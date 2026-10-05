@@ -248,14 +248,14 @@ func _place_resource_entry(island: IslandData, entry: Dictionary) -> void:
 	else:
 		for _i in range(count):
 			var cell := _pick_open_resource_cell(island, node_type)
-			if cell == Vector2i(-1, -1):
+			if cell == GameTypes.NO_CELL:
 				return
 			island.place_resource(cell, node_type)
 
 
 func _place_required_crashed_spaceship(island: IslandData, building_manager: BuildingManager) -> void:
 	var center := Vector2(island.width * 0.5, island.height * 0.52)
-	var best_cell := Vector2i(-1, -1)
+	var best_cell := GameTypes.NO_CELL
 	var best_distance := INF
 	var crashed_spaceship_definition := building_manager.get_definition(GameTypes.BuildingType.CRASHED_SPACESHIP) if building_manager else null
 	var required_terrains: Array[int] = crashed_spaceship_definition.required_terrains if crashed_spaceship_definition != null else [GameTypes.Terrain.GRASS] as Array[int]
@@ -270,7 +270,7 @@ func _place_required_crashed_spaceship(island: IslandData, building_manager: Bui
 			best_distance = distance
 			best_cell = cell
 
-	if best_cell != Vector2i(-1, -1):
+	if best_cell != GameTypes.NO_CELL:
 		var footprint := building_manager.get_footprint_cells(best_cell, GameTypes.BuildingType.CRASHED_SPACESHIP) if building_manager else [best_cell] as Array[Vector2i]
 		island.place_building(best_cell, GameTypes.BuildingType.CRASHED_SPACESHIP, footprint, required_terrains)
 		return
@@ -290,7 +290,7 @@ func _place_required_crashed_spaceship(island: IslandData, building_manager: Bui
 func _place_terrain_patches(island: IslandData, base_terrain: int, feature_terrain: int, count: int) -> void:
 	for _i in range(count):
 		var center := _pick_terrain_patch_center(island, base_terrain)
-		if center == Vector2i(-1, -1):
+		if center == GameTypes.NO_CELL:
 			return
 		for cell in _patch_cells(center):
 			island.set_terrain(cell, feature_terrain)
@@ -304,7 +304,7 @@ func _pick_terrain_patch_center(island: IslandData, base_terrain: int) -> Vector
 			candidates.append(cell)
 
 	if candidates.is_empty():
-		return Vector2i(-1, -1)
+		return GameTypes.NO_CELL
 
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
 
@@ -363,7 +363,7 @@ func _pick_open_resource_cell(island: IslandData, resource_node_type: int) -> Ve
 			candidates.append(cell)
 
 	if candidates.is_empty():
-		return Vector2i(-1, -1)
+		return GameTypes.NO_CELL
 
 	return candidates[rng.randi_range(0, candidates.size() - 1)]
 
