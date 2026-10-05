@@ -168,8 +168,9 @@ powershell -ExecutionPolicy Bypass -File tools/run_checks.ps1
 ```
 
 It uses Godot from `-Godot <path>`, `$env:GODOT`, or the console build on `PATH`. Each check has a
-timeout, because a failed `assert()` hangs headless Godot instead of exiting. Your save in
-`user://` is backed up first and always restored.
+timeout, because a failed `assert()` hangs headless Godot instead of exiting. Each check also gets
+its own empty `user://` folder, so checks never see each other's saves and your real save is never
+touched.
 
 ## Repository Structure
 

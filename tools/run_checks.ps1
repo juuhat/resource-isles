@@ -5,9 +5,9 @@
 #
 # A check fails on a non-zero exit, on any script error or FAILED line in its output, or when it
 # runs past -TimeoutSeconds: a failed assert() does not exit headless Godot, it hangs, so the
-# timeout is how those checks fail. Many checks boot game.tscn, which autosaves to the real
-# user:// save; each backs it up itself, but a check killed mid-run never restores it, so this
-# script backs the save up first and always puts it back.
+# timeout is how those checks fail. Many checks boot game.tscn, which loads and autosaves the
+# user:// save, so each check runs with its own empty user:// folder: no check sees another's save,
+# and your real saves are never read or touched.
 #
 # Godot is found from -Godot, then $env:GODOT, then the console build on PATH.
 
@@ -50,21 +50,19 @@ if ($checks.Count -eq 0) {
 	exit 1
 }
 
-# user:// for this project (no custom user dir in project.godot), and SaveManager's two files.
-$userDir = Join-Path $env:APPDATA "Godot\app_userdata\Resource Isles"
-$saveFiles = @("savegame.sav", "savegame.sav.tmp")
 $runDir = Join-Path ([System.IO.Path]::GetTempPath()) ("resource-isles-checks-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
-$backupDir = Join-Path $runDir "save-backup"
-New-Item -ItemType Directory -Force $backupDir | Out-Null
-foreach ($file in $saveFiles) {
-	$path = Join-Path $userDir $file
-	if (Test-Path $path) { Copy-Item $path $backupDir }
-}
+New-Item -ItemType Directory -Force $runDir | Out-Null
 
 $failed = @()
+$originalAppData = $env:APPDATA
+# Tells checks their user:// is a throwaway one, so they may freely write and delete saves there.
+$env:RESOURCE_ISLES_ISOLATED_USER_DIR = "1"
 try {
 	foreach ($check in $checks) {
 		$name = $check.BaseName
+		# On Windows Godot puts user:// under APPDATA, so a fresh one gives the check its own.
+		$env:APPDATA = Join-Path $runDir "appdata\$name"
+		New-Item -ItemType Directory -Force $env:APPDATA | Out-Null
 		$stdout = Join-Path $runDir "$name.out.log"
 		$stderr = Join-Path $runDir "$name.err.log"
 		$timer = [System.Diagnostics.Stopwatch]::StartNew()
@@ -104,12 +102,8 @@ try {
 		Write-Host "      log: $stdout"
 	}
 } finally {
-	foreach ($file in $saveFiles) {
-		$path = Join-Path $userDir $file
-		if (Test-Path $path) { Remove-Item $path -Force }
-		$backup = Join-Path $backupDir $file
-		if (Test-Path $backup) { Copy-Item $backup $path }
-	}
+	$env:APPDATA = $originalAppData
+	Remove-Item Env:RESOURCE_ISLES_ISOLATED_USER_DIR -ErrorAction SilentlyContinue
 }
 
 Write-Host ""
