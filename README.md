@@ -143,6 +143,22 @@ See [3D Models](docs/3d-models.md) for the model style and pipeline.
 4. Open the project.
 5. Run the current scene or set `game.tscn` as the main scene once gameplay begins.
 
+### PowerShell launch commands (Windows)
+
+Run these from the repository root. This is the console executable used successfully on the
+development machine; adjust its path if Godot is installed elsewhere:
+
+```powershell
+$godotExe = 'C:\Users\rasek\godot\Godot_v4_6_3_stable_win64\Godot_v4.6.3-stable_win64_console.exe'
+& $godotExe --path .
+```
+
+To open the project in the editor instead:
+
+```powershell
+& $godotExe --path . --editor
+```
+
 ## Running the Checks
 
 `tools/*_check.gd` are headless check scripts. Run them all (or `-Filter boat,furnace` for some):
