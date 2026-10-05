@@ -291,7 +291,8 @@ Start tiny; do not build a sprawling tech UI up front.
    the logistics layer. No manual cargo. Implemented in
    [`trade_route.gd`](../scripts/world/trade_route.gd) (data, saved in `WorldData`) and
    [`trade_manager.gd`](../scripts/world/trade_manager.gd) (the loop): each Dock carries one
-   boat, so an island can start as many routes as it has Docks. A boat loads up to
+   boat, and each island allows one Dock, so it can originate one route (and receive routes
+   from other islands). Existing saves retain previously built docks and routes. A boat loads up to
    `BOAT_CAPACITY` (5) of the outbound resource at home, sails to the other island (time =
    `BASE_TRIP_SECONDS` + `SECONDS_PER_HEX` x world-map distance), unloads, optionally loads a
    return resource, sails back, repeats. A route idles while either end lacks a Dock. Routes are

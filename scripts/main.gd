@@ -1591,6 +1591,9 @@ func _try_place_selected_building() -> bool:
 		return false
 	if not quest_manager.is_building_unlocked(selected_building_type):
 		return false
+	if selected_building_type == GameTypes.BuildingType.DOCK and building_manager.has_dock(current_island):
+		toast.show_message("Only one Dock per island. Move or remove the existing Dock first.")
+		return false
 
 	var cost := _get_building_cost(selected_building_type)
 	if not resource_manager.can_afford(cost):
@@ -1918,6 +1921,11 @@ func _select_building(building_type: int) -> void:
 # The next valid left-click drops it at the new cell (_try_finish_move); cancelling restores it.
 func _on_building_move_requested(building_type: int, anchor_cell: Vector2i, island: IslandData) -> void:
 	if island == null or island != current_island:
+		return
+	# Older saves may contain multiple docks. Keep them intact until the player removes extras,
+	# rather than lifting a dock that the placement limit would prevent us from restoring.
+	if building_type == GameTypes.BuildingType.DOCK and building_manager.has_dock(island, anchor_cell):
+		toast.show_message("Only one Dock per island. Remove the extra Docks before moving this one.")
 		return
 	# Moving is for finished buildings; a blueprint is cancelled and placed again instead.
 	if island.is_under_construction(anchor_cell):

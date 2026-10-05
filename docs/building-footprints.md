@@ -4,6 +4,8 @@ A building can cover more than one hex tile, in any connected shape, and the pla
 
 See also: [3D Models](3d-models.md) for how models are placed, and [Low Poly Workshop art direction](building-style-palette.md) for authoring them.
 
+Each island allows one dock, including a dock under construction. Move the existing dock to relocate it, or remove it before building a replacement. Existing saves retain any previously built docks, but cannot add more.
+
 ## Defining a shape
 
 `BuildingDefinition.footprint` lists the tiles as **axial hex offsets** from the building's anchor tile. The anchor, `Vector2i.ZERO`, comes first. Write the other tiles with the six direction constants in [`hex_grid.gd`](../scripts/island/hex_grid.gd), summed for tiles further out:

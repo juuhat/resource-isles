@@ -35,6 +35,7 @@ func _run() -> void:
 	SaveManager.delete_save()
 
 	_check_shapes()
+	_check_dock_limit()
 
 	var game: Node = GameScene.instantiate()
 	root.add_child(game)
@@ -65,6 +66,37 @@ func _check_shapes() -> void:
 			"Six turns come back round")
 	for cell in [Vector2i(3, -3), Vector2i(-2, 7), Vector2i(4, 0)]:
 		_expect(HexGridScript.axial_to_offset(HexGridScript.offset_to_axial(cell)) == cell, "Axial round trip for %s" % cell)
+
+
+func _check_dock_limit() -> void:
+	var manager := BuildingManager.new()
+	var island := IslandData.new(10, 6)
+	var other_island := IslandData.new(10, 6)
+	var dock := GameTypes.BuildingType.DOCK
+	var first := Vector2i(1, 2)
+	var second := Vector2i(6, 2)
+	for data in [island, other_island]:
+		for anchor in [first, second]:
+			var cells := manager.get_footprint_cells(anchor, dock)
+			data.set_terrain(cells[0], GameTypes.Terrain.SAND)
+			data.set_terrain(cells[1], GameTypes.Terrain.COAST)
+			data.set_terrain(cells[2], GameTypes.Terrain.WATER)
+	_expect(manager.can_place(first, dock, island) and manager.can_place(second, dock, island),
+		"Both dock sites are valid before placement")
+	_expect(manager.try_place(first, dock, island, 0, true), "First dock blueprint places")
+	_expect(not manager.has_dock(island, first), "Relocation ignores the dock being moved")
+	_expect(not manager.can_place(second, dock, island) and not manager.try_place(second, dock, island),
+		"A blueprint blocks a second dock")
+	_expect(manager.try_place(first, dock, other_island), "Another island can have its own dock")
+	island.set_build_progress(first, 1.0)
+	island.complete_construction(first)
+	_expect(not manager.try_place(second, dock, island), "A finished dock blocks a second dock")
+	var restored := IslandData.from_dict(island.to_dict(0.0), 0.0)
+	_expect(not manager.can_place(second, dock, restored), "The dock limit survives saving and loading")
+	_expect(manager.remove(first, island) and manager.try_place(second, dock, island),
+		"Removing or lifting the dock frees its slot for relocation")
+	_expect(manager.remove(second, island) and manager.try_place(first, dock, island),
+		"Cancelling relocation can restore the original dock")
 
 
 func _check_dock(game: Node) -> void:

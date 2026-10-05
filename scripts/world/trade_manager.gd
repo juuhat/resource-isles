@@ -5,9 +5,10 @@ extends RefCounted
 # directly (all islands simulate in the background, so it doesn't matter which one the player
 # is on). See docs/island-unlocks.md, "Trade routes move goods".
 #
-# Boats: each Dock carries one boat, so an island can be the HOME of as many routes as it has
-# docks. A route runs only while its home island still has a dock for it and the away island has
-# at least one dock; otherwise it idles at home (blocked_reason says why).
+# Boats: each island allows one Dock carrying one boat, so it can be the HOME of one route.
+# Existing saves keep their docks and routes. A route runs only while its home island has a dock
+# for it and the away island has at least one dock; otherwise it idles at home
+# (blocked_reason says why).
 #
 # Throughput is deliberately a trickle for now (the salvage skiff): BOAT_CAPACITY per leg, with
 # trip time growing with world-map distance. Boat tiers will raise capacity and reach later.

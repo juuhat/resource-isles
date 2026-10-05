@@ -321,7 +321,7 @@ func _signed(amount: int) -> String:
 
 # --- Dock: trade routes ---
 # Lists every route touching this island (live status), then a form to open a new one from here.
-# Each Dock carries one boat, so an island can start as many routes as it has Docks.
+# Each island has one Dock with one boat, so it can originate one route.
 
 func _process(delta: float) -> void:
 	if panel == null or not panel.visible or _shown_route_count == -1:
@@ -389,7 +389,7 @@ func _build_new_route_form(coord: Vector2i) -> void:
 		_add_hint("Build a Dock on another island to open a route to it.")
 		return
 	if trade_manager.free_boats(coord) <= 0:
-		_add_hint("Every boat here is busy. Build another Dock for another route.")
+		_add_hint("This island's boat is busy. Remove its route or start a route from another island.")
 		return
 
 	_destination_picker = OptionButton.new()

@@ -30,6 +30,8 @@ func can_place(anchor_cell: Vector2i, building_type: int, island: IslandData, ro
 	var definition := get_definition(building_type)
 	if definition == null:
 		return false
+	if building_type == GameTypes.BuildingType.DOCK and has_dock(island):
+		return false
 
 	var footprint := get_footprint_cells(anchor_cell, building_type, rotation)
 	if not island.can_place_building(anchor_cell, footprint, definition.required_terrains, definition.footprint_terrains):
@@ -46,6 +48,15 @@ func can_place(anchor_cell: Vector2i, building_type: int, island: IslandData, ro
 			return false
 
 	return true
+
+
+# Blueprints reserve the island's only dock slot too. Moving lifts the existing dock before
+# checking its new placement, so relocation and cancellation still use this same gate.
+func has_dock(island: IslandData, except_anchor := Vector2i(-1, -1)) -> bool:
+	for anchor in island.buildings:
+		if anchor != except_anchor and int(island.buildings[anchor].type) == GameTypes.BuildingType.DOCK:
+			return true
+	return false
 
 
 # under_construction places it as a blueprint for the robot to build (IslandData.place_building).

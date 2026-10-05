@@ -261,7 +261,7 @@ static func build_all() -> Array[BuildingDefinition]:
 	var dock := BuildingDefinitionScript.new()
 	dock.id = GameTypes.BuildingType.DOCK
 	dock.display_name = "Dock"
-	dock.description = "A landing on the sandy shore, and the future launch point for boats to other islands."
+	dock.description = "A landing on the sandy shore, and the future launch point for boats to other islands. Only one per island."
 	dock.category = GameTypes.BuildingCategory.LOGISTICS
 	dock.texture = DOCK_TEXTURE
 	dock.model = DOCK_MODEL
