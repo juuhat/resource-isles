@@ -36,7 +36,7 @@ func _run() -> void:
 	if anchor != GameTypes.NO_CELL:
 		game.player_unit.place_at(origin.buildings[anchor].cells[1])
 		game.player_unit.set_selected(true)
-		game._refresh_action_bar()
+		game.refresh_action_bar()
 		expect(game.action_bar.action_row.get_children().any(func(button: Button) -> bool: return button.text == "Cargo"), "Cargo control offered beside initial boat")
 		game._open_boat_cargo()
 		var id: int = game.cargo_boat_id
@@ -116,7 +116,7 @@ func _run() -> void:
 			game._store_boat_position()
 			game._refresh_boat_cargo()
 			expect(game.boat_cargo_panel.island == null and game.boat_cargo_panel.maximum_transfer(GameTypes.ResourceType.WOOD, false) == 0, "Stationary open-water boat cannot unload")
-		game._save_game()
+		game.save_game()
 		root.remove_child(game)
 		game.free()
 		await process_frame
@@ -132,7 +132,7 @@ func _run() -> void:
 			game._store_boat_position()
 			game._refresh_boat_cargo()
 			game.player_unit.set_selected(true)
-			game._refresh_action_bar()
+			game.refresh_action_bar()
 			game.camera_rig.center_on(game.player_unit.position, true)
 			for frame in 20:
 				await process_frame

@@ -112,12 +112,12 @@ func _check_resource_from_neighbour(game: Node, robot: PlayerUnit) -> void:
 	_expect(HexGridScript.neighbors(target).has(robot.current_cell), "It works the node from beside it")
 	for cell in _entered:
 		_expect(not island.has_resource(cell), "The route crosses no resource node")
-	_expect(game.harvestable_cell == target, "Harvest is offered for the clicked node")
+	_expect(game.robot.harvestable_cell == target, "Harvest is offered for the clicked node")
 
 	_settle(robot)
 	var cell_center := renderer.get_cell_center(robot.current_cell)
 	var lean := Vector2(robot.position.x - cell_center.x, robot.position.z - cell_center.z).length()
-	_expect(absf(lean - game.WORK_LEAN_TILES * renderer.cell_size.x) < 2.0, "It leans toward the node")
+	_expect(absf(lean - RobotController.WORK_LEAN_TILES * renderer.cell_size.x) < 2.0, "It leans toward the node")
 	# Forest and rock clusters are roughly round, so compare footprint radii rather than boxes.
 	var node_box := _object_aabb(renderer, renderer.get_cell_center(target))
 	var robot_box := _robot_aabb(robot)
@@ -128,7 +128,7 @@ func _check_resource_from_neighbour(game: Node, robot: PlayerUnit) -> void:
 
 	# Clicking the same node again from beside it is instant.
 	_command(game, target)
-	_expect(not robot.is_moving() and game.harvestable_cell == target)
+	_expect(not robot.is_moving() and game.robot.harvestable_cell == target)
 
 
 # A building's WorkSpot: the robot takes the shortest route straight onto the building's tile,
@@ -156,7 +156,7 @@ func _check_work_spot(game: Node, robot: PlayerUnit, building_type: int) -> void
 	_expect(robot.current_cell == camp, "The robot parks on the %s's own tile" % label)
 	_expect(_entered.size() == shortest, "It takes the shortest route straight to the %s (%d steps, shortest %d)" % [label, _entered.size(), shortest])
 	_expect(Vector2(robot.position.x - spot.x, robot.position.z - spot.z).length() < 1.0, "It stands on the work spot")
-	_expect(game.operable_cell == camp and not game._operate_action().is_empty(), "Operate is offered from the yard")
+	_expect(game.robot.operable_cell == camp and not game.robot._operate_action().is_empty(), "Operate is offered from the yard")
 	_settle(robot)
 	var center := renderer.get_cell_center(camp)
 	var facing := atan2(center.x - robot.position.x, center.z - robot.position.z)
@@ -209,7 +209,7 @@ func _check_walk_through_buildings(game: Node, robot: PlayerUnit) -> void:
 
 	renderer.hovered_cell = blocked
 	_expect(renderer.try_place_hovered_building(blocked_type))
-	game._reroute_unit()
+	game.robot.reroute()
 	_walk(robot)
 	_expect(robot.current_cell == goal, "A building placed on the route doesn't stop the robot")
 	_expect(_entered.has(blocked), "It walks straight through the new building")

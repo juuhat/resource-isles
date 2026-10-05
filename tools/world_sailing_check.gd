@@ -67,7 +67,7 @@ func _run() -> void:
 			steps += 1
 		expect(crossed_sea, "Cross ocean outside every island grid")
 		game._store_boat_position()
-		game._save_game()
+		game.save_game()
 		var at_sea: Vector2i = game.player_unit.current_cell
 		if OS.get_cmdline_user_args().has("--screenshot"):
 			await _capture(game, "world_sailing_sea", game.player_unit.position, false)

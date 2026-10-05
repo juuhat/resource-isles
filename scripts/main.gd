@@ -1,3 +1,4 @@
+class_name Game
 extends Node3D
 
 const WorldViewScript := preload("res://scripts/world/world_view.gd")
@@ -28,39 +29,18 @@ const TradeManagerScript := preload("res://scripts/world/trade_manager.gd")
 const GameMenuScript := preload("res://scripts/ui/game_menu.gd")
 
 const NO_BUILDING := -1
-const HARVEST_INTERVAL := 3.0
-const HARVEST_YIELD := 1
-# Working a building or resource node from the tile beside it, the robot leans this far (in
-# tiles) toward it — close enough to read as working it, clear of its geometry.
-const WORK_LEAN_TILES := 0.15
-# Extra steps the robot will walk to work a target from the camera side rather than from behind
-# it, where the target would hide it.
-const BEHIND_PENALTY := 2
 
 # Upper bound on how often the throttled crash-backstop autosave writes (see _process).
 const AUTOSAVE_INTERVAL_SECONDS := 60.0
 
-# Icons for the robot's command-bar actions.
-const PICKAXE_ICON := preload("res://assets/icons/pickaxe.png")
+# Icons for the boat actions on the robot's command bar.
 const POWER_ICON := preload("res://assets/icons/power.png")
-const PAW_ICON := preload("res://assets/icons/paw.png")
-const HAMMER_ICON := preload("res://assets/icons/hammer.png")
 const BOAT_ICON := preload("res://assets/vehicles/rowboat.png")
 const CARGO_ICON := preload("res://assets/icons/cargo_crate.png")
 
 const PLACEMENT_SOUND := preload("res://assets/audio/sfx/building_placement.wav")
 const StarfieldSkyShader := preload("res://assets/shaders/world_map/starfield_sky.gdshader")
 
-# Actions the selected robot can take on its current tile, dispatched from the ActionBar.
-enum UnitAction {
-	HARVEST,
-	OPERATE,
-	RESCUE,
-	BUILD,
-	PILOT_BOAT,
-	DISEMBARK,
-	CARGO,
-}
 # Pixels the cursor may travel between left press and release before it counts
 # as a drag (pan) rather than a click.
 const DRAG_THRESHOLD := 6.0
@@ -114,12 +94,12 @@ var quest_tracker_view: QuestTrackerView
 var toast: Toast
 var game_menu: GameMenu
 var _placement_player: AudioStreamPlayer
-var pending_action_cell := GameTypes.NO_CELL
+# The robot's work and walking commands, and K9-DA at its side.
+var robot: RobotController
 # The cell under the cursor, on any island or the open sea (see _update_hover). Walking and sailing
 # commands, and selecting the robot, all go by it.
 var hovered_cell := GameTypes.NO_CELL
 var landing_cell := GameTypes.NO_CELL
-var harvestable_cell := GameTypes.NO_CELL
 
 # Throttled crash backstop: resource changes (harvesting, production, fuel) mark the game
 # dirty, and _process flushes a save at most once per AUTOSAVE_INTERVAL_SECONDS. The discrete
@@ -127,26 +107,6 @@ var harvestable_cell := GameTypes.NO_CELL
 # made between those events — bounding worst-case crash loss to one interval.
 var _autosave_dirty := false
 var _autosave_accum := 0.0
-
-var is_harvesting := false
-var harvest_cell := GameTypes.NO_CELL
-var harvest_resource_type := -1
-var _harvest_accum := 0.0
-
-# The robot is the tier-0 power source: while is_operating, it hand-powers the
-# power-consuming building anchored at operate_cell (power_manager treats that cell as
-# powered for free). operable_cell is the parked tile where the Operate action is offered.
-var is_operating := false
-var operate_cell := GameTypes.NO_CELL
-var operable_cell := GameTypes.NO_CELL
-
-# Construction: placing a building puts down a blueprint (IslandData.is_under_construction) and
-# sends the robot to raise it. While is_constructing it works the blueprint anchored at
-# construct_cell, adding to its build progress; buildable_cell is the blueprint it is parked at,
-# where the Build action is offered to start or resume the work.
-var is_constructing := false
-var construct_cell := GameTypes.NO_CELL
-var buildable_cell := GameTypes.NO_CELL
 
 
 func _ready() -> void:
@@ -186,7 +146,7 @@ func _ready() -> void:
 	add_child(player_unit)
 
 	# K9-DA, the dog the MAIN quest rescues: stranded on a ring-1 island until the robot picks
-	# it up, then it follows the robot between islands (see _sync_dog).
+	# it up, then it follows the robot between islands (RobotController.sync_dog).
 	dog = DogScript.new()
 	dog.name = "Dog"
 	dog.setup(world_view)
@@ -216,6 +176,9 @@ func _ready() -> void:
 	trade_manager.route_created.connect(_on_trade_route_created)
 	trade_manager.route_removed.connect(_on_trade_route_removed)
 	trade_manager.cargo_delivered.connect(_on_trade_cargo_delivered)
+	# Set up once the world and units exist.
+	robot = RobotController.new()
+	robot.setup(self)
 	_add_ui()
 	# Persist on quit/suspend: intercept the close request so we can save before exiting, and
 	# react to the mobile pause notification in _notification (the OS can kill a backgrounded
@@ -230,10 +193,10 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	match what:
 		NOTIFICATION_WM_CLOSE_REQUEST:
-			_save_game()
+			save_game()
 			get_tree().quit()
 		NOTIFICATION_APPLICATION_PAUSED:
-			_save_game()
+			save_game()
 
 
 # Restore a saved game into the already-constructed managers, or return false to start fresh.
@@ -263,7 +226,7 @@ func _try_load_game() -> bool:
 	return true
 
 
-func _save_game() -> bool:
+func save_game() -> bool:
 	if world == null:
 		return false
 	_store_boat_position()
@@ -300,6 +263,16 @@ func _save_game() -> bool:
 	return saved
 
 
+# Progress was made that a crash shouldn't lose: arms the throttled backstop save (see _process).
+func mark_dirty() -> void:
+	_autosave_dirty = true
+
+
+func play_placement_sound() -> void:
+	if _placement_player != null:
+		_placement_player.play()
+
+
 func _on_menu_opened() -> void:
 	is_panning = false
 	is_left_panning = false
@@ -311,7 +284,7 @@ func _on_menu_opened() -> void:
 
 
 func _on_menu_save_game() -> void:
-	game_menu.show_status("Game saved." if _save_game() else "Could not save the game. Please try again.")
+	game_menu.show_status("Game saved." if save_game() else "Could not save the game. Please try again.")
 
 
 func _on_menu_load_game() -> void:
@@ -349,7 +322,7 @@ func _update_autosave(delta: float) -> void:
 
 	_autosave_accum += delta
 	if _autosave_accum >= AUTOSAVE_INTERVAL_SECONDS:
-		_save_game()
+		save_game()
 
 
 func _process(delta: float) -> void:
@@ -367,16 +340,12 @@ func _process(delta: float) -> void:
 	for coord in world.islands:
 		var island: IslandData = world.islands[coord]
 		var is_current := island == current_island
-		var operated_cell := operate_cell if is_current and is_operating else GameTypes.NO_CELL
+		var operated_cell: Vector2i = robot.operated_cell() if is_current else GameTypes.NO_CELL
 		power_manager.update(island, current_time_seconds, operated_cell, is_current)
 		production_manager.update(island, current_time_seconds)
 	trade_manager.update(current_time_seconds)
 
-	if is_harvesting:
-		_update_harvest(delta)
-
-	if is_constructing:
-		_update_construction(delta)
+	robot.update(delta)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -468,9 +437,9 @@ func _on_quest_completed(quest_id: int) -> void:
 	for reward in quest.rewards:
 		_apply_reward(reward)
 	# A reward may have changed what the robot can do here (e.g. harvesting unlocked).
-	_refresh_action_bar()
+	refresh_action_bar()
 	# Completing a quest is a milestone the player would hate to lose to a crash — checkpoint it.
-	_save_game()
+	save_game()
 
 
 # Building-unlock rewards need no action here — placement reads quest_manager state
@@ -497,7 +466,7 @@ func _reveal_rings(count: int) -> void:
 	world_navigation.rebuild_regions()
 	world_view.refresh()
 	camera_rig.set_overview(world_view.overview_pivot(), world_view.overview_distance())
-	_save_game()
+	save_game()
 
 
 func _input(event: InputEvent) -> void:
@@ -630,49 +599,18 @@ func _setup_lighting() -> void:
 	camera_rig.set_fog_environment(environment)
 
 
-# Send the robot to the hovered cell. Open ground is walked onto. The robot doesn't park on a
-# building or resource node, so for one it walks to where it can work it instead (see
-# _plan_approach) and the target stays the clicked cell.
 func _command_unit_to_hovered() -> bool:
 	return _command_unit_to(hovered_cell)
 
 
+# Send the robot to `cell`: aboard, its boat sails there (or lands there, see _command_boat_to); on
+# foot, it walks to where it can work the cell (RobotController.command_to).
 func _command_unit_to(cell: Vector2i) -> bool:
 	if player_unit == null or current_island == null:
 		return false
 	if player_unit.boat_id != -1:
 		return _command_boat_to(cell)
-
-	# A building's tiles are all targets, even one standing in the water (the dock's pier).
-	if cell == GameTypes.NO_CELL or not (HexPathfinderScript.is_walkable(current_island, cell) or current_island.has_building(cell) or not world_navigation.boat_at(cell).is_empty()):
-		return false
-
-	var plan := _plan_approach(cell, player_unit.current_cell)
-	if plan.is_empty():
-		return false
-
-	pending_action_cell = cell
-
-	if plan.path.is_empty() and plan.spot_cell == GameTypes.NO_CELL:
-		# Already where it can work the target: switch to it without moving.
-		if cell != harvest_cell:
-			_stop_harvesting()
-		if current_island.get_building_anchor_cell(cell) != operate_cell:
-			_stop_operating()
-		if current_island.get_building_anchor_cell(cell) != construct_cell:
-			_stop_constructing()
-		_on_unit_arrived(player_unit.current_cell)
-		return true
-
-	_stop_harvesting()
-	_stop_operating()
-	_stop_constructing()
-	harvestable_cell = GameTypes.NO_CELL
-	operable_cell = GameTypes.NO_CELL
-	buildable_cell = GameTypes.NO_CELL
-	player_unit.follow_path(plan.path, plan.spot_cell, plan.spot_position)
-	_refresh_action_bar()
-	return true
+	return robot.command_to(cell)
 
 
 # Sailing commands always use the world lattice, including clicks between islands.
@@ -681,239 +619,57 @@ func _command_boat_to(cell: Vector2i) -> bool:
 		return false
 	if world_navigation.can_land(player_unit.current_cell, cell) and not player_unit.is_moving():
 		landing_cell = cell
-		_refresh_action_bar()
+		refresh_action_bar()
 		return true
 	if not world_navigation.inside_frontier(cell):
 		toast.show_message("The fog blocks passage — " + world_view.locked_island_hint(Vector2i(world.revealed_rings + 1, 0)))
 		return false
-	var plan := _plan_route(cell, player_unit.next_cell())
+	var plan: Dictionary = robot.plan_route(cell, player_unit.next_cell())
 	if plan.is_empty():
 		return false
 	landing_cell = GameTypes.NO_CELL
-	pending_action_cell = cell
+	robot.pending_action_cell = cell
 	if player_unit.is_moving():
 		player_unit.reroute(plan.path)
 	else:
 		player_unit.follow_path(plan.path)
-	_refresh_action_bar()
+	refresh_action_bar()
 	return true
 
 
-# How the robot gets from `start` to `target`: sailing, the boat's route there; on foot, the walk
-# to where it can work the target (_plan_approach). {} when it can't get there.
-func _plan_route(target: Vector2i, start: Vector2i) -> Dictionary:
-	if player_unit.boat_id == -1:
-		return _plan_approach(target, start)
-	var path := world_navigation.find_path(start, target, player_unit.boat_id)
-	return _approach(path) if not path.is_empty() else {}
-
-
-# How the robot, standing at `start`, gets to work `target`: {path, spot_cell, spot_position} for
-# PlayerUnit.follow_path, or {} when it can't get there. Empty path and no spot = already there.
-#   - Open ground, or a deck like the dock's pier: walk onto it.
-#   - A building with a WorkSpot: the shortest route straight onto the building's tile (walking
-#     through buildings is fine), the last step going onto the parking spot instead of the
-#     tile's centre. The robot then turns to face the building (see _on_unit_arrived).
-#   - Anything else (a resource node, or a building whose model fills its tile): the cheapest
-#     open neighbour, interacting across the edge. Neighbours behind the target (away from the
-#     camera) cost BEHIND_PENALTY extra, so the robot isn't hidden by it.
-#   - No open neighbour at all (fully enclosed): stand on the target itself, as a last resort.
-func _plan_approach(target: Vector2i, start: Vector2i) -> Dictionary:
-	var island := current_island
-	var no_path: Array[Vector2i] = []
-	if not world_navigation.boat_at(target).is_empty():
-		var search := HexPathfinderScript.search(island, start)
-		var best := GameTypes.NO_CELL
-		var cost := INF
-		for shore in HexGridScript.neighbors(target):
-			if world_navigation.can_land(target, shore) and search.cost.has(shore) and search.cost[shore] < cost:
-				best = shore
-				cost = search.cost[shore]
-		return _approach(HexPathfinderScript.path_to(search, best)) if best != GameTypes.NO_CELL else {}
-
-	# Checked before the work spot: a deck is a building's tile, but one to walk out onto.
-	if HexPathfinderScript.is_open(island, target):
-		var path := HexPathfinderScript.find_path(island, start, target)
-		if path.is_empty() and target != start:
-			return {}
-		return _approach(path)
-
-	var spot = renderer.get_work_spot(island.get_building_anchor_cell(target)) if island.has_building(target) else null
-	# A building bigger than one tile is reached at the tile its spot stands on, not the one clicked.
-	var spot_tile: Vector2i = renderer.world_to_cell(spot) if spot != null else target
-	if spot != null and not HexPathfinderScript.is_walkable(island, spot_tile):
-		spot = null
-	if spot != null:
-		if start == spot_tile and player_unit.is_at_spot():
-			return _approach(no_path)
-		var to_tile := HexPathfinderScript.find_path(island, start, spot_tile)
-		if to_tile.is_empty() and start != spot_tile:
-			return {}
-		if not to_tile.is_empty():
-			to_tile.pop_back()  # the spot leg replaces the step to the tile's centre
-		return _approach(to_tile, spot_tile, Vector3(spot.x, renderer.get_cell_center(spot_tile).y, spot.z))
-
-	var search := HexPathfinderScript.search(island, start)
-	var costs: Dictionary = search.cost
-	var center := renderer.get_cell_center(target)
-
-	var best := GameTypes.NO_CELL
-	var best_score := INF
-	for neighbor in HexGridScript.neighbors(target):
-		if not HexPathfinderScript.is_open(island, neighbor) or not costs.has(neighbor):
-			continue
-		var neighbor_z := renderer.get_cell_center(neighbor).z
-		var score: float = costs[neighbor] + (BEHIND_PENALTY if neighbor_z < center.z else 0)
-		# Equal scores: the tile nearer the camera.
-		score -= neighbor_z * 0.0001
-		if score < best_score:
-			best = neighbor
-			best_score = score
-
-	if best != GameTypes.NO_CELL:
-		return _approach(HexPathfinderScript.path_to(search, best))
-
-	return _approach(HexPathfinderScript.path_to(search, target))
-
-
-func _approach(path: Array[Vector2i], spot_cell := GameTypes.NO_CELL, spot_position := Vector3.ZERO) -> Dictionary:
-	return {path = path, spot_cell = spot_cell, spot_position = spot_position}
-
-
-# True when the robot can work `target` from where it stands: on it (open ground, a work spot,
-# or the enclosed-target fallback) or on a neighbouring tile.
-func _is_working_position(target: Vector2i) -> bool:
-	if player_unit == null or target == GameTypes.NO_CELL:
-		return false
-	if player_unit.boat_id != -1:
-		return false
-	var cell := player_unit.current_cell
-	# On or beside any tile of the target building, however many tiles it covers.
-	var target_cells: Array[Vector2i] = [target]
-	if current_island.has_building(target):
-		target_cells = current_island.get_building_footprint_cells(current_island.get_building_anchor_cell(target))
-	for target_cell in target_cells:
-		if cell == target_cell or HexGridScript.neighbors(target_cell).has(cell):
-			return true
-	return false
-
-
-# Placement veto (IslandRenderer.is_cell_occupied_by_unit): the robot's and K9-DA's cells,
-# including the ones they're stepping into.
-func _is_unit_cell(cell: Vector2i) -> bool:
-	for id in world.boats:
-		if world.boats[id].cell == cell:
-			return true
-	if player_unit != null and cell in [player_unit.current_cell, player_unit.next_cell()]:
-		return true
-	if dog != null and dog.is_on(current_island):
-		return cell == dog.current_cell or cell == dog.next_cell()
-	return false
-
-
-# Construction changed the map: re-plan a moving robot's route from the cell it's stepping into,
-# so it never ends up parked on a building placed where it was heading (walking through one on the
-# way is fine), nor sails into a pier. The last leg into a work spot stays inside the building's
-# own tile. A boat left with no route carries on until its old one is blocked, and stops there
-# (PlayerUnit checks each step).
-func _reroute_unit() -> void:
-	if player_unit == null or not player_unit.is_moving() or pending_action_cell == GameTypes.NO_CELL:
-		return
-	if player_unit.is_at_spot():
-		return
-
-	var plan := _plan_route(pending_action_cell, player_unit.next_cell())
-	if not plan.is_empty():
-		player_unit.reroute(plan.path, plan.spot_cell, plan.spot_position)
-
-
-# Collect any ground item the robot walks onto. Fires for every cell stepped through,
-# so tools are picked up by passing over them — the intro to movement.
+# Aboard, each cell the boat enters is kept with the boat and may bring an island into sight; on
+# foot, the robot picks up what it walks over (RobotController.on_entered_cell).
 func _on_unit_entered_cell(cell: Vector2i) -> void:
 	if player_unit.boat_id != -1:
 		_store_boat_position()
 		_reveal_nearby_island(cell)
-		_autosave_dirty = true
+		mark_dirty()
 		return
-	if current_island == null or not current_island.has_item(cell):
-		return
-
-	var item_type := current_island.take_item(cell)
-	stat_tracker.add(GameTypes.Stat.TOOLS_COLLECTED, 1)
-	FloatingText.spawn(
-		self,
-		renderer.get_cell_center(cell),
-		"+%s" % GameTypes.item_display_name(item_type),
-		Color(1.0, 0.95, 0.7)
-	)
-	renderer.refresh()
+	robot.on_entered_cell(cell)
 
 
 func _on_unit_arrived(_cell: Vector2i) -> void:
 	if player_unit.boat_id != -1:
 		_store_boat_position()
-		pending_action_cell = GameTypes.NO_CELL
-		_refresh_action_bar()
-		_save_game()
+		robot.pending_action_cell = GameTypes.NO_CELL
+		refresh_action_bar()
+		save_game()
 		return
-	var target := pending_action_cell
-	if target == GameTypes.NO_CELL:
-		return
-
-	pending_action_cell = GameTypes.NO_CELL
-	if _is_working_position(target):
-		harvestable_cell = target if current_island.get_resource_node_type(target) != -1 else GameTypes.NO_CELL
-		operable_cell = target if _building_consumes_power(target) else GameTypes.NO_CELL
-		buildable_cell = target if current_island.is_under_construction(target) else GameTypes.NO_CELL
-		if player_unit.is_at_spot():
-			player_unit.face_toward(renderer.get_cell_center(target))
-		elif target != player_unit.current_cell:
-			player_unit.face_toward(renderer.get_cell_center(target), WORK_LEAN_TILES)
-		_start_action_at(target)
-	_refresh_action_bar()
+	robot.on_arrived()
 
 
-# The robot was sent to `target` and can work it from here: start the work right away (what the
-# green hover promised, see _is_actionable_cell). Work already under way there is left running.
-func _start_action_at(target: Vector2i) -> void:
-	var can_harvest := quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.HARVESTING)
-	if buildable_cell == target and not is_constructing:
-		_on_build_pressed()
-	elif harvestable_cell == target and not is_harvesting and can_harvest:
-		_on_harvest_pressed()
-	elif operable_cell == target and not is_operating and _can_operate():
-		_on_operate_pressed()
-	elif _can_rescue_dog() and target == world.dog_cell:
-		_on_rescue_pressed()
-
-
-# True for a cell the selected robot would start working on if right-clicked: a blueprint, a
-# resource node once harvesting is unlocked, a building that draws power once operating is
-# unlocked, or the stranded K9-DA. The hover tints it green (IslandRenderer.is_cell_actionable).
-# Not while placing or moving a building, where the right-click cancels instead.
+# The hovered cell is tinted green where the selected robot would start working if right-clicked
+# (RobotController.is_actionable_cell), but not while placing or moving a building, where the
+# right-click cancels instead.
 func _is_actionable_cell(cell: Vector2i) -> bool:
-	if player_unit == null or not player_unit.selected or current_island == null:
-		return false
-	if selected_building_type != NO_BUILDING:
-		return false
-	if player_unit.boat_id != -1:
-		return world_navigation.can_land(player_unit.current_cell, cell)
-	if not world_navigation.boat_at(cell).is_empty():
-		return true
-	if current_island.is_under_construction(cell):
-		return true
-	if current_island.get_resource_node_type(cell) != -1:
-		return quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.HARVESTING)
-	if _building_consumes_power(cell):
-		return _can_operate()
-	return world.is_dog_stranded_on(world.current_coord) and cell == world.dog_cell
+	return selected_building_type == NO_BUILDING and robot.is_actionable_cell(cell)
 
 
 # Rebuild the robot's command bar from its current context: the bar shows only while a
-# parked, selected robot has at least one applicable action. main.gd owns what each
-# action means; the bar (action_bar.gd) is just the view. To add a robot action, append
-# another descriptor here and handle its id in _on_action_pressed.
-func _refresh_action_bar() -> void:
+# parked, selected robot has at least one applicable action: the boat's here, its work from the
+# RobotController. The bar (action_bar.gd) is just the view; _on_action_pressed carries an action
+# out.
+func refresh_action_bar() -> void:
 	if action_bar == null:
 		return
 
@@ -925,28 +681,17 @@ func _refresh_action_bar() -> void:
 		and current_island != null
 	):
 		if player_unit.boat_id != -1:
-			actions.append({id = UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = "Boat cargo — load or unload at the shore", active = false})
+			actions.append({id = GameTypes.UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = "Boat cargo — load or unload at the shore", active = false})
 			if _landing_tile() != GameTypes.NO_CELL:
-				actions.append({id = UnitAction.DISEMBARK, icon = BOAT_ICON, label = "Disembark (right-click shore to choose landing)", active = false})
+				actions.append({id = GameTypes.UnitAction.DISEMBARK, icon = BOAT_ICON, label = "Disembark (right-click shore to choose landing)", active = false})
 			action_bar.set_actions(actions)
 			action_bar.set_selected(player_unit.selected)
 			renderer.refresh_hover()
 			return
 		if not _nearby_boat().is_empty():
-			actions.append({id = UnitAction.PILOT_BOAT, icon = POWER_ICON, label = "Pilot boat — board and power the helm", active = false})
-			actions.append({id = UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = "Boat cargo — load or unload supplies", active = false})
-		var build := _build_action()
-		if not build.is_empty():
-			actions.append(build)
-		var harvest := _harvest_action()
-		if not harvest.is_empty():
-			actions.append(harvest)
-		var operate := _operate_action()
-		if not operate.is_empty():
-			actions.append(operate)
-		var rescue := _rescue_action()
-		if not rescue.is_empty():
-			actions.append(rescue)
+			actions.append({id = GameTypes.UnitAction.PILOT_BOAT, icon = POWER_ICON, label = "Pilot boat — board and power the helm", active = false})
+			actions.append({id = GameTypes.UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = "Boat cargo — load or unload supplies", active = false})
+		actions.append_array(robot.actions())
 
 	action_bar.set_actions(actions)
 	action_bar.set_selected(player_unit != null and player_unit.selected)
@@ -964,124 +709,21 @@ func _on_portrait_select_requested() -> void:
 	if camera_rig.is_heading_to_overview() or camera_rig.overview_amount() > 0.0:
 		camera_rig.exit_overview()
 	camera_rig.center_on(player_unit.position)
-	_refresh_action_bar()
-
-
-func _harvest_action() -> Dictionary:
-	# Harvesting is locked until the robot recovers its tools (the "Hello World" quest).
-	if not quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.HARVESTING):
-		return {}
-
-	if harvestable_cell == GameTypes.NO_CELL or not _is_working_position(harvestable_cell):
-		return {}
-
-	var resource_node_type := current_island.get_resource_node_type(harvestable_cell)
-	if resource_node_type == -1:
-		return {}
-
-	var definition := resource_node_database.get_definition(resource_node_type)
-	var node_name := definition.display_name if definition != null else ""
-	var label := ""
-	if is_harvesting:
-		label = "Cancel harvesting" if node_name.is_empty() else "Cancel (%s)" % node_name
-	else:
-		label = "Harvest" if node_name.is_empty() else "Harvest %s" % node_name
-
-	return {id = UnitAction.HARVEST, icon = PICKAXE_ICON, label = label, active = is_harvesting}
-
-
-func _operate_action() -> Dictionary:
-	# Hand-powering is locked until the first extractors stand (the "Lay the Foundations" quest).
-	if not _can_operate():
-		return {}
-
-	if operable_cell == GameTypes.NO_CELL or not _is_working_position(operable_cell):
-		return {}
-
-	if not _building_consumes_power(operable_cell):
-		return {}
-
-	var definition := building_manager.get_definition(current_island.get_building_type(operable_cell))
-	var building_name := definition.display_name if definition != null else ""
-	var label := ""
-	if is_operating:
-		label = "Cancel operating" if building_name.is_empty() else "Cancel (%s)" % building_name
-	else:
-		label = "Operate" if building_name.is_empty() else "Operate %s" % building_name
-
-	return {id = UnitAction.OPERATE, icon = POWER_ICON, label = label, active = is_operating}
-
-
-# Offered while the robot is parked at a blueprint: start (or resume) raising it, or pause.
-func _build_action() -> Dictionary:
-	if buildable_cell == GameTypes.NO_CELL or not _is_working_position(buildable_cell):
-		return {}
-	if not current_island.is_under_construction(buildable_cell):
-		return {}
-
-	var anchor_cell := current_island.get_building_anchor_cell(buildable_cell)
-	var building_name := building_manager.get_display_name(current_island.get_building_type(anchor_cell))
-	var percent := int(current_island.get_build_progress(anchor_cell) * 100.0)
-	var label := ""
-	if is_constructing:
-		label = "Pause building"
-	elif percent > 0:
-		label = "Resume %s (%d%%)" % [building_name, percent]
-	else:
-		label = "Build %s" % building_name
-
-	return {id = UnitAction.BUILD, icon = HAMMER_ICON, label = label, active = is_constructing}
-
-
-# Offered while the robot is parked on or right beside the stranded K9-DA.
-func _rescue_action() -> Dictionary:
-	if not _can_rescue_dog():
-		return {}
-
-	return {id = UnitAction.RESCUE, icon = PAW_ICON, label = "Rescue K9-DA", active = false}
-
-
-func _can_rescue_dog() -> bool:
-	if not world.is_dog_stranded_on(world.current_coord):
-		return false
-
-	var robot_cell := player_unit.current_cell
-	return robot_cell == world.dog_cell or HexGridScript.neighbors(world.dog_cell).has(robot_cell)
-
-
-# True when the cell holds a building that draws power, so the robot can hand-power it
-# with the Operate verb (the tier-0 power source — see is_operating / power_manager.gd).
-func _building_consumes_power(cell: Vector2i) -> bool:
-	var building_type := current_island.get_building_type(cell)
-	if building_type == -1 or current_island.is_under_construction(cell):
-		return false
-
-	var definition := building_manager.get_definition(building_type)
-	return definition != null and definition.power_consumed > 0
-
-
-func _can_operate() -> bool:
-	return quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.OPERATING)
+	refresh_action_bar()
 
 
 func _on_action_pressed(action_id: int) -> void:
 	if player_unit.is_moving():
 		return
 	match action_id:
-		UnitAction.CARGO:
+		GameTypes.UnitAction.CARGO:
 			_open_boat_cargo()
-		UnitAction.PILOT_BOAT:
+		GameTypes.UnitAction.PILOT_BOAT:
 			_board_boat()
-		UnitAction.DISEMBARK:
+		GameTypes.UnitAction.DISEMBARK:
 			_disembark_boat()
-		UnitAction.HARVEST:
-			_on_harvest_pressed()
-		UnitAction.OPERATE:
-			_on_operate_pressed()
-		UnitAction.RESCUE:
-			_on_rescue_pressed()
-		UnitAction.BUILD:
-			_on_build_pressed()
+		_:
+			robot.press(action_id)
 
 
 func _nearby_boat() -> Dictionary:
@@ -1116,7 +758,7 @@ func _open_boat_cargo() -> void:
 			return
 		cargo_boat_id = _launch_boat(boat)
 		renderer.refresh()
-		_save_game()
+		save_game()
 	boat_cargo_panel.show_cargo(BoatCargoScript.inventory(world.boats[cargo_boat_id]), _cargo_island(cargo_boat_id))
 
 
@@ -1152,16 +794,14 @@ func _on_cargo_transfer(resource: int, amount: int, loading: bool) -> void:
 	var hold := BoatCargoScript.inventory(world.boats[cargo_boat_id])
 	if BoatCargoScript.transfer(hold, island.inventory, resource, amount, loading):
 		_refresh_boat_cargo()
-		_save_game()
+		save_game()
 
 
 func _board_boat() -> void:
 	var boat := _nearby_boat()
 	if boat.is_empty():
 		return
-	_stop_harvesting()
-	_stop_operating()
-	_stop_constructing()
+	robot.stop_work()
 	var id := _launch_boat(boat)
 	world.piloted_boat = id
 	var state: Dictionary = world.boats[id]
@@ -1169,15 +809,12 @@ func _board_boat() -> void:
 	# Keep the companion safely ashore until a boat-sized companion pose is authored.
 	if world.dog_rescued:
 		dog.halt()
-	pending_action_cell = GameTypes.NO_CELL
-	harvestable_cell = GameTypes.NO_CELL
-	operable_cell = GameTypes.NO_CELL
-	buildable_cell = GameTypes.NO_CELL
+	robot.clear_targets()
 	landing_cell = GameTypes.NO_CELL
 	renderer.clear_interaction()
 	renderer.refresh()
-	_refresh_action_bar()
-	_save_game()
+	refresh_action_bar()
+	save_game()
 
 
 func _store_boat_position() -> void:
@@ -1210,11 +847,11 @@ func _disembark_boat() -> void:
 		_switch_to_island(destination)
 	player_unit.place_at(shore)
 	camera_rig.center_on(player_unit.position)
-	_sync_dog()
+	robot.sync_dog()
 	landing_cell = GameTypes.NO_CELL
 	renderer.refresh()
-	_refresh_action_bar()
-	_save_game()
+	refresh_action_bar()
+	save_game()
 
 
 func _reveal_nearby_island(cell: Vector2i) -> void:
@@ -1222,7 +859,7 @@ func _reveal_nearby_island(cell: Vector2i) -> void:
 	if coord == WorldData.NO_COORD or not world.is_revealed(coord):
 		return
 	if _discover_island(coord):
-		_save_game()
+		save_game()
 
 
 # Coming close enough to reveal an island discovers it; landing only activates its economy.
@@ -1233,7 +870,7 @@ func _discover_island(coord: Vector2i) -> bool:
 	island.sighted = true
 	island.visited = true
 	world_view.set_current_coord(world.current_coord)
-	_sync_dog()
+	robot.sync_dog()
 	if coord != WorldData.CENTER:
 		stat_tracker.add(GameTypes.Stat.ISLANDS_REACHED, 1)
 	if world.is_dog_stranded_on(coord):
@@ -1242,236 +879,19 @@ func _discover_island(coord: Vector2i) -> bool:
 	return true
 
 
-# Bring K9-DA aboard: it starts following the robot, and the DOG_RESCUED stat completes the MAIN
-# quest (whose completion toasts and saves). dog_rescued is set first so that save records it.
-func _on_rescue_pressed() -> void:
-	if not _can_rescue_dog():
-		return
-
-	world.dog_rescued = true
-	dog.follow(current_island, dog.current_cell, player_unit)
-	dog.celebrate()
-	FloatingText.spawn(self, dog.position, "K9-DA rescued!", Color(1.0, 0.85, 0.45), 26)
-	world_view.set_current_coord(world.current_coord)
-	stat_tracker.add(GameTypes.Stat.DOG_RESCUED, 1)
-	_refresh_action_bar()
-	_save_game()
-
-
-func _on_harvest_pressed() -> void:
-	if is_harvesting:
-		_stop_harvesting()
-		_refresh_action_bar()
-		return
-
-	if harvestable_cell == GameTypes.NO_CELL:
-		return
-
-	var resource_node_type := current_island.get_resource_node_type(harvestable_cell)
-	if resource_node_type == -1:
-		return
-
-	var definition := resource_node_database.get_definition(resource_node_type)
-	if definition == null:
-		return
-
-	is_harvesting = true
-	harvest_cell = harvestable_cell
-	harvest_resource_type = definition.extracted_resource_type
-	_harvest_accum = 0.0
-	# Trees are chopped with the axe; stone, ore and coal are mined with the pickaxe.
-	player_unit.set_work("chop" if harvest_resource_type == GameTypes.ResourceType.WOOD else "mine")
-	_refresh_action_bar()
-
-
-func _stop_harvesting() -> void:
-	if not is_harvesting:
-		return
-
-	is_harvesting = false
-	harvest_cell = GameTypes.NO_CELL
-	harvest_resource_type = -1
-	_harvest_accum = 0.0
-	if player_unit != null:
-		player_unit.set_work("")
-
-
-func _on_operate_pressed() -> void:
-	if is_operating:
-		_stop_operating()
-		_refresh_action_bar()
-		return
-
-	if operable_cell == GameTypes.NO_CELL:
-		return
-
-	if not _can_operate() or not _building_consumes_power(operable_cell):
-		return
-
-	is_operating = true
-	operate_cell = current_island.get_building_anchor_cell(operable_cell)
-	# The hand PTO docks into the building's generator socket.
-	player_unit.set_work("operate")
-	stat_tracker.add(GameTypes.Stat.BUILDINGS_OPERATED, 1)
-	_refresh_action_bar()
-
-
-# Hand the building back: it loses the robot's power the moment the robot stops
-# operating it (or is sent elsewhere / the island is left). power_manager re-allocates
-# from the island's generators on the next tick.
-func _stop_operating() -> void:
-	if not is_operating:
-		return
-
-	is_operating = false
-	operate_cell = GameTypes.NO_CELL
-	if player_unit != null:
-		player_unit.set_work("")
-
-
-func _on_build_pressed() -> void:
-	if is_constructing:
-		_stop_constructing()
-		_refresh_action_bar()
-		return
-
-	if buildable_cell == GameTypes.NO_CELL or not current_island.is_under_construction(buildable_cell):
-		return
-
-	is_constructing = true
-	construct_cell = current_island.get_building_anchor_cell(buildable_cell)
-	player_unit.set_work("build")
-	_refresh_action_bar()
-
-
-# Leave the blueprint as it stands; its progress stays on the map (and in the save) to resume.
-func _stop_constructing() -> void:
-	if not is_constructing:
-		return
-
-	is_constructing = false
-	construct_cell = GameTypes.NO_CELL
-	if player_unit != null:
-		player_unit.set_work("")
-
-
-func _update_construction(delta: float) -> void:
-	# Stop if the robot walked off or the blueprint is gone (cancelled from its panel).
-	if (
-		player_unit == null
-		or player_unit.is_moving()
-		or current_island == null
-		or not current_island.is_under_construction(construct_cell)
-		or not _is_working_position(construct_cell)
-	):
-		_stop_constructing()
-		_refresh_action_bar()
-		return
-
-	var definition := building_manager.get_definition(current_island.get_building_type(construct_cell))
-	var build_seconds := definition.build_seconds if definition != null else 6.0
-	var progress := current_island.get_build_progress(construct_cell) + delta / maxf(build_seconds, 0.1)
-	if progress < 1.0:
-		current_island.set_build_progress(construct_cell, progress)
-		_autosave_dirty = true
-		return
-
-	_finish_construction(construct_cell)
-
-
-# The robot finished a blueprint: the building starts working, counts as built for quests, and
-# the robot moves on to the next blueprint on the island, if any.
-func _finish_construction(anchor_cell: Vector2i) -> void:
-	var building_type := current_island.get_building_type(anchor_cell)
-	current_island.complete_construction(anchor_cell)
-	_stop_constructing()
-	buildable_cell = GameTypes.NO_CELL
-	renderer.refresh()
-	# Standing at a machine that needs power, the robot can Operate it straight away.
-	if _building_consumes_power(anchor_cell) and _is_working_position(anchor_cell):
-		operable_cell = anchor_cell
-	if _placement_player != null:
-		_placement_player.play()
-	FloatingText.spawn(
-		self,
-		renderer.get_cell_center(anchor_cell),
-		"%s built!" % building_manager.get_display_name(building_type),
-		Color(0.55, 1.0, 0.85)
-	)
-	stat_tracker.record_building_built(building_type)
-	if not _build_next_blueprint():
-		_refresh_action_bar()
-	_save_game()
-
-
-# Send the robot to the nearest unfinished blueprint on this island. Returns false when none is left.
-func _build_next_blueprint() -> bool:
-	var sites := current_island.construction_sites()
-	if sites.is_empty() or player_unit == null:
-		return false
-
-	var search := HexPathfinderScript.search(current_island, player_unit.current_cell)
-	var costs: Dictionary = search.cost
-	var best := GameTypes.NO_CELL
-	var best_cost := INF
-	for site in sites:
-		for cell in current_island.get_building_footprint_cells(site):
-			var cost: float = costs.get(cell, INF)
-			if cost < best_cost or best == GameTypes.NO_CELL:
-				best = site
-				best_cost = cost
-	return best != GameTypes.NO_CELL and _command_unit_to(best)
-
-
-# A blueprint was just placed: put the robot to work on it, unless it is already building (or on its
-# way to) another one — it moves on to this one when that is done (_build_next_blueprint).
-func _send_robot_to_build(anchor_cell: Vector2i) -> void:
-	if is_constructing:
-		return
-	if pending_action_cell != GameTypes.NO_CELL and current_island.is_under_construction(pending_action_cell):
-		return
-	_command_unit_to(anchor_cell)
-
-
-func _update_harvest(delta: float) -> void:
-	# Stop if the robot is no longer parked where it can work the node it was harvesting.
-	if (
-		player_unit == null
-		or player_unit.is_moving()
-		or not _is_working_position(harvest_cell)
-		or current_island == null
-		or current_island.get_resource_node_type(harvest_cell) == -1
-	):
-		_stop_harvesting()
-		_refresh_action_bar()
-		return
-
-	_harvest_accum += delta
-	while _harvest_accum >= HARVEST_INTERVAL:
-		_harvest_accum -= HARVEST_INTERVAL
-		resource_manager.add_amount(harvest_resource_type, HARVEST_YIELD)
-		stat_tracker.record_resource_gained(harvest_resource_type, HARVEST_YIELD)
-		FloatingText.spawn_resource(
-			self,
-			renderer.get_cell_center(harvest_cell),
-			harvest_resource_type,
-			"+%d" % HARVEST_YIELD
-		)
-
-
 # Production counts toward lifetime stats on every island; the floating "+N" only shows for the
 # island on screen. Away islands don't touch the ResourceManager facade, so mark the autosave
 # dirty here too.
 func _on_building_produced(island: IslandData, anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
 	stat_tracker.record_resource_gained(resource_type, amount)
-	_autosave_dirty = true
+	mark_dirty()
 	if island == current_island:
 		FloatingText.spawn_resource(self, renderer.get_cell_center(anchor_cell), resource_type, "+%d" % amount, 16)
 
 
 func _on_fuel_consumed(island: IslandData, anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
 	# Away inventories do not emit through ResourceManager; fuel still needs the save backstop.
-	_autosave_dirty = true
+	mark_dirty()
 	if island == current_island:
 		FloatingText.spawn_resource(self, renderer.get_cell_center(anchor_cell), resource_type, "-%d" % amount, 16)
 
@@ -1484,19 +904,19 @@ func _on_input_consumed(island: IslandData, anchor_cell: Vector2i, resource_type
 func _on_trade_route_created(_route: TradeRoute) -> void:
 	stat_tracker.add(GameTypes.Stat.TRADE_ROUTES_ESTABLISHED, 1)
 	world_view.refresh()
-	_save_game()
+	save_game()
 
 
 func _on_trade_route_removed(_route: TradeRoute) -> void:
 	world_view.refresh()
-	_save_game()
+	save_game()
 
 
 # A boat unloaded. Count it toward the shipping stat, and pop a "+N" over a dock when it's the
 # island on screen.
 func _on_trade_cargo_delivered(_route: TradeRoute, coord: Vector2i, resource_type: int, amount: int) -> void:
 	stat_tracker.add(GameTypes.Stat.GOODS_SHIPPED, amount)
-	_autosave_dirty = true
+	mark_dirty()
 	if coord != world.current_coord:
 		return
 	for anchor_cell in current_island.buildings:
@@ -1512,7 +932,7 @@ func _try_select_unit() -> bool:
 		return false
 
 	player_unit.set_selected(true)
-	_refresh_action_bar()
+	refresh_action_bar()
 	return true
 
 
@@ -1520,7 +940,7 @@ func _deselect_unit() -> void:
 	world_view.hide_sailing_hover()
 	if player_unit != null:
 		player_unit.set_selected(false)
-	_refresh_action_bar()
+	refresh_action_bar()
 
 
 func _try_select_building() -> bool:
@@ -1548,20 +968,20 @@ func _try_place_selected_building() -> bool:
 	if not resource_manager.can_afford(cost):
 		return false
 
-	# Placement puts down a blueprint; the robot builds it (see _finish_construction, which is also
-	# where it counts as built for quests). Its materials are paid now, and refunded if cancelled.
+	# Placement puts down a blueprint; the robot builds it (see RobotController._finish_construction,
+	# which is also where it counts as built for quests). Its materials are paid now, and refunded if
+	# cancelled.
 	var anchor_cell := renderer.hovered_cell
 	if not renderer.try_place_hovered_building(selected_building_type, true):
 		return false
-	_reroute_unit()
+	robot.reroute()
 
 	resource_manager.spend(cost)
-	if _placement_player != null:
-		_placement_player.play()
-	_send_robot_to_build(anchor_cell)
+	play_placement_sound()
+	robot.send_to_build(anchor_cell)
 	building_menu.clear_selection()
 	# Placing a building is a deliberate, resource-spending action — checkpoint it.
-	_save_game()
+	save_game()
 	return true
 
 
@@ -1652,7 +1072,7 @@ func _switch_to_island(coord: Vector2i, instant := false) -> void:
 
 	# Release the wheel on the island we are leaving, while it is still current,
 	# so its manual generator is not left flagged as running.
-	_stop_operating()
+	robot.stop_operating()
 
 	if not world.set_current(coord):
 		return
@@ -1660,7 +1080,7 @@ func _switch_to_island(coord: Vector2i, instant := false) -> void:
 	if renderer != null and renderer != next_renderer:
 		renderer.clear_interaction()
 	renderer = next_renderer
-	renderer.is_cell_occupied_by_unit = _is_unit_cell
+	renderer.is_cell_occupied_by_unit = robot.is_unit_cell
 	renderer.is_cell_actionable = _is_actionable_cell
 	current_island = world.get_current()
 	# Startup and legacy saves can enter an island before a sailing approach has discovered it.
@@ -1669,7 +1089,7 @@ func _switch_to_island(coord: Vector2i, instant := false) -> void:
 	building_menu.refresh_stock()
 	building_info_panel.hide_info()
 	_spawn_player_unit()
-	_sync_dog()
+	robot.sync_dog()
 	resource_bar.refresh()
 	world_view.set_current_coord(coord)
 	_apply_selected_building()
@@ -1677,7 +1097,7 @@ func _switch_to_island(coord: Vector2i, instant := false) -> void:
 
 	# Autosave at each settled island state — the natural checkpoint, and it also writes the
 	# initial save for a brand-new game (the starter island is entered through here too).
-	_save_game()
+	save_game()
 
 
 func _spawn_player_unit() -> void:
@@ -1685,46 +1105,14 @@ func _spawn_player_unit() -> void:
 		return
 	player_unit.leave_boat()
 
-	_stop_harvesting()
-	_stop_operating()
-	_stop_constructing()
-	pending_action_cell = GameTypes.NO_CELL
-	harvestable_cell = GameTypes.NO_CELL
-	operable_cell = GameTypes.NO_CELL
-	buildable_cell = GameTypes.NO_CELL
+	robot.stop_work()
+	robot.clear_targets()
 	player_unit.place_at(WorldBuilder.find_spawn_cell(current_island))
 	if world.boats.has(world.piloted_boat):
 		var saved_boat: Dictionary = world.boats[world.piloted_boat]
 		player_unit.mount_boat(world.piloted_boat, saved_boat.cell, float(saved_boat.yaw))
 	landing_cell = GameTypes.NO_CELL
-	_refresh_action_bar()
-
-
-# Put K9-DA where the rescue state says: beside the robot once rescued; otherwise waiting at its
-# spot as soon as its island is discovered, alongside the resources revealed on approach.
-func _sync_dog() -> void:
-	if world.dog_rescued and player_unit.boat_id != -1:
-		dog.halt()
-		return
-	if world.dog_rescued:
-		dog.follow(current_island, _find_dog_follow_cell(), player_unit)
-		return
-
-	# Waits where it was left, once its island is drawn and discovered.
-	var dog_island := world.get_island(world.dog_coord)
-	if dog_island == null or world_view.renderer_for(world.dog_coord) == null or not dog_island.visited:
-		dog.halt()
-		return
-
-	dog.strand(dog_island, world.dog_cell)
-
-
-# Where the rescued dog appears when the robot lands: an open cell beside the robot.
-func _find_dog_follow_cell() -> Vector2i:
-	for neighbor in HexGridScript.neighbors(player_unit.current_cell):
-		if WorldBuilder.is_open_ground(current_island, neighbor):
-			return neighbor
-	return player_unit.current_cell
+	refresh_action_bar()
 
 
 func _select_no_building() -> void:
@@ -1766,7 +1154,7 @@ func _on_building_move_requested(building_type: int, anchor_cell: Vector2i, isla
 	# Take it off the map now so its old footprint stops drawing and stops feeding adjacency
 	# (to itself in the preview, and to its neighbours) while the player picks a new spot.
 	renderer.remove_building(anchor_cell)
-	_land_stranded_units(anchor_cell)
+	robot.land_stranded_units(anchor_cell)
 	selected_building_type = building_type
 	_apply_selected_building()
 
@@ -1778,10 +1166,9 @@ func _try_finish_move() -> void:
 		return
 	current_island.buildings[renderer.hovered_cell].boat_launched = moving_boat_launched
 	renderer.refresh()
-	_reroute_unit()
+	robot.reroute()
 
-	if _placement_player != null:
-		_placement_player.play()
+	play_placement_sound()
 
 	# Clear move state BEFORE clear_selection so its _select_no_building doesn't try to restore
 	# the building we just successfully placed.
@@ -1789,7 +1176,7 @@ func _try_finish_move() -> void:
 	moving_from_cell = GameTypes.NO_CELL
 	moving_building_type = NO_BUILDING
 	building_menu.clear_selection()
-	_save_game()
+	save_game()
 
 
 # Put the lifted building back at its original cell and leave move mode. A no-op when no move is
@@ -1823,26 +1210,13 @@ func _on_building_delete_requested(anchor_cell: Vector2i, island: IslandData) ->
 	if not renderer.remove_building(anchor_cell):
 		return
 
-	if anchor_cell == construct_cell:
-		_stop_constructing()
-	_land_stranded_units(anchor_cell)
+	if anchor_cell == robot.construct_cell:
+		robot.stop_constructing()
+	robot.land_stranded_units(anchor_cell)
 	for resource_type in refund:
 		resource_manager.add_amount(resource_type, refund[resource_type])
-	_refresh_action_bar()
-	_save_game()
-
-
-# A building with a deck (the dock's pier) just left the map: a unit standing on the deck, or
-# stepping onto it, would be left over the water, so put it back ashore on the building's anchor
-# tile (the quay's sand). A robot still on its way out there re-plans.
-func _land_stranded_units(anchor_cell: Vector2i) -> void:
-	if player_unit != null and player_unit.boat_id == -1 and not HexPathfinderScript.is_walkable(current_island, player_unit.next_cell()):
-		pending_action_cell = GameTypes.NO_CELL
-		player_unit.place_at(anchor_cell)
-	_reroute_unit()
-	if dog != null and dog.is_on(current_island) \
-			and not HexPathfinderScript.is_walkable(current_island, dog.next_cell()):
-		dog.follow(current_island, anchor_cell, player_unit)
+	refresh_action_bar()
+	save_game()
 
 
 func _apply_selected_building() -> void:
@@ -1861,7 +1235,7 @@ func _apply_selected_building() -> void:
 func _on_resource_changed(_resource_type: int, _amount: int) -> void:
 	_apply_selected_building()
 	# Resources moved (harvest, production, fuel, spend) — arm the throttled backstop save.
-	_autosave_dirty = true
+	mark_dirty()
 
 
 func _add_ui() -> void:

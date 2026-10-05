@@ -41,7 +41,7 @@ func _run() -> void:
 		if not robot.is_moving():
 			break
 		robot._process(0.05)
-	print("Operating: ", game.is_operating)
+	print("Operating: ", game.robot.is_operating)
 
 	var rig: CameraRig = game.camera_rig
 	# Game views at the closest and default zoom, then a lower debug orbit from the robot's right

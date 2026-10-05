@@ -39,15 +39,15 @@ func _run() -> void:
 	var open := _open_cell_away_from(island, robot.current_cell, 2)
 
 	robot.set_selected(true)
-	game._refresh_action_bar()
+	game.refresh_action_bar()
 	_expect(not _is_green(game, tree), "A node isn't actionable before harvesting is unlocked")
 
 	_unlock(game, GameTypes.RobotUpgrade.HARVESTING)
-	game._refresh_action_bar()
+	game.refresh_action_bar()
 	_expect(_is_green(game, tree), "Hovering a node the robot can harvest tints it green")
 	_expect(not _is_green(game, open), "Open ground gets the plain hover")
 	robot.set_selected(false)
-	game._refresh_action_bar()
+	game.refresh_action_bar()
 	_expect(not _is_green(game, tree), "No green hover while the robot isn't selected")
 	robot.set_selected(true)
 	game._select_building(GameTypes.BuildingType.LOGGER_CAMP)
@@ -57,26 +57,26 @@ func _run() -> void:
 
 	_command(game, tree)
 	_walk(robot)
-	_expect(game.is_harvesting and game.harvest_cell == tree, "Right-clicking a node starts harvesting on arrival")
+	_expect(game.robot.is_harvesting and game.robot.harvest_cell == tree, "Right-clicking a node starts harvesting on arrival")
 	_expect(robot._work == "chop", "Harvesting a tree plays the chop swing")
 	_command(game, tree)
-	_expect(game.is_harvesting, "Right-clicking the node being harvested leaves it running")
+	_expect(game.robot.is_harvesting, "Right-clicking the node being harvested leaves it running")
 
 	var sawmill := _place_near(game, island, robot.current_cell, GameTypes.BuildingType.SAWMILL)
-	_expect(game._building_consumes_power(sawmill), "The sawmill draws power")
+	_expect(game.robot._building_consumes_power(sawmill), "The sawmill draws power")
 	_expect(not _is_green(game, sawmill), "A building isn't actionable before operating is unlocked")
 	_unlock(game, GameTypes.RobotUpgrade.OPERATING)
-	game._refresh_action_bar()
+	game.refresh_action_bar()
 	_expect(_is_green(game, sawmill), "Hovering a building the robot can power tints it green")
 	_command(game, sawmill)
 	_walk(robot)
-	_expect(not game.is_harvesting, "Walking off stops harvesting")
-	_expect(game.is_operating, "Right-clicking a powered building starts operating on arrival")
+	_expect(not game.robot.is_harvesting, "Walking off stops harvesting")
+	_expect(game.robot.is_operating, "Right-clicking a powered building starts operating on arrival")
 	_expect(robot._work == "operate", "Operating plays the hand-PTO docking pose")
 
 	_command(game, open)
 	_walk(robot)
-	_expect(not game.is_operating and not game.is_harvesting and robot._work == "",
+	_expect(not game.robot.is_operating and not game.robot.is_harvesting and robot._work == "",
 		"Right-clicking open ground just moves")
 
 	_check_hover_path(game)

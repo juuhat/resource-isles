@@ -184,7 +184,7 @@ func _check_scene() -> void:
 	game.stat_tracker.add(GameTypes.Stat.DOG_RESCUED, 1)
 	var cell := GameTypes.NO_CELL
 	for candidate in game.current_island.terrain:
-		if game.building_manager.can_place(candidate, FURNACE, game.current_island) and not game._is_unit_cell(candidate):
+		if game.building_manager.can_place(candidate, FURNACE, game.current_island) and not game.robot.is_unit_cell(candidate):
 			cell = candidate
 			break
 	expect(cell != GameTypes.NO_CELL, "Find Furnace placement in real scene")
@@ -200,8 +200,8 @@ func _check_scene() -> void:
 			if not game.player_unit.is_moving():
 				break
 			game.player_unit._process(0.25)
-		expect(game.is_constructing, "Robot reaches Furnace work spot and starts construction")
-		game._update_construction(0.2)
+		expect(game.robot.is_constructing, "Robot reaches Furnace work spot and starts construction")
+		game.robot._update_construction(0.2)
 		expect(game.current_island.is_building_complete(cell) and game.stat_tracker.get_value(GameTypes.Stat.FURNACES_BUILT) == 1, "Robot completes Furnace and records quest credit")
 		game.renderer.refresh()
 		var furnace_spinner: PoweredSpinner = null
@@ -217,9 +217,9 @@ func _check_scene() -> void:
 		game.power_manager.update(game.current_island, 1)
 		game.production_manager.update(game.current_island, 1)
 		expect(game.current_island.inventory.get_amount(INGOT) == 0, "Real Furnace waits for power")
-		game._on_operate_pressed()
-		expect(game.is_operating and game.operate_cell == cell, "Furnace offers robot Operate")
-		game.power_manager.update(game.current_island, 1, game.operate_cell)
+		game.robot._on_operate_pressed()
+		expect(game.robot.is_operating and game.robot.operate_cell == cell, "Furnace offers robot Operate")
+		game.power_manager.update(game.current_island, 1, game.robot.operate_cell)
 		game.production_manager.update(game.current_island, 1)
 		expect(game.stat_tracker.get_value(GameTypes.Stat.IRON_INGOTS_GATHERED) == 1, "Real production records ingot stat")
 		game.building_info_panel.show_building(FURNACE, cell, game.current_island)

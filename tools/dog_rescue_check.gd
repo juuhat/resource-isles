@@ -65,20 +65,20 @@ func _run() -> void:
 	assert(not HexPathfinderScript.find_path(island, robot.current_cell, world.dog_cell).is_empty(),
 		"K9-DA must be reachable from where the robot lands")
 	robot.set_selected(true)
-	game._refresh_action_bar()
-	assert(not game._can_rescue_dog(), "Rescue is only offered beside K9-DA")
+	game.refresh_action_bar()
+	assert(not game.robot._can_rescue_dog(), "Rescue is only offered beside K9-DA")
 
 	var beside := _walkable_neighbor(island, world.dog_cell)
 	robot.place_at(beside)
-	game._refresh_action_bar()
-	assert(game._can_rescue_dog(), "Rescue is offered beside K9-DA")
-	assert(not game._rescue_action().is_empty())
+	game.refresh_action_bar()
+	assert(game.robot._can_rescue_dog(), "Rescue is offered beside K9-DA")
+	assert(not game.robot._rescue_action().is_empty())
 
-	game._on_action_pressed(game.UnitAction.RESCUE)
+	game._on_action_pressed(GameTypes.UnitAction.RESCUE)
 	assert(world.dog_rescued)
 	assert(game.quest_manager.is_completed(GameTypes.QuestId.RESCUE_THE_DOG), "Rescue completes the MAIN quest")
 	assert(dog.mode == Dog.Mode.FOLLOWING and dog.leader == robot)
-	assert(not game._can_rescue_dog(), "K9-DA can only be rescued once")
+	assert(not game.robot._can_rescue_dog(), "K9-DA can only be rescued once")
 
 	# The rescued dog travels with the robot.
 	game._switch_to_island(WorldData.CENTER, true)
@@ -90,7 +90,7 @@ func _run() -> void:
 		"K9-DA lands beside the robot")
 
 	# And the rescue is persisted.
-	game._save_game()
+	game.save_game()
 	var reloaded := WorldData.from_dict(SaveManager.read().get("world", {}), 0.0)
 	assert(reloaded.dog_rescued and reloaded.dog_coord == world.dog_coord and reloaded.dog_cell == world.dog_cell,
 		"Rescue state must survive a save round-trip")

@@ -46,14 +46,14 @@ func _run() -> void:
 	assert(bolt_screen_lift > 0.0, "The bolt floats above the roof")
 
 	# Hand-power it via the robot's Operate action.
-	game.operate_cell = cell
-	game.is_operating = true
+	game.robot.operate_cell = cell
+	game.robot.is_operating = true
 	await _frames(3)
 	assert(island.is_consumer_powered(cell))
 	assert(not indicator.visible, "Operate powers the building, so the bolt hides")
 
-	game.is_operating = false
-	game.operate_cell = GameTypes.NO_CELL
+	game.robot.is_operating = false
+	game.robot.operate_cell = GameTypes.NO_CELL
 	await _frames(3)
 	assert(indicator.visible, "The bolt returns once the robot stops operating")
 

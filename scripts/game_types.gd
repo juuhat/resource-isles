@@ -6,6 +6,18 @@ extends RefCounted
 # slots use WorldData.NO_COORD instead.
 const NO_CELL := Vector2i(-1_000_000, -1_000_000)
 
+# Actions the selected robot can take where it stands, offered on its command bar (see
+# Game.refresh_action_bar): work from RobotController, boats from the Game.
+enum UnitAction {
+	HARVEST,
+	OPERATE,
+	RESCUE,
+	BUILD,
+	PILOT_BOAT,
+	DISEMBARK,
+	CARGO,
+}
+
 enum Terrain {
 	WATER,  # deep water (ocean) — the default for unset cells
 	SAND,

@@ -164,14 +164,14 @@ func _check_pier(game: Node, anchor: Vector2i, rotation: int, cells: Array[Vecto
 	var deck_y := renderer.get_cell_center(anchor).y + 0.1 * renderer.cell_size.x
 	_expect(is_equal_approx(renderer.get_cell_center(pier).y, deck_y), "Units stand on the pier's boards")
 
-	var plan: Dictionary = game._plan_approach(pier, start)
+	var plan: Dictionary = game.robot.plan_approach(pier, start)
 	_expect(not plan.is_empty() and plan.spot_cell == GameTypes.NO_CELL and not plan.path.is_empty()
 		and plan.path[-1] == pier and plan.path[-2] == anchor, "Clicking the pier walks the robot out onto it via the quay")
 	var mid := renderer.get_cell_center(anchor).lerp(renderer.get_cell_center(pier), 0.5)
 	_expect(is_equal_approx(renderer.get_step_height(anchor, pier, mid), deck_y), "Halfway out, the robot is up on the boards")
 
 	game.player_unit.place_at(pier)
-	game._land_stranded_units(anchor)  # nothing to do while the dock stands
+	game.robot.land_stranded_units(anchor)  # nothing to do while the dock stands
 	_expect(game.player_unit.current_cell == pier, "The robot stays on a standing pier")
 	var blueprint := island.detach_building(anchor)
 	blueprint.build_progress = 0.5
@@ -179,7 +179,7 @@ func _check_pier(game: Node, anchor: Vector2i, rotation: int, cells: Array[Vecto
 	_expect(not HexPathfinder.is_walkable(island, pier), "A blueprint dock has no pier to walk on")
 	island.complete_construction(anchor)
 	renderer.remove_building(anchor)
-	game._land_stranded_units(anchor)
+	game.robot.land_stranded_units(anchor)
 	_expect(game.player_unit.current_cell == anchor, "A robot left on a removed pier goes back ashore")
 	renderer.place_building_at(anchor, GameTypes.BuildingType.DOCK, rotation)
 	game.player_unit.place_at(start)

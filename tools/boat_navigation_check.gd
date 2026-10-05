@@ -54,13 +54,13 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	var berth := cells[2]
 	player.place_at(anchor)
 	expect(game._nearby_boat().is_empty(), "Cannot board from the quay two cells away")
-	var approach: Dictionary = game._plan_approach(berth, anchor)
+	var approach: Dictionary = game.robot.plan_approach(berth, anchor)
 	expect(not approach.is_empty() and approach.path.back() == pier, "Boat command approaches via pier")
 	player.place_at(pier)
 	player.set_selected(true)
-	game._refresh_action_bar()
+	game.refresh_action_bar()
 	expect(not game._nearby_boat().is_empty(), "Pilot offered beside boat")
-	game._on_action_pressed(game.UnitAction.PILOT_BOAT)
+	game._on_action_pressed(GameTypes.UnitAction.PILOT_BOAT)
 	await process_frame
 	expect(player.boat_id == 0 and player.current_cell == berth, "Board the boat")
 	expect(player._work == "operate" and player._model.get_parent() == player._vessel, "Robot powers helm aboard")
@@ -105,7 +105,7 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 		player._process(0.5)
 		steps += 1
 	expect(game._command_unit_to(pier), "Choose pier as landing")
-	game._on_action_pressed(game.UnitAction.DISEMBARK)
+	game._on_action_pressed(GameTypes.UnitAction.DISEMBARK)
 	expect(player.boat_id == -1 and player.current_cell == pier, "Disembark onto pier")
 	expect(game.world.boats[0].cell == berth and game.world.piloted_boat == -1, "Boat stays parked afloat")
 	game._board_boat()
@@ -142,14 +142,14 @@ func _check_sailing_reroute(game: Node) -> void:
 	expect(game._command_unit_to(goal), "Sail out")
 	var blocker: Vector2i = route[3]
 	game.world.boats[99] = {cell = blocker, yaw = 0.0}
-	game._reroute_unit()
+	game.robot.reroute()
 	var sailed := _sail(player)
 	expect(not sailed.has(blocker) and player.current_cell == goal, "A boat re-plans around a blocked cell")
 
 	game.world.boats.erase(99)
 	expect(game._command_unit_to(start), "Sail back")
 	game.world.boats[99] = {cell = start, yaw = 0.0}
-	game._reroute_unit()
+	game.robot.reroute()
 	_sail(player)
 	expect(player.current_cell != start and Grid.neighbors(start).has(player.current_cell),
 		"A boat whose destination is taken stops beside it")
