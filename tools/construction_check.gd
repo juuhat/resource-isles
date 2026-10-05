@@ -93,7 +93,7 @@ func _run() -> void:
 	var saved_island := reloaded.get_island(WorldData.CENTER)
 	assert(saved_island.is_under_construction(cell), "The blueprint is saved")
 	assert(absf(saved_island.get_build_progress(cell) - paused_at) < 0.05, "Its progress is saved")
-	assert(not saved_island.is_under_construction(game._find_crashed_spaceship_cell(saved_island)),
+	assert(not saved_island.is_under_construction(WorldBuilder.find_crashed_spaceship_cell(saved_island)),
 		"Buildings without build progress load as finished")
 
 	# Resume: send the robot back; arriving starts the Build action again.

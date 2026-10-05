@@ -23,6 +23,30 @@ var _start_y := 0.0
 var _icon_sprite: Sprite3D = null
 
 
+# Pops `text` up at a world position, under `parent`.
+static func spawn(
+	parent: Node, world_position: Vector3, text: String, color: Color, font_size := 22, icon: Texture2D = null
+) -> void:
+	var floating := FloatingText.new()
+	floating.text = text
+	floating.color = color
+	floating.font_size = font_size
+	floating.icon = icon
+	floating.position = world_position
+	parent.add_child(floating)
+
+
+# A resource gain or loss: the resource's icon beside a signed amount (e.g. icon + "+3"), in the
+# resource's colour (ResourceDatabase), instead of spelling out its name.
+static func spawn_resource(
+	parent: Node, world_position: Vector3, resource_type: int, signed_text: String, font_size := 22
+) -> void:
+	var definition := ResourceDatabase.get_definition(resource_type)
+	var icon: Texture2D = definition.icon if definition != null else null
+	var color: Color = definition.color if definition != null else Color.WHITE
+	spawn(parent, world_position, signed_text, color, font_size, icon)
+
+
 func _ready() -> void:
 	_start_y = position.y
 	pixel_size = pixel_world_size

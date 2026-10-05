@@ -100,13 +100,13 @@ func _run() -> void:
 		var coord := WorldData.dog_slot_for_seed(seed_value)
 		assert(WorldData.ring_of(coord) == 1)
 		game.seed_value = seed_value
-		var island_seed: int = game._island_seed(coord)
+		var island_seed: int = WorldBuilder.island_seed(coord, seed_value)
 		var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord, seed_value))
-		var generated: IslandData = game.generator.generate(profile, island_seed, game.building_manager)
-		var start: Vector2i = game._find_unit_spawn_cell(generated)
-		var cell: Vector2i = game._choose_dog_cell(generated, island_seed)
+		var generated: IslandData = IslandGenerator.new().generate(profile, island_seed, game.building_manager)
+		var start: Vector2i = WorldBuilder.find_spawn_cell(generated)
+		var cell: Vector2i = WorldBuilder.choose_dog_cell(generated, island_seed)
 		assert(cell != start, "Seed %d: K9-DA must not spawn on the robot" % seed_value)
-		assert(game._is_open_ground(generated, cell), "Seed %d: K9-DA must stand on open ground" % seed_value)
+		assert(WorldBuilder.is_open_ground(generated, cell), "Seed %d: K9-DA must stand on open ground" % seed_value)
 		assert(not HexPathfinderScript.find_path(generated, start, cell).is_empty(),
 			"Seed %d: K9-DA must be reachable" % seed_value)
 

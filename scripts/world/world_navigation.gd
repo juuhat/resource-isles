@@ -78,6 +78,25 @@ func can_land(boat_cell: Vector2i, shore: Vector2i) -> bool:
 		and not island.has_resource(shore) \
 		and (Ground.is_deck(island, shore) or not GameTypes.is_water(island.get_terrain(shore)))
 
+# The boat at the cell: a boat afloat there {id, cell}, or the skiff still moored at the end of a
+# finished dock {id = -1, cell, anchor} (it becomes a world boat once launched); {} for none.
+func boat_at(cell: Vector2i) -> Dictionary:
+	for id in world.boats:
+		if world.boats[id].cell == cell:
+			return {id = id, cell = cell}
+	var coord := slot_at(cell)
+	if coord == WorldData.NO_COORD:
+		return {}
+	var island: IslandData = world.islands[coord]
+	var anchor := island.get_building_anchor_cell(cell)
+	if anchor == GameTypes.NO_CELL:
+		return {}
+	var building: Dictionary = island.buildings[anchor]
+	if int(building.type) == GameTypes.BuildingType.DOCK and not building.has("build_progress") \
+			and not building.get("boat_launched", false) and building.cells.back() == cell:
+		return {id = -1, cell = cell, anchor = anchor}
+	return {}
+
 # Where boat own_id can sail from start to goal (Sailing), or [] when it can't get there.
 func find_path(start: Vector2i, goal: Vector2i, own_id := -1) -> Array[Vector2i]:
 	if not can_sail(start, own_id) or not can_sail(goal, own_id):

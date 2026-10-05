@@ -1,6 +1,5 @@
 extends Node3D
 
-const IslandGeneratorScript := preload("res://scripts/island/island_generator.gd")
 const WorldViewScript := preload("res://scripts/world/world_view.gd")
 const BuildingMenuScript := preload("res://scripts/ui/building_menu.gd")
 const BuildingInfoPanelScript := preload("res://scripts/ui/building_info_panel.gd")
@@ -10,7 +9,6 @@ const ResourceNodeDatabaseScript := preload("res://scripts/resources/resource_no
 const BuildingManagerScript := preload("res://scripts/buildings/building_manager.gd")
 const ProductionManagerScript := preload("res://scripts/buildings/production_manager.gd")
 const PowerManagerScript := preload("res://scripts/buildings/power_manager.gd")
-const FloatingTextScript := preload("res://scripts/ui/floating_text.gd")
 const ActionBarScript := preload("res://scripts/ui/action_bar.gd")
 const BoatCargoPanelScript := preload("res://scripts/ui/boat_cargo_panel.gd")
 const BoatCargoScript := preload("res://scripts/player/boat_cargo.gd")
@@ -67,13 +65,12 @@ enum UnitAction {
 # as a drag (pan) rather than a click.
 const DRAG_THRESHOLD := 6.0
 
-var generator := IslandGeneratorScript.new()
 # The renderer of the island the robot is on (current_island). Every revealed island has its own
 # renderer inside world_view; this is the one hover, placement and the robot work against.
 var renderer: IslandRenderer
 var camera_rig: CameraRig
 # The world seed. Default 1 => every player gets the identical archipelago. Each island's own
-# seed is derived from this and its hex coord (see _island_seed), so a slot's layout is stable
+# seed is derived from this and its hex coord (WorldBuilder.island_seed), so a slot's layout is stable
 # across runs. Randomize this per-run later for varied worlds. See docs/island-generation.md.
 var seed_value := 1
 var is_panning := false
@@ -206,10 +203,10 @@ func _ready() -> void:
 	var loaded := _try_load_game()
 	# Every island on the disc exists from the start (unrevealed ones wait under the clouds).
 	# Also fills in slots an older save never generated.
-	_ensure_world_generated()
+	WorldBuilder.ensure_generated(world, seed_value, building_manager)
 	world_navigation.setup(world)
 	# Pick K9-DA's island and spot (or fill them in for an older save) before the map is drawn.
-	_ensure_dog_placed()
+	WorldBuilder.place_dog(world, seed_value)
 	world_view.setup(world, resource_node_database, building_manager, world_navigation)
 	world_view.refresh()
 	camera_rig.set_overview(world_view.overview_pivot(), world_view.overview_distance())
@@ -496,7 +493,7 @@ func _reveal_rings(count: int) -> void:
 	world.reveal_additional_rings(count)
 	if dog_was_hidden and world.is_revealed(world.dog_coord) and not world.dog_rescued:
 		toast.show_message("K9-DA's signal detected! Press M to see which island it's coming from.")
-	_ensure_world_generated()
+	WorldBuilder.ensure_generated(world, seed_value, building_manager)
 	world_navigation.rebuild_regions()
 	world_view.refresh()
 	camera_rig.set_overview(world_view.overview_pivot(), world_view.overview_distance())
@@ -647,7 +644,7 @@ func _command_unit_to(cell: Vector2i) -> bool:
 		return _command_boat_to(cell)
 
 	# A building's tiles are all targets, even one standing in the water (the dock's pier).
-	if cell == GameTypes.NO_CELL or not (HexPathfinderScript.is_walkable(current_island, cell) or current_island.has_building(cell) or not _boat_at(cell).is_empty()):
+	if cell == GameTypes.NO_CELL or not (HexPathfinderScript.is_walkable(current_island, cell) or current_island.has_building(cell) or not world_navigation.boat_at(cell).is_empty()):
 		return false
 
 	var plan := _plan_approach(cell, player_unit.current_cell)
@@ -724,7 +721,7 @@ func _plan_route(target: Vector2i, start: Vector2i) -> Dictionary:
 func _plan_approach(target: Vector2i, start: Vector2i) -> Dictionary:
 	var island := current_island
 	var no_path: Array[Vector2i] = []
-	if not _boat_at(target).is_empty():
+	if not world_navigation.boat_at(target).is_empty():
 		var search := HexPathfinderScript.search(island, start)
 		var best := GameTypes.NO_CELL
 		var cost := INF
@@ -843,7 +840,8 @@ func _on_unit_entered_cell(cell: Vector2i) -> void:
 
 	var item_type := current_island.take_item(cell)
 	stat_tracker.add(GameTypes.Stat.TOOLS_COLLECTED, 1)
-	_spawn_floating_text(
+	FloatingText.spawn(
+		self,
 		renderer.get_cell_center(cell),
 		"+%s" % GameTypes.item_display_name(item_type),
 		Color(1.0, 0.95, 0.7)
@@ -900,7 +898,7 @@ func _is_actionable_cell(cell: Vector2i) -> bool:
 		return false
 	if player_unit.boat_id != -1:
 		return world_navigation.can_land(player_unit.current_cell, cell)
-	if not _boat_at(cell).is_empty():
+	if not world_navigation.boat_at(cell).is_empty():
 		return true
 	if current_island.is_under_construction(cell):
 		return true
@@ -1086,27 +1084,11 @@ func _on_action_pressed(action_id: int) -> void:
 			_on_build_pressed()
 
 
-func _boat_at(cell: Vector2i) -> Dictionary:
-	if current_island == null:
-		return {}
-	for id in world.boats:
-		if world.boats[id].cell == cell:
-			return {id = id, cell = cell}
-	var anchor := current_island.get_building_anchor_cell(cell)
-	if anchor == GameTypes.NO_CELL:
-		return {}
-	var building: Dictionary = current_island.buildings[anchor]
-	if int(building.type) == GameTypes.BuildingType.DOCK and not building.has("build_progress") \
-			and not building.get("boat_launched", false) and building.cells.back() == cell:
-		return {id = -1, cell = cell, anchor = anchor}
-	return {}
-
-
 func _nearby_boat() -> Dictionary:
 	if player_unit.boat_id != -1 or player_unit.is_moving():
 		return {}
 	for cell in HexGridScript.neighbors(player_unit.current_cell):
-		var boat := _boat_at(cell)
+		var boat := world_navigation.boat_at(cell)
 		if not boat.is_empty() and world_navigation.can_land(cell, player_unit.current_cell):
 			return boat
 	return {}
@@ -1269,7 +1251,7 @@ func _on_rescue_pressed() -> void:
 	world.dog_rescued = true
 	dog.follow(current_island, dog.current_cell, player_unit)
 	dog.celebrate()
-	_spawn_floating_text(dog.position, "K9-DA rescued!", Color(1.0, 0.85, 0.45), 26)
+	FloatingText.spawn(self, dog.position, "K9-DA rescued!", Color(1.0, 0.85, 0.45), 26)
 	world_view.set_current_coord(world.current_coord)
 	stat_tracker.add(GameTypes.Stat.DOG_RESCUED, 1)
 	_refresh_action_bar()
@@ -1410,7 +1392,8 @@ func _finish_construction(anchor_cell: Vector2i) -> void:
 		operable_cell = anchor_cell
 	if _placement_player != null:
 		_placement_player.play()
-	_spawn_floating_text(
+	FloatingText.spawn(
+		self,
 		renderer.get_cell_center(anchor_cell),
 		"%s built!" % building_manager.get_display_name(building_type),
 		Color(0.55, 1.0, 0.85)
@@ -1468,7 +1451,8 @@ func _update_harvest(delta: float) -> void:
 		_harvest_accum -= HARVEST_INTERVAL
 		resource_manager.add_amount(harvest_resource_type, HARVEST_YIELD)
 		stat_tracker.record_resource_gained(harvest_resource_type, HARVEST_YIELD)
-		_spawn_resource_floating_text(
+		FloatingText.spawn_resource(
+			self,
 			renderer.get_cell_center(harvest_cell),
 			harvest_resource_type,
 			"+%d" % HARVEST_YIELD
@@ -1482,19 +1466,19 @@ func _on_building_produced(island: IslandData, anchor_cell: Vector2i, resource_t
 	stat_tracker.record_resource_gained(resource_type, amount)
 	_autosave_dirty = true
 	if island == current_island:
-		_spawn_resource_floating_text(renderer.get_cell_center(anchor_cell), resource_type, "+%d" % amount, 16)
+		FloatingText.spawn_resource(self, renderer.get_cell_center(anchor_cell), resource_type, "+%d" % amount, 16)
 
 
 func _on_fuel_consumed(island: IslandData, anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
 	# Away inventories do not emit through ResourceManager; fuel still needs the save backstop.
 	_autosave_dirty = true
 	if island == current_island:
-		_spawn_resource_floating_text(renderer.get_cell_center(anchor_cell), resource_type, "-%d" % amount, 16)
+		FloatingText.spawn_resource(self, renderer.get_cell_center(anchor_cell), resource_type, "-%d" % amount, 16)
 
 
 func _on_input_consumed(island: IslandData, anchor_cell: Vector2i, resource_type: int, amount: int) -> void:
 	if island == current_island:
-		_spawn_resource_floating_text(renderer.get_cell_center(anchor_cell), resource_type, "-%d" % amount, 16)
+		FloatingText.spawn_resource(self, renderer.get_cell_center(anchor_cell), resource_type, "-%d" % amount, 16)
 
 
 func _on_trade_route_created(_route: TradeRoute) -> void:
@@ -1517,40 +1501,8 @@ func _on_trade_cargo_delivered(_route: TradeRoute, coord: Vector2i, resource_typ
 		return
 	for anchor_cell in current_island.buildings:
 		if current_island.buildings[anchor_cell].type == GameTypes.BuildingType.DOCK:
-			_spawn_resource_floating_text(renderer.get_cell_center(anchor_cell), resource_type, "+%d" % amount, 18)
+			FloatingText.spawn_resource(self, renderer.get_cell_center(anchor_cell), resource_type, "+%d" % amount, 18)
 			return
-
-
-func _spawn_floating_text(
-	world_position: Vector3,
-	text: String,
-	color: Color,
-	font_size := 22,
-	icon: Texture2D = null
-) -> void:
-	var floating := FloatingTextScript.new()
-	floating.text = text
-	floating.color = color
-	floating.font_size = font_size
-	floating.icon = icon
-	floating.position = world_position
-	add_child(floating)
-
-
-# Floating popup for a resource gain/loss: shows the resource icon next to a signed amount
-# (e.g. icon + "+3"), coloured per the central ResourceDatabase, instead of spelling out
-# the resource name.
-func _spawn_resource_floating_text(
-	world_position: Vector3, resource_type: int, signed_text: String, font_size := 22
-) -> void:
-	var definition := ResourceDatabase.get_definition(resource_type)
-	var icon: Texture2D = definition.icon if definition != null else null
-	_spawn_floating_text(world_position, signed_text, _resource_color(resource_type), font_size, icon)
-
-
-func _resource_color(resource_type: int) -> Color:
-	var definition := ResourceDatabase.get_definition(resource_type)
-	return definition.color if definition != null else Color.WHITE
 
 
 func _try_select_unit() -> bool:
@@ -1615,47 +1567,6 @@ func _try_place_selected_building() -> bool:
 
 func _get_building_cost(building_type: int) -> Dictionary:
 	return building_manager.get_cost(building_type)
-
-
-# Generate every slot on the disc that doesn't exist yet. The whole archipelago is one world, so
-# islands exist from the start (hidden under clouds until their ring is revealed); this also
-# fills in slots an older save never generated, and new ones when the disc grows.
-func _ensure_world_generated() -> void:
-	for coord in world.all_slots():
-		if not world.has_island(coord):
-			_generate_island_at(coord)
-
-
-func _generate_island_at(coord: Vector2i) -> void:
-	# The center slot (World 1) is the crash site with the starting wreck (STARTER biome). It
-	# begins with no resources — the opening loop is scavenging the first wood by hand (see
-	# docs/progression-and-power.md). Other slots are frontier biomes and arrive
-	# with just enough to establish their first dock. The biome and per-island seed are both
-	# derived from the coord, so a slot's layout is intrinsic to where it is.
-	var is_starter := coord == WorldData.CENTER
-	var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord, seed_value))
-	var island := generator.generate(profile, _island_seed(coord), building_manager)
-	# Generated on cells from (0, 0); centre it on its slot of the world lattice.
-	island.shift(WorldNavigationScript.island_origin(coord, Vector2i(profile.width, profile.height)))
-	if not is_starter:
-		_stock_bootstrap_supplies(island)
-	world.add_island(coord, island)
-
-
-# Per-slot seed: combines the world seed with the hex coord so each island is distinct yet
-# stable across runs (docs/island-generation.md).
-func _island_seed(coord: Vector2i) -> int:
-	return hash(Vector3i(coord.x, coord.y, seed_value))
-
-
-# A newly reached island arrives with exactly enough to build its first dock, which
-# then lets it be the endpoint of a trade route — so a resource-barren island is
-# never a soft-lock. There is no manual cargo step; all other goods come via trade
-# routes once the dock exists (see docs/island-unlocks.md).
-func _stock_bootstrap_supplies(island: IslandData) -> void:
-	var dock_cost := building_manager.get_cost(GameTypes.BuildingType.DOCK)
-	for resource_type in dock_cost.keys():
-		island.inventory.add_amount(resource_type, dock_cost[resource_type])
 
 
 # Inspect the neighbouring visited island with the camera; the robot stays where it is.
@@ -1781,90 +1692,12 @@ func _spawn_player_unit() -> void:
 	harvestable_cell = GameTypes.NO_CELL
 	operable_cell = GameTypes.NO_CELL
 	buildable_cell = GameTypes.NO_CELL
-	player_unit.place_at(_find_unit_spawn_cell(current_island))
+	player_unit.place_at(WorldBuilder.find_spawn_cell(current_island))
 	if world.boats.has(world.piloted_boat):
 		var saved_boat: Dictionary = world.boats[world.piloted_boat]
 		player_unit.mount_boat(world.piloted_boat, saved_boat.cell, float(saved_boat.yaw))
 	landing_cell = GameTypes.NO_CELL
 	_refresh_action_bar()
-
-
-func _find_unit_spawn_cell(island: IslandData) -> Vector2i:
-	var crashed_spaceship_cell := _find_crashed_spaceship_cell(island)
-	if crashed_spaceship_cell != GameTypes.NO_CELL:
-		for neighbor in HexGridScript.neighbors(crashed_spaceship_cell):
-			if HexPathfinderScript.is_open(island, neighbor) and not island.has_item(neighbor):
-				return neighbor
-
-	for cell in island.terrain:
-		if _is_open_ground(island, cell):
-			return cell
-
-	# No open ground at all: the island's first cell, as good as any.
-	return island.terrain.keys().front() if not island.terrain.is_empty() else GameTypes.NO_CELL
-
-
-# Walkable land with nothing on it — somewhere a unit can stand without overlapping anything.
-func _is_open_ground(island: IslandData, cell: Vector2i) -> bool:
-	return HexPathfinderScript.is_open(island, cell) and not island.has_item(cell)
-
-
-func _find_crashed_spaceship_cell(island: IslandData) -> Vector2i:
-	for cell in island.buildings.keys():
-		if island.buildings[cell].type == GameTypes.BuildingType.CRASHED_SPACESHIP:
-			return cell
-
-	return GameTypes.NO_CELL
-
-
-# --- K9-DA ---
-
-# Give a new world its stranded dog: a ring-1 island (from the seed) and a spot on it.
-func _ensure_dog_placed() -> void:
-	if world.dog_coord == WorldData.NO_COORD or not world.has_island(world.dog_coord):
-		world.dog_coord = WorldData.dog_slot_for_seed(seed_value)
-		world.dog_cell = GameTypes.NO_CELL
-
-	if world.dog_cell == GameTypes.NO_CELL:
-		world.dog_cell = _choose_dog_cell(world.get_island(world.dog_coord), _island_seed(world.dog_coord))
-
-
-# A cell the robot can walk to from where it lands, a few steps in so the player sees the dog on
-# arrival and takes a short walk to reach it. Deterministic per island (seeded), so a world is
-# stable across runs.
-func _choose_dog_cell(island: IslandData, island_seed: int) -> Vector2i:
-	const MIN_STEPS := 3
-	const MAX_STEPS := 7
-	var start := _find_unit_spawn_cell(island)
-	# Breadth-first distances over walkable land from the robot's landing cell.
-	var steps := {start: 0}
-	var frontier: Array[Vector2i] = [start]
-	var head := 0
-	while head < frontier.size():
-		var cell := frontier[head]
-		head += 1
-		for neighbor in HexGridScript.neighbors(cell):
-			if not steps.has(neighbor) and HexPathfinderScript.can_step(island, cell, neighbor):
-				steps[neighbor] = steps[cell] + 1
-				frontier.append(neighbor)
-
-	var preferred: Array[Vector2i] = []
-	var fallback: Array[Vector2i] = []
-	for cell in steps:
-		if cell == start or not _is_open_ground(island, cell):
-			continue
-		if steps[cell] >= MIN_STEPS and steps[cell] <= MAX_STEPS:
-			preferred.append(cell)
-		else:
-			fallback.append(cell)
-
-	var candidates := preferred if not preferred.is_empty() else fallback
-	if candidates.is_empty():
-		return start
-
-	var rng := RandomNumberGenerator.new()
-	rng.seed = island_seed
-	return candidates[rng.randi_range(0, candidates.size() - 1)]
 
 
 # Put K9-DA where the rescue state says: beside the robot once rescued; otherwise waiting at its
@@ -1889,7 +1722,7 @@ func _sync_dog() -> void:
 # Where the rescued dog appears when the robot lands: an open cell beside the robot.
 func _find_dog_follow_cell() -> Vector2i:
 	for neighbor in HexGridScript.neighbors(player_unit.current_cell):
-		if _is_open_ground(current_island, neighbor):
+		if WorldBuilder.is_open_ground(current_island, neighbor):
 			return neighbor
 	return player_unit.current_cell
 

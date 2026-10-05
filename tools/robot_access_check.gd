@@ -189,7 +189,7 @@ func _check_placement_veto(game: Node, robot: PlayerUnit) -> void:
 func _check_walk_through_buildings(game: Node, robot: PlayerUnit) -> void:
 	var island: IslandData = game.current_island
 	var renderer: IslandRenderer = game.renderer
-	robot.place_at(game._find_unit_spawn_cell(island))
+	robot.place_at(WorldBuilder.find_spawn_cell(island))
 	var goal := _open_cell_away_from(island, robot.current_cell, 6)
 	_command(game, goal)
 	robot._process(0.05)
@@ -228,8 +228,8 @@ func _check_generated_islands(game: Node) -> void:
 		game.seed_value = seed_value
 		for coord in [WorldData.CENTER, WorldData.dog_slot_for_seed(seed_value)]:
 			var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord, seed_value))
-			var island: IslandData = game.generator.generate(profile, game._island_seed(coord), game.building_manager)
-			var start: Vector2i = game._find_unit_spawn_cell(island)
+			var island: IslandData = IslandGenerator.new().generate(profile, WorldBuilder.island_seed(coord, seed_value), game.building_manager)
+			var start: Vector2i = WorldBuilder.find_spawn_cell(island)
 			var costs: Dictionary = HexPathfinderScript.search(island, start).cost
 			islands += 1
 			for cell in island.terrain.keys():
