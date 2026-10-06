@@ -60,6 +60,7 @@ func _run() -> void:
 	game.switch_to_island(world.dog_coord, true)
 	CheckWatchdog.require(dog.visible, "K9-DA is visible once his island is reached")
 	CheckWatchdog.require(dog.mode == Dog.Mode.STRANDED)
+	CheckWatchdog.require(dog._anim_player.current_animation == dog._lying_anim, "Dog lies down before rescue")
 	CheckWatchdog.require(dog.current_cell == world.dog_cell)
 	CheckWatchdog.require(not game.quest_manager.is_completed(GameTypes.QuestId.RESCUE_THE_DOG),
 		"Merely reaching the island must not complete the rescue")
@@ -82,6 +83,7 @@ func _run() -> void:
 	CheckWatchdog.require(world.dog_rescued)
 	CheckWatchdog.require(game.quest_manager.is_completed(GameTypes.QuestId.RESCUE_THE_DOG), "Rescue completes the MAIN quest")
 	CheckWatchdog.require(dog.mode == Dog.Mode.FOLLOWING and dog.leader == robot)
+	CheckWatchdog.require(dog._anim_player.current_animation == dog._idle_anim, "Rescue returns dog to standing idle")
 	CheckWatchdog.require(not game.robot._can_rescue_dog(), "K9-DA can only be rescued once")
 
 	# The rescued dog travels with the robot.

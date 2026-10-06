@@ -1,6 +1,6 @@
 """Blender --background --python tools/build_k9_da.py.
 
-K9-DA: cream/teal mechanical companion, rigid pivots, embedded Idle and Walk.
+K9-DA: cream/teal mechanical companion, rigid pivots, embedded Idle, LieDown and Walk.
 Front is Blender -Y / Godot +Z. Studio scenery is excluded from the GLB.
 """
 import math
@@ -121,6 +121,22 @@ def animate(clip, frames):
             head.rotation_euler.x = .035 * math.sin(phase * 2)
             ears[0].rotation_euler.y = .08 * math.sin(phase)
             ears[1].rotation_euler.y = -.06 * math.sin(phase + .7)
+        elif clip == 'LieDown':
+            # Roll onto the right flank; the upper legs relax across the lower pair.
+            breath = .004 * (1-math.cos(phase))
+            body.location.z = .27 + breath
+            body.location.x = .12
+            body.rotation_euler.y = math.pi/2
+            head.location.x += .06
+            head.rotation_euler.x = .12 + .012 * math.sin(phase)
+            head.rotation_euler.z = .018 * math.sin(phase)
+            tail.rotation_euler.x = -.9
+            tail.rotation_euler.z = .035 * math.sin(phase * 2)
+            ears[0].rotation_euler.y = -.18 + .035 * math.sin(phase * 2)
+            ears[1].rotation_euler.y = .18 - .025 * math.sin(phase * 2)
+            for i, leg in enumerate(legs):
+                leg.rotation_euler.x = [-.32, -.12, .28, .12][i]
+                leg.rotation_euler.y = -.95 if i in [0, 2] else .02
         else:
             body.location.z += .014 * (1-math.cos(phase*2))
             head.rotation_euler.x = .035 * math.sin(phase*2)
@@ -156,6 +172,7 @@ def animate(clip, frames):
 
 animate('Idle', 91)
 animate('Walk', 25)  # .8 seconds; .4 native units traveled per cycle.
+animate('LieDown', 121)  # Four-second quiet stranded loop.
 scene.frame_start, scene.frame_end = 1, 91
 scene.frame_set(1)
 bpy.ops.object.select_all(action='SELECT')
@@ -170,3 +187,9 @@ for obj in animated:
 render_preview('k9_da', target_z=.43, ortho_scale=1.75, plinth_radius=.75,
                camera=(-3, -5, 3.1), resolution=768)
 print('K9-DA exported:', asset)
+for obj in animated:
+    for track in obj.animation_data.nla_tracks:
+        track.mute = track.name != 'LieDown'
+scene.frame_set(1)
+scene.render.filepath = str(ROOT/'art/previews/k9_da_lying.png')
+bpy.ops.render.render(write_still=True)

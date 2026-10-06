@@ -9,10 +9,13 @@ a short sensor muzzle and a raised wagging tail identify the dog at game scale.
 Four rigid legs move through parented pivots; there is no skin or texture dependency.
 Blender front is -Y, exported as Godot +Z. Paw pads rest at zero in the rest pose.
 
-Embedded clips are Idle (three seconds: head scan, ear movement, tail wag) and Walk
+Embedded clips are LieDown (four seconds: low resting pose, gentle breathing and small
+head/ear movements), Idle (three seconds: head scan, ear movement, tail wag) and Walk
 (0.8 seconds: diagonal trot, lifted return and body bob). Gameplay provides translation;
 the walk advances 0.4 native units per cycle and playback scales with movement speed
-and model size. Stopping resumes Idle. Existing rescue hops, following, terrain fitting
+and model size. Before rescue the stranded dog loops LieDown on its right side,
+head lowered and upper legs relaxed across the lower pair. Rescue blends it back to standing Idle; stopping while following
+also resumes Idle. Existing rescue hops, following, terrain fitting
 and boat placement continue through the same Dog node.
 
 Rebuild with Blender 5.0:
@@ -22,6 +25,7 @@ Rebuild with Blender 5.0:
 ```
 
 Outputs: game GLB, editable `art/blender/k9_da.blend`, and
-`art/previews/k9_da.png`. The preview studio is excluded from the GLB.
+`art/previews/k9_da.png` plus the resting preview `art/previews/k9_da_lying.png`.
+The preview studio is excluded from the GLB.
 `tools/dog_model_check.gd` checks imported clips, pivots, ground fitting and playback.
 This is a first visual pass; judge proportions and gait at normal gameplay zoom.

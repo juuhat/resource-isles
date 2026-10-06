@@ -64,6 +64,7 @@ var _model: Node3D
 var _anim_player: AnimationPlayer
 var _walk_anim := ""
 var _idle_anim := ""
+var _lying_anim := ""
 var _hop_tween: Tween
 # The model's resting height (set when it is fitted to the tile); hops return to it.
 var _model_base_y := 0.0
@@ -318,6 +319,8 @@ func _setup_animation() -> void:
 		for anim_name in _anim_player.get_animation_list():
 			if anim_name.to_lower().contains("idle"):
 				_idle_anim = anim_name
+			if anim_name.to_lower().contains("liedown"):
+				_lying_anim = anim_name
 			_anim_player.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
 
 
@@ -342,8 +345,9 @@ func _play_walk_anim() -> void:
 func _stop_walk_anim() -> void:
 	if _anim_player != null:
 		_anim_player.speed_scale = 1.0
-		if _idle_anim != "":
-			if _anim_player.current_animation != _idle_anim:
-				_anim_player.play(_idle_anim, 0.12)
+		var resting_anim := _lying_anim if mode == Mode.STRANDED and _lying_anim != "" else _idle_anim
+		if resting_anim != "":
+			if _anim_player.current_animation != resting_anim:
+				_anim_player.play(resting_anim, 0.25)
 		else:
 			_anim_player.stop()
