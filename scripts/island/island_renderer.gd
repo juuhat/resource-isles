@@ -58,15 +58,14 @@ const POWER_INDICATOR_GAP_TILES := 0.12
 # Moving parts a power consumer's model may carry, spun while it is powered (PoweredSpinner):
 # node name -> [model-local axis, degrees per second]. FlywheelPivot and SocketRotor come with
 # the shared PTO generator (tools/build_shared_generator.py); SawBladePivot is the sawmill's.
-# The logger's axe (AxeHelvePivot) drops STRIKE degrees once per stroke; its two-wiper cam turns
-# half a revolution per stroke so a wiper lets the tappet go as each drop begins.
-const AXE_STRIKE_DEGREES := 26.0 # matches STRIKE_DEGREES in tools/build_logger_camp.py
+# The logger's felling axe (AxeHelvePivot) rests in the tree's notch and swings back STRIKE
+# degrees about its vertical shaft once per stroke.
+const AXE_STRIKE_DEGREES := 40.0 # matches STRIKE_DEGREES in tools/build_logger_camp.py
 const AXE_CHOP_SECONDS := 1.6
 const BELLOWS_PERIOD_SECONDS := 1.6
 const BELLOWS_HEIGHT := 0.20 # native model units, tools/build_furnace.py
 const POWERED_SPIN_PARTS := {
 	"SawBladePivot": [Vector3(0, 0, -1), 420.0],
-	"AxeCamPivot": [Vector3(0, 0, 1), 180.0 / AXE_CHOP_SECONDS],
 	"AxePulleyPivot": [Vector3(1, 0, 0), 360.0],
 	"DrillPivot": [Vector3(0, 1, 0), 360.0],
 	"DrillPulleyPivot": [Vector3(1, 0, 0), 360.0],
@@ -1047,7 +1046,7 @@ func _add_powered_spinner(anchor_cell: Vector2i, model: Node3D) -> void:
 			spinner.add_target(part, POWERED_SPIN_PARTS[part_name][0], POWERED_SPIN_PARTS[part_name][1])
 	var helve := model.find_child("AxeHelvePivot", true, false) as Node3D
 	if helve != null:
-		spinner.add_chop(helve, Vector3(0, 0, -1), AXE_STRIKE_DEGREES, AXE_CHOP_SECONDS)
+		spinner.add_chop(helve, Vector3(0, -1, 0), AXE_STRIKE_DEGREES, AXE_CHOP_SECONDS)
 	var bellows := model.find_child("BellowsBody", true, false) as Node3D
 	var bellows_top := model.find_child("BellowsTop", true, false) as Node3D
 	if bellows != null and bellows_top != null:

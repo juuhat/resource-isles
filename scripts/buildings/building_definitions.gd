@@ -67,7 +67,7 @@ static func build_all() -> Array[BuildingDefinition]:
 	logger_camp.model = LOGGER_CAMP_MODEL
 	# Powered chopping axe over a block, with shared hand-PTO socket and open front operator yard.
 	logger_camp.true_tile_model = true
-	logger_camp.visual_size_tiles = Vector2(0.784, 0.784)
+	logger_camp.visual_size_tiles = Vector2(0.779, 0.779)
 	logger_camp.cost = {GameTypes.ResourceType.WOOD: 6}
 	logger_camp.required_terrains = [GameTypes.Terrain.GRASS]
 	# Must touch a forest, earns +1 per adjacent forest, but crowding other

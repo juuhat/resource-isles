@@ -10,7 +10,7 @@ extends Node
 # Seconds to reach full speed, and to coast back to a stop.
 const SPIN_UP_SECONDS := 0.6
 const SPIN_DOWN_SECONDS := 1.4
-# The chop stroke as fractions of its period: a fast drop, a pause in the wood, a slow lift.
+# The chop stroke as fractions of its period: a fast swing in, a pause in the wood, a slow pull back.
 const CHOP_DROP_END := 0.12
 const CHOP_LIFT_START := 0.58
 
@@ -40,16 +40,19 @@ func add_bellows(body: Node3D, top: Node3D, height: float, period_seconds: float
 		height = height, period = maxf(period_seconds, .01), phase = 0.0})
 
 
-# Trip-hammer stroke for the logger's axe: the authored pose is the top of the stroke, and each
-# period it drops strike_degrees about axis, rests in the wood, then lifts back slowly. Phase
-# advances with the same throttle as the spinning parts, so a cam spun at a whole multiple of
-# the stroke stays in step with it.
+# Chopping stroke for the logger's felling axe: the authored pose is the blade in the wood, where
+# an idle camp rests. Each period the axe pulls back strike_degrees about axis, swings in fast,
+# then rests in the wood. Phase advances with the same throttle as the spinning parts, and
+# starts in the wood so powering up begins from the authored pose.
 func add_chop(target: Node3D, axis: Vector3, strike_degrees: float, period_seconds: float) -> void:
-	_chops.append({target = target, axis = axis.normalized(), rest = target.transform,
-		strike = deg_to_rad(strike_degrees), period = maxf(period_seconds, .01), phase = 0.0})
+	var strike := deg_to_rad(strike_degrees)
+	var rest := target.transform
+	rest.basis = rest.basis * Basis(axis.normalized(), -strike)
+	_chops.append({target = target, axis = axis.normalized(), rest = rest, strike = strike,
+		period = maxf(period_seconds, .01), phase = CHOP_DROP_END})
 
 
-# 0 at the top of the stroke, 1 with the blade in the wood.
+# 0 pulled back, 1 with the blade in the wood.
 static func chop_depth(phase: float) -> float:
 	if phase < CHOP_DROP_END:
 		var t := phase / CHOP_DROP_END

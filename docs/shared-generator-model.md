@@ -42,13 +42,13 @@ part's pivots survive. Place the root so `DockPoint` sits under the robot's righ
 
 ## Fitted buildings
 
-- **Logger's Camp** ([builder](../tools/build_logger_camp.py)): a powered chopping axe (trip
-  hammer) over a chopping block. The generator sits on the front-right cradle; its flywheel belts
-  back to a cross shaft and gearbox that turn a two-wiper cam under the helve's tappet.
-  `AxeHelvePivot` is authored raised and drops 26 degrees onto the round once per 1.6 s stroke
-  (`PoweredSpinner.add_chop`); `AxeCamPivot` turns half a revolution per stroke so a wiper
-  releases the tappet as each drop begins, and `AxePulleyPivot` spins with the drive.
-  `tools/logger_model_check.gd` checks docking, clearance, the stroke's bite and timing, and stopping.
+- **Logger's Camp** ([builder](../tools/build_logger_camp.py)): a powered felling axe at a
+  standing pine. The generator sits on the front-right cradle; its flywheel belts back to a cross
+  shaft and a gearbox at the foot of the axe arm's vertical shaft. `AxeHelvePivot` is authored
+  with the bit in the tree's notch, where an idle camp rests; once per 1.6 s stroke it pulls back
+  40 degrees about the shaft and swings in again (`PoweredSpinner.add_chop`). `AxePulleyPivot`
+  spins with the drive. `tools/logger_model_check.gd` checks docking, clearance, the swing's bite,
+  and stopping.
 - **Sawmill** ([builder](../tools/build_sawmill.py)): on a timber cradle at the front right of
   the yard, the flywheel belted to a cross shaft and gearbox that drive the blade.
 - **Quarry** ([builder](../tools/build_quarry.py)): on the same front-right cradle and hand
