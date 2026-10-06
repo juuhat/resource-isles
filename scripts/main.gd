@@ -40,6 +40,9 @@ const StarfieldSkyShader := preload("res://assets/shaders/world_map/starfield_sk
 # as a drag (pan) rather than a click.
 const DRAG_THRESHOLD := 6.0
 
+# How many cells around itself the robot sees, clearing the exploration fog.
+const SIGHT_RANGE := 8
+
 # The renderer of the island the robot is on (current_island). Every revealed island has its own
 # renderer inside world_view; this is the one hover, placement and the robot work against.
 var renderer: IslandRenderer
@@ -163,6 +166,9 @@ func _ready() -> void:
 	# Pick K9-DA's island and spot (or fill them in for an older save) before the map is drawn.
 	WorldBuilder.place_dog(world, seed_value)
 	world_view.setup(world, resource_node_database, building_manager, world_navigation)
+	# Discovered islands are always charted (older saves kept no exploration).
+	for coord in world.visited_coords():
+		world.exploration.explore(world_view.island_chart_cells(coord))
 	world_view.refresh()
 	camera_rig.set_overview(world_view.overview_pivot(), world_view.overview_distance())
 	# Built after loading so it runs the loaded world's routes.
@@ -461,7 +467,7 @@ func _reveal_rings(count: int) -> void:
 	var dog_was_hidden := not world.is_revealed(world.dog_coord)
 	world.reveal_additional_rings(count)
 	if dog_was_hidden and world.is_revealed(world.dog_coord) and not world.dog_rescued:
-		toast.show_message("K9-DA's signal detected! Press M to see which island it's coming from.")
+		toast.show_message("K9-DA's signal detected! Press M to see where it's coming from.")
 	WorldBuilder.ensure_generated(world, seed_value, building_manager)
 	world_navigation.rebuild_regions()
 	world_view.refresh()
@@ -615,6 +621,7 @@ func _command_unit_to(cell: Vector2i) -> bool:
 
 # The robot's moves go to the boat while it's aboard, to its walking and work otherwise.
 func _on_unit_entered_cell(cell: Vector2i) -> void:
+	look_around(cell)
 	if player_unit.boat_id != -1:
 		boats.on_entered_cell(cell)
 	else:
@@ -683,13 +690,32 @@ func _on_action_pressed(action_id: int) -> void:
 			robot.press(action_id)
 
 
-# Coming close enough to reveal an island discovers it; landing only activates its economy.
+# The robot clears the exploration fog within SIGHT_RANGE of where it stands, on foot or aboard,
+# and discovers any reachable island whose cells (its land or its own water) come into sight.
+func look_around(cell: Vector2i) -> void:
+	var in_sight := ExplorationMap.cells_around(cell, SIGHT_RANGE)
+	if world.exploration.explore(in_sight):
+		mark_dirty()
+	var sighted := {}
+	for seen in in_sight:
+		var coord := world_navigation.slot_at(seen)
+		if coord != WorldData.NO_COORD and world.is_revealed(coord):
+			sighted[coord] = true
+	var discovered := false
+	for coord: Vector2i in sighted:
+		discovered = discover_island(coord) or discovered
+	if discovered:
+		save_game()
+
+
+# Sighting an island discovers it; landing only activates its economy.
 func discover_island(coord: Vector2i) -> bool:
 	var island: IslandData = world.islands[coord]
 	if island.visited:
 		return false
 	island.sighted = true
 	island.visited = true
+	world.exploration.explore(world_view.island_chart_cells(coord))
 	world_view.set_current_coord(world.current_coord)
 	robot.sync_dog()
 	if coord != WorldData.CENTER:
@@ -836,9 +862,9 @@ func _try_travel_to_clicked_island(screen_position: Vector2) -> bool:
 		# Open sea: nothing to do, but in the overview don't let it fall through to the island.
 		return in_overview
 
-	if not world.is_revealed(coord):
-		toast.show_message("Uncharted island — " + world_view.locked_island_hint(coord))
-		return true
+	# Islands nobody has found yet are just more sea: the player discovers them by sailing.
+	if not world_view.is_on_map(coord):
+		return in_overview
 
 	if player_unit.boat_id != -1 and (coord != world.current_coord or in_overview):
 		boats.sail_to_island(coord)
@@ -888,6 +914,7 @@ func switch_to_island(coord: Vector2i, instant := false) -> void:
 	building_menu.refresh_stock()
 	building_info_panel.hide_info()
 	_spawn_player_unit()
+	look_around(player_unit.current_cell)
 	robot.sync_dog()
 	resource_bar.refresh()
 	world_view.set_current_coord(coord)

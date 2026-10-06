@@ -32,6 +32,8 @@ var trade_routes: Array[TradeRoute] = []
 var dog_coord := NO_COORD
 var dog_cell := GameTypes.NO_CELL
 var dog_rescued := false
+# The cells the robot has seen inside the radar frontier; the rest lies under exploration fog.
+var exploration := ExplorationMap.new()
 
 
 func next_boat_id() -> int:
@@ -182,6 +184,7 @@ func to_dict(reference_time: float) -> Dictionary:
 		dog_coord = dog_coord,
 		dog_cell = dog_cell,
 		dog_rescued = dog_rescued,
+		exploration = exploration.to_dict(),
 	}
 
 
@@ -203,4 +206,6 @@ static func from_dict(data: Dictionary, reference_time: float) -> WorldData:
 	world.dog_coord = data.get("dog_coord", NO_COORD)
 	world.dog_cell = data.get("dog_cell", GameTypes.NO_CELL)
 	world.dog_rescued = bool(data.get("dog_rescued", false))
+	# Older saves start with everything unexplored; main charts their discovered islands again.
+	world.exploration = ExplorationMap.from_dict(data.get("exploration", {}))
 	return world

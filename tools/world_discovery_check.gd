@@ -25,7 +25,7 @@ func _check_discovery() -> void:
 	var frontier: Vector2i = world.slots_within(1)[1]
 	CheckWatchdog.require(view.renderer_for(frontier) == null, "Locked islands must remain hidden")
 	CheckWatchdog.require(view.is_uncharted(frontier), "Locked islands lie under the chart")
-	CheckWatchdog.require(view._labels[frontier].text == "?", "Locked islands need an unknown marker")
+	CheckWatchdog.require(not view._labels[frontier].visible, "Locked islands are left for the player to find")
 	world.reveal_additional_rings()
 	view.refresh()
 	var renderer := view.renderer_for(frontier)
@@ -35,8 +35,17 @@ func _check_discovery() -> void:
 	CheckWatchdog.require(not renderer._grid_instance.visible, "Unvisited islands must hide plot lines")
 	view.set_show_grid(true)
 	CheckWatchdog.require(not renderer._grid_instance.visible, "Grid toggle must preserve silhouette mode")
-	CheckWatchdog.require(view._labels[frontier].text == "Unexplored", "Unvisited islands need a travel label")
 	view.set_hovered(frontier)
+	CheckWatchdog.require(not view._labels[frontier].visible and not view.is_on_map(frontier), "Undiscovered islands stay off the map")
+	CheckWatchdog.require(view._signal_ping() == Vector3.ZERO, "Only K9-DA's signal pings")
+	# K9-DA's island is the exception: its signal pings over it and its label invites the voyage.
+	world.dog_coord = frontier
+	view.set_current_coord(world.current_coord)
+	CheckWatchdog.require(view.is_on_map(frontier), "K9-DA's island is on the map")
+	var ping := view._signal_ping()
+	var slot := WorldView.slot_position(frontier)
+	CheckWatchdog.require(ping.z > 0.0 and is_equal_approx(ping.x, slot.x) and is_equal_approx(ping.y, slot.z), "K9-DA's signal pings over its island")
+	CheckWatchdog.require(view._labels[frontier].visible and "K9-DA's signal" in view._labels[frontier].text, "K9-DA's island is labelled by its signal")
 	CheckWatchdog.require("Click to sail" in view._labels[frontier].text, "Reachable hover must explain travel")
 	world.get_island(frontier).visited = true
 	world.set_current(frontier)
@@ -48,6 +57,11 @@ func _check_discovery() -> void:
 	CheckWatchdog.require(world.get_island(frontier).island_name in view._labels[frontier].text)
 	await create_timer(WorldView.CHART_REVEAL_SECONDS + 0.1).timeout
 	CheckWatchdog.require(not view._chart_patches.has(frontier) and not view._opening.has(frontier), "An opened patch leaves the chart")
+	world.dog_cell = Vector2i(1, 1)
+	var dog := WorldNavigation.cell_center(world.dog_cell)
+	CheckWatchdog.require(view._signal_ping() == Vector3(dog.x, dog.z, WorldView.DOG_PING_RADIUS), "Once discovered, the ping marks K9-DA itself")
+	world.dog_rescued = true
+	CheckWatchdog.require(view._signal_ping() == Vector3.ZERO, "The ping ends with the rescue")
 	view.queue_free()
 	await process_frame
 	print("World discovery states: PASS")

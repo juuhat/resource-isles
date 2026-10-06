@@ -5,10 +5,14 @@ extends Node3D
 # with every island at full scale on it. One calm ocean sits inside a snow-capped mountain range on a rocky,
 # tapering underside; sea water spills off the edge into the starfield. Each revealed island has
 # its own IslandRenderer standing on its slot, and everything not yet charted lies under the
-# unscanned chart of dark hex tiles: one sheet beyond the sailing frontier, plus a patch over each
-# reachable island until the player sails close enough to discover it. Ring unlocks roll the
-# sheet back; discovery opens the island's patch; landing restores its full detail. Trade routes run across the open sea with their
-# boats, and island names float over the slots once the camera pulls back.
+# unscanned chart of hex tiles in two layers: near-black tiles beyond the radar frontier, where no
+# boat can sail, and slate exploration fog over every cell inside it the robot has not seen yet
+# (WorldData.exploration), plus a patch over each reachable island until the robot's sight reaches
+# and discovers it. Islands nobody has found are not shown at all; only K9-DA's signal pings where
+# its island lies. Ring unlocks roll the dark tiles back into fog; the robot's sight clears the
+# fog; discovery opens the island's patch; landing restores its full detail. Trade routes run
+# across the open sea with their boats, and island names float over the slots once the camera
+# pulls back.
 #
 # Slots live on the world hex lattice (WorldData keys islands by axial coord and trade trips are
 # timed by hex distance); this decides where each one sits in world space. The planet itself is
@@ -54,20 +58,22 @@ const WATERFALL_COUNT := 7
 const ISLAND_PICK_RADIUS := 2700.0
 # The uncharted chart lies flat just above the tallest silhouette tiles (STONE_TOP_Y).
 const CHART_Y := 30.0
-# Sketched coastlines on the chart; drawn the same on the sheet and on an island's patch so the
-# two match as the frontier rolls back.
-const SKETCH_RADIUS := 560.0
-# An island's patch reaches this far past its land, short of the open sea where a boat
-# discovers it (an island's own water runs roughly 1150 units from its centre).
+# K9-DA's signal pings on the chart this far around its island until the island is discovered,
+# then this far around K9-DA itself until the rescue.
+const SIGNAL_RADIUS := 760.0
+const DOG_PING_RADIUS := 300.0
+# An island's patch reaches this far past its land (an island's own water runs roughly 1150 units
+# from its centre).
 const PATCH_MARGIN := 200.0
 # The patch's hole while it is closed: far enough below zero that no tile ever switches off.
 const PATCH_CLOSED := -400.0
-# How far past the coverage tiles still show (JITTER + BROAD + LOOSE in uncharted_chart.gdshader).
+# How far past a patch its tiles may still show: its ragged edge (JITTER + BROAD in
+# uncharted_chart.gdshader) and a loose tile beyond.
 const CHART_EDGE_REACH := 220.0
 # An object shows once the opening has cleared it by this much, past the tiles' ragged edge.
 const OBJECT_CLEARANCE := 180.0
 const CHART_REVEAL_SECONDS := 2.2
-# Patches and sketches the chart shader takes (its uniform arrays).
+# Patches the chart shader takes (its uniform arrays).
 const MAX_CHART_ITEMS := 64
 const FRONTIER_UNROLL_SECONDS := 3.0
 const LABEL_HEIGHT := 900.0
@@ -115,6 +121,11 @@ var _chart_material: ShaderMaterial
 # The frontier the chart currently shows, behind the real one while the sheet rolls back.
 var _chart_frontier := -1.0
 var _frontier_tween: Tween
+# The explored cells as the chart shader reads them (ExplorationMap.cells), refreshed when they
+# change.
+var _explored_image: Image
+var _explored_texture: ImageTexture
+var _explored_dirty := true
 var _sailing_hover: MeshInstance3D
 var _labels_root: Node3D
 var _routes: Node3D
@@ -149,6 +160,8 @@ func setup(
 	resource_node_database = new_resource_node_database
 	building_manager = new_building_manager
 	navigation = new_navigation
+	world.exploration.changed.connect(func() -> void: _explored_dirty = true)
+	_explored_dirty = true
 
 
 func _ready() -> void:
@@ -208,6 +221,8 @@ func refresh() -> void:
 		_roll_back_frontier()
 
 	_sync_islands()
+	if _explored_dirty:
+		_upload_exploration()
 	_build_labels()
 	_build_routes()
 
@@ -350,6 +365,8 @@ static func slot_position(coord: Vector2i) -> Vector3:
 func _process(delta: float) -> void:
 	_time += delta
 	_update_boats()
+	if _explored_dirty:
+		_upload_exploration()
 
 
 # --- Islands and the uncharted chart over them ---
@@ -366,7 +383,7 @@ func _sync_islands() -> void:
 		# The island the robot is on is never under the chart (a new game starts there before
 		# discovering it).
 		if not discovered and coord != world.current_coord and not _chart_patches.has(coord):
-			_chart_patches[coord] = _closed_patch(coord, island)
+			_chart_patches[coord] = _closed_patch(coord)
 		elif discovered and _chart_patches.has(coord) and not _opening.has(coord):
 			_open_patch(coord)
 	_update_chart()
@@ -395,15 +412,37 @@ func _add_renderer(coord: Vector2i, island: IslandData) -> void:
 	_renderers[coord] = renderer
 
 
-# A patch of chart covering the island's land, short of the water where a boat discovers it.
-func _closed_patch(coord: Vector2i, island: IslandData) -> Vector4:
+# A patch of fog covering the island's land until the robot's sight reaches it.
+func _closed_patch(coord: Vector2i) -> Vector4:
 	var center := slot_position(coord)
-	var land := SKETCH_RADIUS * 1.3
+	return Vector4(center.x, center.z, _patch_radius(coord), PATCH_CLOSED)
+
+
+# How far an island's patch reaches from its slot: past its land by PATCH_MARGIN.
+func _patch_radius(coord: Vector2i) -> float:
+	var island := world.get_island(coord)
+	var center := slot_position(coord)
+	var land := 0.0
 	for cell in island.terrain:
 		if not GameTypes.is_water(island.get_terrain(cell)):
 			var point := Navigation.cell_center(cell)
 			land = maxf(land, Vector2(point.x - center.x, point.z - center.z).length())
-	return Vector4(center.x, center.z, land + PATCH_MARGIN, PATCH_CLOSED)
+	return land + PATCH_MARGIN
+
+
+# The island's cells its patch covers. Discovery explores them all, so opening the patch leaves
+# no exploration fog over the island (the patch's ragged tiles reach CHART_EDGE_REACH past it);
+# the water beyond is explored by sight.
+func island_chart_cells(coord: Vector2i) -> Array[Vector2i]:
+	var island := world.get_island(coord)
+	var center := slot_position(coord)
+	var reach := _patch_radius(coord) + CHART_EDGE_REACH
+	var cells: Array[Vector2i] = []
+	for cell in island.terrain:
+		var point := Navigation.cell_center(cell)
+		if Vector2(point.x - center.x, point.z - center.z).length() <= reach:
+			cells.append(cell)
+	return cells
 
 
 # Discovery opens a hole at the island's centre that spreads out until the patch is gone. The
@@ -452,27 +491,57 @@ func _roll_back_frontier() -> void:
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
-# Hand the chart its frontier, patches, island sketches and K9-DA's mark.
+# Hand the chart its frontier, patches and K9-DA's ping.
 func _update_chart() -> void:
 	var patches := PackedVector4Array()
 	for coord in _chart_patches:
 		patches.append(_chart_patches[coord])
-	var sketches := PackedVector4Array()
-	var marker := Vector3.ZERO
-	for coord in world.all_slots():
-		if world.is_revealed(coord) and not _chart_patches.has(coord):
-			continue
-		var center := slot_position(coord)
-		sketches.append(Vector4(center.x, center.z, SKETCH_RADIUS, coord.x * 7.31 + coord.y * 3.17 + 11.0))
-		# The signal is only known once Set Sail charts the dog's ring.
-		if world.is_dog_stranded_on(coord) and world.is_revealed(coord):
-			marker = Vector3(center.x, center.z, SKETCH_RADIUS * 1.25)
 	_chart_material.set_shader_parameter("frontier_radius", _chart_frontier)
 	_chart_material.set_shader_parameter("patches", _padded(patches))
 	_chart_material.set_shader_parameter("patch_count", mini(patches.size(), MAX_CHART_ITEMS))
-	_chart_material.set_shader_parameter("sketches", _padded(sketches))
-	_chart_material.set_shader_parameter("sketch_count", mini(sketches.size(), MAX_CHART_ITEMS))
-	_chart_material.set_shader_parameter("marker", marker)
+	_chart_material.set_shader_parameter("ping", _signal_ping())
+
+
+# K9-DA's signal, the one island the chart gives away: once Set Sail charts the dog's ring it pings
+# over the island until discovery has opened it, then over K9-DA until the rescue. x, y = centre,
+# z = radius (0 for none).
+func _signal_ping() -> Vector3:
+	var coord := world.dog_coord
+	if not world.is_dog_stranded_on(coord) or not world.is_revealed(coord) or not world.has_island(coord):
+		return Vector3.ZERO
+	if not world.get_island(coord).visited or _chart_patches.has(coord):
+		var center := slot_position(coord)
+		return Vector3(center.x, center.z, SIGNAL_RADIUS)
+	var dog := Navigation.cell_center(world.dog_cell)
+	return Vector3(dog.x, dog.z, DOG_PING_RADIUS)
+
+
+# Whether the map shows the island at all: discovered, or giving off K9-DA's signal. The rest stay
+# hidden until the robot finds them.
+func is_on_map(coord: Vector2i) -> bool:
+	var island := world.get_island(coord)
+	if island == null or not world.is_revealed(coord):
+		return false
+	return island.visited or world.is_dog_stranded_on(coord)
+
+
+# Hand the chart the explored cells, one byte per cell, as a texture.
+func _upload_exploration() -> void:
+	if world == null or _chart_material == null:
+		return
+	_explored_dirty = false
+	var map := world.exploration
+	if map.radius == 0:
+		_chart_material.set_shader_parameter("explored_radius", -1)
+		return
+	if _explored_image != null and _explored_image.get_width() == map.size():
+		_explored_image.set_data(map.size(), map.size(), false, Image.FORMAT_R8, map.cells)
+		_explored_texture.update(_explored_image)
+	else:
+		_explored_image = Image.create_from_data(map.size(), map.size(), false, Image.FORMAT_R8, map.cells)
+		_explored_texture = ImageTexture.create_from_image(_explored_image)
+		_chart_material.set_shader_parameter("explored_map", _explored_texture)
+	_chart_material.set_shader_parameter("explored_radius", map.radius)
 
 
 static func _padded(items: PackedVector4Array) -> PackedVector4Array:
@@ -509,15 +578,12 @@ func _style_labels() -> void:
 		var island := world.get_island(coord)
 		var revealed := world.is_revealed(coord) and island != null
 		var is_current: bool = revealed and coord == world.current_coord
-		if not revealed:
-			label.text = "?"
-			if coord == _hovered:
-				label.text += "\nUncharted\n" + locked_island_hint(coord)
+		if not is_on_map(coord):
+			# Islands nobody has found yet are left for the player to discover.
+			label.text = ""
 		elif not island.visited:
-			label.text = "Unexplored"
 			# Until rescued, K9-DA's island is flagged on the map so the player knows where to sail.
-			if world.is_dog_stranded_on(coord):
-				label.text += "\nK9-DA's signal"
+			label.text = "K9-DA's signal"
 			if coord == _hovered:
 				label.text += "\nClick to sail here"
 		else:
@@ -543,7 +609,7 @@ func _apply_label_fade() -> void:
 	var alpha := clampf((_overview - 0.15) / 0.35, 0.0, 1.0)
 	for coord in _labels:
 		var label: Label3D = _labels[coord]
-		label.visible = alpha > 0.0
+		label.visible = alpha > 0.0 and not label.text.is_empty()
 		label.modulate.a = alpha
 		label.outline_modulate.a = alpha
 

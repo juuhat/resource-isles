@@ -2,9 +2,9 @@ class_name BoatController
 extends RefCounted
 
 # The robot and boats: launching a dock's skiff and boarding it, sailing (to a cell, or to an
-# island's nearest landing), choosing where to land and disembarking, the boat's cargo hold, the
-# islands that come into sight on the way, and the boat actions on the command bar. Walking and work
-# are the RobotController's.
+# island's nearest landing), choosing where to land and disembarking, the boat's cargo hold, and the
+# boat actions on the command bar. Walking and work are the RobotController's; what comes into sight
+# on the way is Game.look_around's.
 
 # Icons for the boat actions on the robot's command bar.
 const POWER_ICON := preload("res://assets/icons/power.png")
@@ -52,10 +52,9 @@ func setup(new_game: Game) -> void:
 	boat_cargo_panel.transfer_requested.connect(transfer)
 
 
-# Each cell the boat sails into is kept with it, and may bring an island into sight.
-func on_entered_cell(cell: Vector2i) -> void:
+# Each cell the boat sails into is kept with it (Game.look_around brings islands into sight).
+func on_entered_cell(_cell: Vector2i) -> void:
 	store_position()
-	reveal_nearby_island(cell)
 	game.mark_dirty()
 
 
@@ -271,13 +270,5 @@ func transfer(resource: int, amount: int, loading: bool) -> void:
 	var hold := BoatCargo.inventory(world.boats[cargo_boat_id])
 	if BoatCargo.transfer(hold, island.inventory, resource, amount, loading):
 		refresh_cargo()
-		game.save_game()
-
-
-func reveal_nearby_island(cell: Vector2i) -> void:
-	var coord := world_navigation.slot_at(cell)
-	if coord == WorldData.NO_COORD or not world.is_revealed(coord):
-		return
-	if game.discover_island(coord):
 		game.save_game()
 

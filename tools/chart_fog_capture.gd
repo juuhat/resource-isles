@@ -1,7 +1,8 @@
 extends SceneTree
 
 # Fixed-seed captures of the uncharted map: the starting frontier around the home island, a
-# reachable island still waiting to be discovered, and the overview before and after Set Sail.
+# reachable island still waiting to be discovered, the overview before and after Set Sail, and the
+# exploration fog cleared along a voyage.
 # Never loads or writes the player's save. Run with a window, not --headless:
 # Godot_v4.6.3-stable_win64_console.exe --path . --script res://tools/chart_fog_capture.gd -- <output_directory>
 class CaptureGame extends "res://scripts/main.gd":
@@ -40,8 +41,17 @@ func _run() -> void:
 	game._reveal_rings(1)
 	await _shoot(game, "ring_rolling_back", home.get_map_center() + toward * 3400.0, 2600.0)
 	await create_timer(WorldView.FRONTIER_UNROLL_SECONDS).timeout
+	await _shoot(game, "ring_fog", home.get_map_center() + toward * 2600.0, 2600.0)
 	await _shoot(game, "ring_island", WorldView.slot_position(target), 1500.0)
 	await _shoot(game, "ring_overview", Vector3.ZERO, -1.0)
+
+	# Sailing out clears the exploration fog in the boat's wake.
+	var distance := 1200.0
+	while distance < 4000.0:
+		game.look_around(game.world_navigation.cell_from_position(home.get_map_center() + toward * distance))
+		distance += 128.0
+	await _shoot(game, "explored_wake", home.get_map_center() + toward * 3600.0, 2600.0)
+	await _shoot(game, "explored_overview", Vector3.ZERO, -1.0)
 
 	# Sailing close discovers the island: its patch opens from the centre.
 	game.discover_island(target)

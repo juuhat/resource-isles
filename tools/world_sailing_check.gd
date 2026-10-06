@@ -96,7 +96,7 @@ func _run() -> void:
 		expect(game.stat_tracker.get_value(GameTypes.Stat.DOG_ISLAND_DISCOVERED) == 1, "Approach records the rescue island discovery")
 		expect(game.world_view._labels[target].text.contains(game.world.get_island(target).island_name), "Approach reveals island name")
 		var discoveries: int = game.stat_tracker.get_value(GameTypes.Stat.ISLANDS_REACHED)
-		game.boats.reveal_nearby_island(game.player_unit.current_cell)
+		game.look_around(game.player_unit.current_cell)
 		expect(game.stat_tracker.get_value(GameTypes.Stat.ISLANDS_REACHED) == discoveries, "Repeated approach does not duplicate discovery")
 		expect(game.stat_tracker.get_value(GameTypes.Stat.DOG_ISLAND_DISCOVERED) == 1, "Repeated approach does not duplicate rescue island discovery")
 		var landing: Vector2i = game.boats.landing_tile()

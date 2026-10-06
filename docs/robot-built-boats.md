@@ -76,10 +76,11 @@ Operate pose) and `salvage_skiff_dock_check.png` (spindle in the post socket, cl
 - The islands and intervening ocean share a navigable hex lattice (`WorldNavigation`).
   Right-click water anywhere, or click a revealed island while aboard to sail to its shore.
   The camera can be panned freely; the bottom-right player portrait selects and centers on
-  the robot. Approaching close enough to reveal an island discovers it and shows its name;
+  the robot. Sighting an island discovers it and shows its name;
   landing activates the destination inventory.
-- The unscanned chart sheet covers locked sea and islands. Its radius is the navigation frontier,
-  expanded by quest ring rewards. Paths cannot cross it.
+- The dark beyond-the-radar tiles cover locked sea and islands. Their radius is the navigation
+  frontier, expanded by quest ring rewards. Paths cannot cross it. Inside it, exploration fog
+  hides what the robot has not seen yet; sailing clears it.
 - K9-DA's boat pose, the screw animation and bobbing are future work. The companion resumes
   following after landing.
 

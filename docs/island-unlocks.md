@@ -263,25 +263,34 @@ Start tiny; do not build a sprawling tech UI up front.
    range of varied sharp peaks, flat summits, ridges, and low passes, on a rocky
    underside, water spilling off the edge into the starfield, the starter (and the wreck) at the
    dead center, three island slots per ring. Every island on the disc is generated up front and
-   has a slot. Everything uncharted lies under the robot's unscanned chart (dark hex tiles
-   on the world lattice with a glowing cyan rim, the navigator's ring grid, and a rough tile
-   silhouette plus `?` marker for each unknown island). Revealing a ring rolls the sheet back; each
-   newly reachable island keeps a patch of chart, labelled "Unexplored", until the player
-   sails close enough to discover it, which opens the patch from the island's centre and shows
-   its resources, buildings, shoreline water, plot lines and name.
-   Hovering a destination explains travel or its unlock requirement (the first ring needs the
-   Dock / Set Sail quest; outer boat tiers are still planned).
+   has a slot. Everything uncharted lies under the robot's unscanned chart: hex tiles on the
+   world lattice in two layers, both carrying the navigator's ring grid. **Beyond the radar** (outside the sailing
+   frontier, where no boat can go) the tiles are near-black behind a dim red limit line.
+   **Exploration fog** (slate tiles with a glowing cyan rim and the radar sweep) covers every cell
+   inside the frontier the robot has not seen yet, as units explore in Civilization: the robot
+   clears everything within `SIGHT_RANGE` cells of where it stands, on foot or aboard, and the
+   explored cells are saved (`WorldData.exploration`, an
+   [`ExplorationMap`](../scripts/world/exploration_map.gd)). Revealing a ring turns its dark
+   tiles into fog. Islands nobody has found are not drawn or labelled at all, so the player
+   discovers them by sailing: each reachable island keeps a patch of fog over its land until the
+   robot's sight reaches any of its cells, which discovers it and opens the patch from the
+   island's centre to show its resources, buildings, shoreline water, plot lines and name. The
+   one exception is **K9-DA's signal**: once Set Sail charts the first ring, a tutorial-style ping
+   (ripples spreading from a pulsing amber beacon inside a turning dashed ring, never smaller than
+   a few dozen pixels so it reads from the overview) marks the dog's hidden island, labelled
+   "K9-DA's signal". After discovery the ping moves onto K9-DA itself until the rescue.
+   Hovering that destination explains travel.
    The camera ([`camera_rig.gd`](../scripts/camera_rig.gd))
    zooms continuously from the island out to the whole disc: neighbours come into view across
    the water, then the planet against the stars, where the charted rings get a navigator's grid
    and island names float over their slots. `M` jumps to that overview
    (`Esc` zooms back). Clicking a revealed island while aboard starts a physical voyage;
-   landing remains an explicit action. Clicking an unrevealed one explains its requirement.
-   The chart sheet covers the locked ocean as well as the islands; navigation uses that same
-   radius and cannot sail onto the chart. Ring rewards open more sea and islands together.
+   landing remains an explicit action. Clicks near islands nobody has found count as open sea.
+   The dark beyond-the-radar tiles cover the locked ocean as well as the islands; navigation uses
+   that same radius and cannot sail onto them. Exploration fog does not block sailing. Ring rewards open more sea and islands together.
    Islands are keyed by hex
    coordinate in [`WorldData`](../scripts/world/world_data.gd), and an island counts as
-   discovered once the robot approaches close enough to reveal it (`IslandData.visited`). How many rings are
+   discovered once the robot's sight reaches it (`IslandData.visited`). How many rings are
    revealed lives on `WorldData` (`revealed_rings`, starting at `STARTING_REVEALED_RINGS`) and
    grows via `reveal_additional_rings()` — currently driven by quest rewards and a temporary `=`
    debug key. Still to add: a real boat-tier system to drive later reveals.

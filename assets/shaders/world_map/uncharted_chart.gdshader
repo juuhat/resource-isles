@@ -2,41 +2,47 @@ shader_type spatial;
 render_mode unshaded, cull_disabled, depth_draw_always, fog_disabled;
 
 /**
- * The uncharted world as an unscanned sector of the robot's chart display: dark slate hex tiles
- * on the world's own lattice (each one sits over a cell boats sail across), lit along the scan
- * frontier by a cyan rim that glows onto the water, with a few loose outline tiles flickering
- * just off the edge. It carries on the sea's ring grid, shows each island nobody has visited as a
- * rough silhouette of tiles, and gives K9-DA's island a pulsing amber ring once Set Sail detects
- * its signal. A faint sweep circles the disc.
+ * The uncharted world on the robot's chart display, in two layers of hex tiles on the world's own
+ * lattice (each one sits over a cell boats sail across):
  *
- * One sheet covers everything beyond the sailing frontier. Each reachable island that has not
- * been sighted keeps its own patch; discovery opens a hole in the patch from the island's centre
- * outward. Tiles are whole: each tests the coverage at its centre, nudged by broad noise and a
- * little per-tile jitter so the frontier is ragged rather than a perfect ring. Everything is
- * placed in world units on the xz plane, so the patches and the sheet share one lattice.
+ * - Exploration fog: slate tiles over every cell inside the radar frontier the robot has not seen
+ *   yet (explored_map), and over each reachable island until discovery opens its patch. A cyan rim
+ *   runs along its edge and glows onto the water, with a few loose outline tiles flickering just
+ *   off it, and the radar's sweep circles across it.
+ * - Beyond the radar: near-black tiles over every cell outside the frontier, where no boat can
+ *   sail (exactly WorldNavigation.inside_frontier). A dim red limit line runs along its edge.
+ *
+ * Both carry the sea's ring grid. Islands nobody has found are not drawn: the player discovers
+ * them by sailing. The one exception is K9-DA's signal, a tutorial-style ping (ripples spreading
+ * from a pulsing beacon inside a turning dashed ring) drawn over every layer. Tiles are whole: each decides its layer at its centre. A patch tests its coverage there too, nudged by
+ * broad noise and a little per-tile jitter so its edge is ragged rather than round. Everything is
+ * placed in world units on the xz plane.
  */
 
 uniform float disc_radius = 30000.0;
-// The sheet's ragged edge runs around this radius from the world centre.
+// Cells whose edge reaches past this radius from the world centre are beyond the radar.
 uniform float frontier_radius = 3200.0;
+// One byte per cell over axial coordinates -explored_radius..explored_radius (ExplorationMap);
+// explored_radius < 0 means nothing is explored.
+uniform sampler2D explored_map : filter_nearest;
+uniform int explored_radius = -1;
 // x, y = centre; z = patch radius; w = hole radius (opened on discovery).
 uniform vec4 patches[64];
 uniform int patch_count = 0;
-// x, y = centre; z = coastline radius; w = seed.
-uniform vec4 sketches[64];
-uniform int sketch_count = 0;
-// An amber ring around one sketch (K9-DA's signal); z <= 0 hides it.
-uniform vec3 marker = vec3(0.0);
+// K9-DA's signal: x, y = centre; z = radius (at least PING_MIN_PIXELS on screen); z <= 0 hides it.
+uniform vec3 ping = vec3(0.0);
 uniform float ring_spacing = 6400.0;
 uniform float meridian_count = 12.0;
 uniform sampler2D scan_noise : repeat_enable, filter_linear;
 
 uniform vec3 tile_dark : source_color = vec3(0.07, 0.12, 0.16);
 uniform vec3 tile_light : source_color = vec3(0.10, 0.17, 0.22);
-uniform vec3 land_color : source_color = vec3(0.15, 0.28, 0.32);
 uniform vec3 line_color : source_color = vec3(0.45, 0.84, 0.94);
 uniform vec3 rim_color : source_color = vec3(0.62, 0.95, 1.0);
 uniform vec3 signal_color : source_color = vec3(1.0, 0.70, 0.28);
+uniform vec3 void_dark : source_color = vec3(0.016, 0.024, 0.036);
+uniform vec3 void_light : source_color = vec3(0.028, 0.040, 0.056);
+uniform vec3 limit_color : source_color = vec3(0.92, 0.38, 0.34);
 
 // The world lattice (WorldNavigation.CELL_SIZE): pointy-top hexes 128 wide, rows 96 apart.
 // Stretching z by HEX_STRETCH makes them regular hexes with this inradius.
@@ -47,15 +53,22 @@ const float HEX_INRADIUS = 64.0;
 // Axial steps to the six neighbours.
 const vec2 HEX_STEPS[6] = vec2[6](vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0),
 		vec2(-1.0, 1.0), vec2(1.0, -1.0), vec2(0.0, -1.0));
-// Per-tile jitter and broad noise on a tile's coverage test (at most their sum either way).
+// Per-tile jitter and broad noise on a patch tile's coverage test (at most their sum either way).
+// World_view's CHART_EDGE_REACH must clear JITTER + BROAD.
 const float JITTER = 40.0;
 const float BROAD = 60.0;
-// Tiles this far short of switching on may still show as loose outlines. World_view's
-// CHART_EDGE_REACH must clear JITTER + BROAD + LOOSE.
-const float LOOSE = 110.0;
-// How far the rim's glow reaches onto the water.
+// How far the rims' glow reaches onto the water.
 const float GLOW = 56.0;
 const float SWEEP_SECONDS = 24.0;
+// K9-DA's ping: never smaller than this many pixels across its radius, so it reads from the
+// overview, and a ripple leaves the beacon this often.
+const float PING_MIN_PIXELS = 34.0;
+const float PING_SECONDS = 2.4;
+
+// The layer a tile is in.
+const int LAYER_OPEN = 0;
+const int LAYER_FOG = 1;
+const int LAYER_BEYOND = 2;
 
 varying vec3 world_position;
 
@@ -85,10 +98,19 @@ vec4 hex_cell(vec2 p) {
 	return vec4((rounded.x + rounded.z * 0.5) * HEX_WIDTH, rounded.z * HEX_ROW, rounded.x, rounded.z);
 }
 
-// Coverage as a signed distance: positive under the chart. The sheet is everything beyond the
-// frontier; each patch is a disc minus its opening hole. Their union is the max.
-float coverage(vec2 p) {
-	float covered = length(p) - frontier_radius - 40.0;
+bool explored(vec2 axial) {
+	ivec2 texel = ivec2(axial) + ivec2(explored_radius);
+	int size = explored_radius * 2 + 1;
+	if (explored_radius < 0 || texel.x < 0 || texel.y < 0 || texel.x >= size || texel.y >= size) {
+		return false;
+	}
+	return texelFetch(explored_map, texel, 0).r > 0.5;
+}
+
+// Patch coverage as a signed distance: positive under a patch. Each patch is a disc minus its
+// opening hole; their union is the max.
+float patch_coverage(vec2 p) {
+	float covered = -1e9;
 	for (int i = 0; i < patch_count; i++) {
 		vec4 piece = patches[i];
 		float d = length(p - piece.xy);
@@ -97,30 +119,20 @@ float coverage(vec2 p) {
 	return covered;
 }
 
-// A tile is on when this is positive: the coverage at its centre, made ragged.
-float tile_coverage(vec2 center, vec2 axial) {
-	float broad = (textureLod(scan_noise, center * 0.0004, 0.0).r - 0.5) * 2.0 * BROAD;
-	return coverage(center) + broad + (hash(axial) - 0.5) * 2.0 * JITTER;
-}
-
-// How far `p` is from the nearest sketched coastline (negative on its land).
-float land_at(vec2 p) {
-	float nearest = 1e9;
-	for (int i = 0; i < sketch_count; i++) {
-		vec4 sketch = sketches[i];
-		vec2 v = p - sketch.xy;
-		float d = length(v);
-		if (d > sketch.z * 1.9) {
-			continue;
-		}
-		// A rough coastline: the radius wanders with noise read around a circle, so it closes.
-		vec2 dir = v / max(d, 0.001);
-		vec2 seed_uv = vec2(fract(sketch.w * 0.137), fract(sketch.w * 0.291));
-		float wander = textureLod(scan_noise, seed_uv + dir * 0.07, 0.0).r - 0.5;
-		wander += (textureLod(scan_noise, seed_uv.yx + dir * 0.2, 0.0).r - 0.5) * 0.3;
-		nearest = min(nearest, d - sketch.z * (0.92 + wander * 0.9));
+int tile_state(vec2 center, vec2 axial) {
+	if (length(center) + HEX_INRADIUS > frontier_radius) {
+		return LAYER_BEYOND;
 	}
-	return nearest;
+	if (!explored(axial)) {
+		return LAYER_FOG;
+	}
+	if (patch_count > 0) {
+		float broad = (textureLod(scan_noise, center * 0.0004, 0.0).r - 0.5) * 2.0 * BROAD;
+		if (patch_coverage(center) + broad + (hash(axial) - 0.5) * 2.0 * JITTER > 0.0) {
+			return LAYER_FOG;
+		}
+	}
+	return LAYER_OPEN;
 }
 
 // Antialiased line of half-width `w` (world units) over distance `d`, which changes by `aa` per
@@ -141,6 +153,39 @@ float ink_line(float d, float w) {
 // tiles, so fwidth of them would smear lines along the seams.
 float tile_aa(vec2 normal, vec2 dx, vec2 dy) {
 	return abs(dot(dx, normal)) + abs(dot(dy, normal));
+}
+
+// K9-DA's ping at `p`, 0..1: a pulsing beacon, ripples spreading out from it and a slowly turning
+// dashed ring at its edge. `pixel` is the world size of a pixel.
+float signal_ping(vec2 p, float pixel) {
+	if (ping.z <= 0.0) {
+		return 0.0;
+	}
+	float radius = max(ping.z, pixel * PING_MIN_PIXELS);
+	vec2 v = p - ping.xy;
+	float d = length(v);
+	if (d > radius * 1.25) {
+		return 0.0;
+	}
+	float line = max(radius * 0.012, pixel * 1.2);
+	float pulse = 0.5 + 0.5 * sin(TIME * TAU / PING_SECONDS);
+
+	// The beacon: a bright core with a soft halo breathing around it.
+	float core = 1.0 - smoothstep(radius * 0.08, radius * 0.08 + pixel * 1.5, d);
+	float halo = exp(-d / (radius * (0.12 + 0.06 * pulse))) * 0.55;
+	float amount = max(core, halo);
+
+	// Three ripples, each fading as it spreads.
+	for (int i = 0; i < 3; i++) {
+		float phase = fract(TIME / PING_SECONDS + float(i) / 3.0);
+		float fade = pow(1.0 - phase, 1.5) * smoothstep(0.0, 0.08, phase);
+		amount = max(amount, ink_line_aa(d - phase * radius * 1.1, line * (1.0 + phase), pixel) * fade);
+	}
+
+	// The turning dashed ring.
+	float dash = step(0.45, fract(atan(v.y, v.x) / TAU * 24.0 + TIME * 0.05));
+	amount = max(amount, ink_line_aa(d - radius, line, pixel) * dash * 0.85);
+	return amount;
 }
 
 // Lays `top` with opacity `a` over a colour that has opacity `alpha`.
@@ -167,18 +212,9 @@ void fragment() {
 	float meridian_distance = abs(fract(atan(p.y, p.x) / segment + 0.5) - 0.5) * segment * r;
 	float grid = max(ink_line(ring_distance, 6.0), ink_line(meridian_distance, 4.0) * smoothstep(800.0, 2500.0, r));
 
-	// K9-DA's signal: a slowly turning dashed ring with a ping spreading out from the island.
-	float signal = 0.0;
-	if (marker.z > 0.0) {
-		vec2 v = p - marker.xy;
-		float d = length(v);
-		float dash = step(0.5, fract(atan(v.y, v.x) / TAU * 36.0 + TIME * 0.04));
-		signal = max(ink_line(d - marker.z, 8.0) * dash * 0.9, ink_line(d - marker.z - 45.0, 3.0) * 0.5);
-		float ping = fract(TIME / 2.6);
-		signal = max(signal, ink_line(d - marker.z * mix(0.5, 1.15, ping), 5.0) * (1.0 - ping) * 0.7);
-	}
+	float signal = signal_ping(p, length(fwidth(p)));
 
-	if (r > disc_radius || coverage(p) < -(JITTER + BROAD + LOOSE + 2.4 * HEX_INRADIUS)) {
+	if (r > disc_radius) {
 		discard;
 	}
 
@@ -191,78 +227,85 @@ void fragment() {
 	float edge = HEX_INRADIUS - max(folded.x, dot(folded, vec2(0.5, 0.8660254)));
 	vec2 edge_normal = folded.x > dot(folded, vec2(0.5, 0.8660254)) ? vec2(1.0, 0.0) : vec2(0.5, 0.8660254);
 	float edge_aa = tile_aa(edge_normal * sign(local), dx, dy);
-	float covered = tile_coverage(center, axial);
-	bool on = covered > 0.0;
+	int state = tile_state(center, axial);
 
-	// Edges facing a tile in the other state: a rim inside the tiles that are on, a glow on the
-	// water beside them. Tiles far from the frontier have neighbours in the same state.
+	// Edges facing a tile in another layer: a rim inside the fog and the limit line inside the
+	// beyond, each glowing onto the open water beside them.
 	float rim = 0.0;
+	float limit = 0.0;
 	float glow = 0.0;
-	if (edge < GLOW && abs(covered) < 2.4 * HEX_INRADIUS + 2.0 * (JITTER + BROAD)) {
-		for (int i = 0; i < 6; i++) {
-			vec2 step_axial = HEX_STEPS[i];
-			vec2 normal = vec2(step_axial.x + step_axial.y * 0.5, step_axial.y * 0.8660254);
-			float to_edge = HEX_INRADIUS - dot(local, normal);
-			if (to_edge > GLOW) {
-				continue;
-			}
-			vec2 neighbour = center + vec2((step_axial.x + step_axial.y * 0.5) * HEX_WIDTH, step_axial.y * HEX_ROW);
-			bool neighbour_on = tile_coverage(neighbour, axial + step_axial) > 0.0;
-			if (on && !neighbour_on) {
-				rim = max(rim, max(ink_line_aa(to_edge, 3.0, tile_aa(normal, dx, dy)), exp(-to_edge / 16.0) * 0.4));
-			} else if (!on && neighbour_on) {
-				float falloff = 1.0 - to_edge / GLOW;
-				glow = max(glow, falloff * falloff);
-			}
+	float limit_glow = 0.0;
+	bool beside_fog = false;
+	for (int i = 0; i < 6; i++) {
+		vec2 step_axial = HEX_STEPS[i];
+		vec2 neighbour = center + vec2((step_axial.x + step_axial.y * 0.5) * HEX_WIDTH, step_axial.y * HEX_ROW);
+		int neighbour_state = tile_state(neighbour, axial + step_axial);
+		if (neighbour_state == state) {
+			continue;
+		}
+		beside_fog = beside_fog || neighbour_state == LAYER_FOG;
+		vec2 normal = vec2(step_axial.x + step_axial.y * 0.5, step_axial.y * 0.8660254);
+		float to_edge = HEX_INRADIUS - dot(local, normal);
+		if (to_edge > GLOW) {
+			continue;
+		}
+		float falloff = 1.0 - to_edge / GLOW;
+		if (state == LAYER_FOG && neighbour_state == LAYER_OPEN) {
+			rim = max(rim, max(ink_line_aa(to_edge, 3.0, tile_aa(normal, dx, dy)), exp(-to_edge / 16.0) * 0.4));
+		} else if (state == LAYER_BEYOND) {
+			limit = max(limit, max(ink_line_aa(to_edge, 2.5, tile_aa(normal, dx, dy)) * 0.8, exp(-to_edge / 14.0) * 0.25));
+		} else if (state == LAYER_OPEN && neighbour_state == LAYER_FOG) {
+			glow = max(glow, falloff * falloff);
+		} else if (state == LAYER_OPEN) {
+			limit_glow = max(limit_glow, falloff * falloff);
 		}
 	}
 
-	if (!on) {
-		vec4 result = vec4(rim_color, glow * 0.45);
-		// Loose tiles just off the edge: a faint fragment and a flickering outline.
+	if (state == LAYER_OPEN) {
+		vec4 result = over(limit_color, limit_glow * 0.3, rim_color, glow * 0.45);
+		// Loose tiles just off the fog: a faint fragment and a flickering outline.
 		float loose_seed = hash(axial + 31.0);
-		if (covered > -LOOSE && loose_seed < 0.45) {
-			float strength = (1.0 + covered / LOOSE) * (0.65 + 0.35 * sin(TIME * 1.7 + loose_seed * 40.0));
+		if (beside_fog && loose_seed < 0.45) {
+			float strength = 0.6 * (0.65 + 0.35 * sin(TIME * 1.7 + loose_seed * 40.0));
 			float inset = edge - 9.0;
 			result = over(result.rgb, result.a, tile_light, step(0.0, inset) * 0.3 * strength);
 			result = over(result.rgb, result.a, line_color, ink_line_aa(inset, 2.0, edge_aa) * 0.75 * strength);
 		}
+		result = over(result.rgb, result.a, signal_color, signal);
 		if (result.a < 0.003) {
 			discard;
 		}
 		ALBEDO = result.rgb;
 		ALPHA = result.a;
 	} else {
+		bool fog = state == LAYER_FOG;
 		float tone = hash(axial + 17.0);
-		vec3 color = mix(tile_dark, tile_light, tone * 0.6);
+		vec3 color = fog ? mix(tile_dark, tile_light, tone * 0.6) : mix(void_dark, void_light, tone * 0.6);
 		float line = 0.0;
 
-		// Islands nobody has visited, as a silhouette of lighter tiles, the shore ones outlined.
-		float land = land_at(center);
-		if (land < 0.0) {
-			color = land_color * (0.92 + tone * 0.16);
-			float shore = smoothstep(-200.0, -90.0, land);
-			line = max(line, ink_line_aa(edge - 10.0, 2.5, edge_aa) * shore * 0.55);
-		} else if (hash(axial + 5.0) < 0.05 && land > 160.0) {
-			// The odd crosshair on open sea.
+		if (fog && hash(axial + 5.0) < 0.05) {
+			// The odd crosshair.
 			float arm = HEX_INRADIUS * 0.22;
 			float cross = max(ink_line_aa(local.x, 1.5, abs(dx.x) + abs(dy.x)) * step(abs(local.y), arm),
 					ink_line_aa(local.y, 1.5, abs(dx.y) + abs(dy.y)) * step(abs(local.x), arm));
 			line = max(line, cross * 0.45 * detail);
 		}
 
-		// Every tile's outline, faint.
-		line = max(line, ink_line_aa(edge, 1.5, edge_aa) * 0.22 * detail);
+		// Every tile's outline, faint (fainter still beyond the radar).
+		line = max(line, ink_line_aa(edge, 1.5, edge_aa) * (fog ? 0.22 : 0.07) * detail);
 
-		color = mix(color, line_color, grid * 0.3 * smoothstep(0.0, 200.0, land));
+		color = mix(color, line_color, grid * (fog ? 0.3 : 0.1));
 		color = mix(color, line_color, line);
 		color = mix(color, signal_color, signal);
 
-		// A faint sweep circling the disc, brightest at its leading edge.
-		float behind = fract(TIME / SWEEP_SECONDS - atan(p.y, p.x) / TAU);
-		color += line_color * pow(1.0 - behind, 16.0) * smoothstep(0.0, 0.01, behind) * 0.025;
+		if (fog) {
+			// The radar's sweep circling the disc, brightest at its leading edge.
+			float behind = fract(TIME / SWEEP_SECONDS - atan(p.y, p.x) / TAU);
+			color += line_color * pow(1.0 - behind, 16.0) * smoothstep(0.0, 0.01, behind) * 0.025;
+		}
 
 		color = mix(color, rim_color, rim);
+		color = mix(color, limit_color, limit);
 		ALBEDO = color;
 		ALPHA = 1.0;
 	}
