@@ -346,6 +346,9 @@ func _advance_to_next() -> void:
 	_pending_cell = _path.pop_front()
 	# Sailable cells' centres are at the water's surface, so a boat floats there.
 	_target_world = ground.get_cell_center(_pending_cell)
+	# Stepping off (a route rerouted out of a work spot): the parked pose is left behind.
+	_at_spot = false
+	_has_rest = false
 	_moving = true
 	_update_marker()
 

@@ -94,6 +94,8 @@ func update(delta: float) -> void:
 # Walk to `cell`. Open ground is walked onto. The robot doesn't park on a building or resource
 # node, so for one it walks to where it can work it instead (see plan_approach) and the target
 # stays the cell; arriving, it starts the work. False when it can't get there (or is aboard).
+# A moving robot finishes the step it's on and re-plans from there, so its model never cuts across
+# tiles or parks away from its cell.
 func command_to(cell: Vector2i) -> bool:
 	if player_unit == null or current_island == null or player_unit.boat_id != -1:
 		return false
@@ -102,13 +104,13 @@ func command_to(cell: Vector2i) -> bool:
 	if cell == GameTypes.NO_CELL or not (HexPathfinder.is_walkable(current_island, cell) or current_island.has_building(cell) or not world_navigation.boat_at(cell).is_empty()):
 		return false
 
-	var plan := plan_approach(cell, player_unit.current_cell)
+	var plan := plan_approach(cell, player_unit.next_cell())
 	if plan.is_empty():
 		return false
 
 	pending_action_cell = cell
 
-	if plan.path.is_empty() and plan.spot_cell == GameTypes.NO_CELL:
+	if not player_unit.is_moving() and plan.path.is_empty() and plan.spot_cell == GameTypes.NO_CELL:
 		# Already where it can work the target: switch to it without moving.
 		if cell != harvest_cell:
 			_stop_harvesting()
@@ -125,7 +127,11 @@ func command_to(cell: Vector2i) -> bool:
 	harvestable_cell = GameTypes.NO_CELL
 	operable_cell = GameTypes.NO_CELL
 	buildable_cell = GameTypes.NO_CELL
-	player_unit.follow_path(plan.path, plan.spot_cell, plan.spot_position)
+	if player_unit.is_moving():
+		# An empty route ends the walk at the cell it's stepping into, where on_arrived starts the work.
+		player_unit.reroute(plan.path, plan.spot_cell, plan.spot_position)
+	else:
+		player_unit.follow_path(plan.path, plan.spot_cell, plan.spot_position)
 	game.refresh_action_bar()
 	return true
 

@@ -53,6 +53,7 @@ static func build_all() -> Array[BuildingDefinition]:
 	crashed_spaceship.required_terrains = [GameTypes.Terrain.GRASS]
 	crashed_spaceship.visual_size_tiles = Vector2(1.6, 1.6)
 	crashed_spaceship.player_buildable = false
+	crashed_spaceship.solid = true
 	crashed_spaceship.model = CRASHED_SPACESHIP_MODEL
 	crashed_spaceship.visual_rotation_y = 35.0
 	definitions.append(crashed_spaceship)

@@ -32,7 +32,7 @@ What carries over from the Civ worker/scout, and what deliberately doesn't:
 | --- | --- |
 | One unit you select and command | One unit, selected by default (`selected = true`) |
 | Click a hex to issue a move order | **Right-click** a hex to order a move |
-| Travels tile-to-tile across the hex grid | Walks cell-to-cell along a shortest land path: straight through buildings, around resource nodes |
+| Travels tile-to-tile across the hex grid | Walks cell-to-cell along a shortest land path: straight through buildings, around resource nodes and the crashed spaceship |
 | Spends movement points per turn | **Real-time** walk at a constant `move_speed` (no turns, no MP) |
 | Worker "build improvement" / "repair" actions | Harvest (chop minigame), later construct & ship repair |
 | Occupies / blocks its tile | Doesn't block movement, but nothing can be built on its tile (or K9-DA's) |
@@ -162,7 +162,7 @@ Phases 1–4 are the playable core; everything after is content.
    selection marker; emits `arrived` when its path is consumed.
 2. **DONE — Hex pathfinding** ([`scripts/island/hex_pathfinder.gd`](../scripts/island/hex_pathfinder.gd)):
    Dijkstra over land tiles using `HexGrid.neighbors`. Buildings are walked through, so the player
-   can never wall the robot in. Resource nodes are walked around: stepping onto one costs `OBSTACLE_COST`, so a route crosses one only when there is no other way (no generated island needs this; `tools/robot_access_check.gd` sweeps 60). Nothing is ever unreachable.
+   can never wall the robot in. Resource nodes, and landmarks marked `solid` (the crashed spaceship), are walked around: stepping onto one costs `OBSTACLE_COST`, so a route crosses one only when there is no other way (no generated island needs this; `tools/robot_access_check.gd` sweeps 60). Nothing is ever unreachable.
    The same search (`HexPathfinder.Movement`) also plans boat routes across the world, with
    sailing rules instead of walking ones (`WorldNavigation.Sailing`).
 3. **DONE — Input rework in `main.gd`**: **right-click (on release)** commands the robot
@@ -194,7 +194,7 @@ Phases 1–4 are the playable core; everything after is content.
 
 ### Phase 1 simplifications (revisit later)
 
-- **Resolved — robot access.** The robot walks through buildings but around resource nodes, and it never parks on either: it works
+- **Resolved — robot access.** The robot walks through buildings but around resource nodes (and the crashed spaceship), and it never parks on either: it works
   them from beside them (`_plan_approach` in `main.gd`). Clicking one sends the robot to the
   best open neighbour, preferring the camera side. It turns to face the target and leans in
   `WORK_LEAN_TILES`. A building whose model exports a `WorkSpot` marker (the logger camp and

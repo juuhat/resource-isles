@@ -47,6 +47,10 @@ var spin_speed_degrees: float = 45.0
 # Whether the player can place this from the build menu. False for buildings that only
 # exist via worldgen or story (e.g. the crashed spaceship) — you don't build those.
 var player_buildable: bool = true
+# Walked around like a resource node rather than straight through (HexPathfinder.step_cost). For
+# landmarks only (the crashed spaceship): the player's own buildings stay walk-through, so they can
+# never wall the robot in.
+var solid: bool = false
 
 # Footprint cells must sit on one of these terrains. List a single type for a strict
 # requirement, several for a choice, or GameTypes.LAND_TERRAINS for any solid ground.

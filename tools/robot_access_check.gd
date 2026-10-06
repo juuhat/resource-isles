@@ -2,7 +2,9 @@ extends SceneTree
 
 # Headless check for robot access and clipping (TODO.md "Robot access and clipping"):
 #   - pathfinding walks straight through buildings (the player can't wall the robot in) but
-#     routes around resource nodes, crossing one only when there is no other way;
+#     routes around resource nodes and the crashed spaceship, crossing one only when there is no
+#     other way;
+#   - sent somewhere new mid-step, the robot finishes the step and re-plans from there;
 #   - on generated islands, every open tile is reachable without crossing a node;
 #   - a resource node is worked from a neighbouring tile, the robot leaning toward it but clear
 #     of its model;
@@ -79,6 +81,11 @@ func _check_pathfinder() -> void:
 	path = HexPathfinderScript.find_path(walled, Vector2i(0, 3), Vector2i(6, 3))
 	_expect(path.size() == 6, "A wall of buildings is walked straight through, no detour")
 
+	var wreck := _grass_island()
+	wreck.place_building(Vector2i(3, 3), GameTypes.BuildingType.CRASHED_SPACESHIP, [Vector2i(3, 3)], [GameTypes.Terrain.GRASS])
+	path = HexPathfinderScript.find_path(wreck, Vector2i(2, 3), Vector2i(4, 3))
+	_expect(not path.is_empty() and not path.has(Vector2i(3, 3)), "The crashed spaceship is walked around, not through")
+
 	var sealed := _grass_island()
 	var center := Vector2i(3, 3)
 	for neighbor in HexGridScript.neighbors(center):
@@ -131,6 +138,21 @@ func _check_resource_from_neighbour(game: Node, robot: PlayerUnit) -> void:
 	# Clicking the same node again from beside it is instant.
 	_command(game, target)
 	_expect(not robot.is_moving() and game.robot.harvestable_cell == target)
+
+	# Sent off and then back to the node mid-step: it finishes the step, comes back and parks on its
+	# own tile, its model and selection cap together.
+	_command(game, _open_cell_away_from(island, robot.current_cell, 4))
+	robot._process(0.05)
+	_expect(robot.is_moving(), "It sets off")
+	_command(game, target)
+	_walk(robot)
+	_settle(robot)
+	_expect(HexGridScript.neighbors(target).has(robot.current_cell), "Redirected mid-step, it works the node from beside it")
+	_expect(game.robot.harvestable_cell == target, "Harvest is offered on arrival")
+	cell_center = renderer.get_cell_center(robot.current_cell)
+	lean = Vector2(robot.position.x - cell_center.x, robot.position.z - cell_center.z).length()
+	_expect(lean < RobotController.WORK_LEAN_TILES * renderer.cell_size.x + 2.0,
+		"Redirected mid-step, it stands on its own tile (%.1f from its centre)" % lean)
 
 
 # A building's WorkSpot: the robot takes the shortest route straight onto the building's tile,
@@ -199,7 +221,8 @@ func _check_walk_through_buildings(game: Node, robot: PlayerUnit) -> void:
 	var blocked_type := -1
 	for cell in robot._path.slice(1, robot._path.size() - 1):
 		for building_type in GameTypes.BuildingType.values():
-			if game.building_manager.can_place(cell, building_type, island):
+			if game.building_manager.get_definition(building_type).player_buildable \
+					and game.building_manager.can_place(cell, building_type, island):
 				blocked = cell
 				blocked_type = building_type
 				break
@@ -235,7 +258,8 @@ func _check_generated_islands(game: Node) -> void:
 			var costs: Dictionary = HexPathfinderScript.search(island, start).cost
 			islands += 1
 			for cell in island.terrain.keys():
-				if not HexPathfinderScript.is_walkable(island, cell) or island.has_resource(cell):
+				if not HexPathfinderScript.is_walkable(island, cell) or island.has_resource(cell) \
+						or HexPathfinderScript.is_solid_building(island, cell):
 					continue
 				if costs.get(cell, HexPathfinderScript.OBSTACLE_COST) >= HexPathfinderScript.OBSTACLE_COST:
 					sealed += 1

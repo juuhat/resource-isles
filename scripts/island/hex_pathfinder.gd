@@ -7,8 +7,9 @@ extends RefCounted
 #
 # Walking covers land hex tiles (and decks over the water, like the dock's pier). Buildings are
 # walked through (the player can't wall the robot in with their own construction); resource nodes —
-# trees, rocks, ore — are walked around, and crossed only when there is no other way (OBSTACLE_COST
-# outweighs any detour), so a unit can never be trapped and every land cell stays reachable.
+# trees, rocks, ore — and solid landmarks like the crashed spaceship are walked around, and crossed
+# only when there is no other way (OBSTACLE_COST outweighs any detour), so a unit can never be
+# trapped and every land cell stays reachable.
 
 const BuildingDefinitionsScript := preload("res://scripts/buildings/building_definitions.gd")
 
@@ -80,9 +81,15 @@ static func _can_step(island: IslandData, decks: Dictionary, from: Vector2i, to:
 	return true
 
 
-# Buildings are passable; resource nodes are not (except as a last resort, see OBSTACLE_COST).
+# Buildings are passable; resource nodes and solid landmarks (the crashed spaceship,
+# BuildingDefinition.solid) are not, except as a last resort (see OBSTACLE_COST).
 static func step_cost(island: IslandData, cell: Vector2i) -> int:
-	return OBSTACLE_COST if island.has_resource(cell) else 1
+	return OBSTACLE_COST if island.has_resource(cell) or is_solid_building(island, cell) else 1
+
+
+static func is_solid_building(island: IslandData, cell: Vector2i) -> bool:
+	var definition := BuildingDefinitionsScript.get_definition(island.get_building_type(cell))
+	return definition != null and definition.solid
 
 
 static func find_path(island: IslandData, start: Vector2i, goal: Vector2i) -> Array[Vector2i]:

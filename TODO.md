@@ -57,7 +57,7 @@ and unresolved budgets and unlock decisions. These recommendations are not yet i
 
 ## Robot access and clipping
 
-The robot walks through buildings (so the player can't wall it in) but around resource nodes, and never parks on either; it works them from beside them or from a building's `WorkSpot` (see [docs/player-unit-and-manual-gathering.md](docs/player-unit-and-manual-gathering.md), checked by `tools/robot_access_check.gd`).
+The robot walks through buildings (so the player can't wall it in) but around resource nodes and the crashed spaceship, and never parks on either; it works them from beside them or from a building's `WorkSpot` (see [docs/player-unit-and-manual-gathering.md](docs/player-unit-and-manual-gathering.md), checked by `tools/robot_access_check.gd`).
 
 - [x] Block resource nodes in pathfinding (buildings stay walkable) and interact from an adjacent free cell. Keep the clicked cell as the action target, and tie action checks to the target rather than requiring the robot's cell to equal it. Update the manual power and gathering arrival checks at the same time.
 - [x] Handle packed islands where a target has no reachable free neighbor. Paths cross an obstacle only as a last resort, and a fully enclosed target is worked from on top of it.
