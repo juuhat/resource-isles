@@ -23,7 +23,7 @@ quest, **Rescue K9-DA**, and a linear milestone chain:
 | Live Wire | Operate a building; gather 20 wood and 20 stone | Sawmill |
 | Refine | Build a sawmill; gather 12 planks | Dock |
 | Set Sail | Build a dock | Reveal ring 1 |
-| Follow the Signal | Discover K9-DA's island by sailing close enough to clear its fog | No mechanical reward |
+| Follow the Signal | Discover K9-DA's island by sailing close enough to chart it | No mechanical reward |
 | Strike Iron | Gather 5 iron ore | Iron Mine and Coal Mine |
 | Light the Forge | Rescue K9-DA; build a Furnace; produce 6 iron ingots | Burner Generator |
 | Power On | Build a Burner Generator | Windmill |
@@ -34,8 +34,9 @@ island does not complete it. It runs independently of the milestones and now unl
 Furnace. See [Furnace](furnace.md) for recipes, power gates, and existing-save behavior.
 
 Follow the Signal sits between Set Sail and Strike Iron. Unlocking ring 1 makes its islands
-reachable, but each island keeps its fog until the player sails close enough to discover it.
-Discovery clears the fog and reveals resources and stranded K9-DA together, before landing.
+reachable, but each island keeps its patch of uncharted map until the player sails close enough
+to discover it. Discovery opens the patch, revealing resources and then stranded K9-DA once it
+has fully opened, before landing.
 Only discovering K9-DA's specific island completes Follow the Signal. Existing saves retain
 credit for an already discovered rescue island.
 

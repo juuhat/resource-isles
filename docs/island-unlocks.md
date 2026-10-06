@@ -263,19 +263,22 @@ Start tiny; do not build a sprawling tech UI up front.
    range of varied sharp peaks, flat summits, ridges, and low passes, on a rocky
    underside, water spilling off the edge into the starfield, the starter (and the wreck) at the
    dead center, three island slots per ring. Every island on the disc is generated up front and
-   has a slot: unrevealed destinations have soft blue-grey fog and a `?` marker. Revealing a
-   ring fades the fog into muted island coastlines labelled "Unexplored"; resources, buildings,
-   shoreline water, plot lines and the island's name appear on approach, which counts discovery.
+   has a slot. Everything uncharted lies under a navigator's paper chart (Civilization-style
+   parchment with a torn, singed edge, an ink grid, wave marks and a sketched
+   coastline plus `?` marker for each unknown island). Revealing a ring rolls the sheet back; each
+   newly reachable island keeps a torn patch of chart, labelled "Unexplored", until the player
+   sails close enough to discover it, which opens the patch from the island's centre and shows
+   its resources, buildings, shoreline water, plot lines and name.
    Hovering a destination explains travel or its unlock requirement (the first ring needs the
-   Dock / Set Sail quest; outer boat tiers are still planned). Decorative clouds are sparse.
+   Dock / Set Sail quest; outer boat tiers are still planned).
    The camera ([`camera_rig.gd`](../scripts/camera_rig.gd))
    zooms continuously from the island out to the whole disc: neighbours come into view across
    the water, then the planet against the stars, where the charted rings get a navigator's grid
-   and a gold frontier line and island names float over their slots. `M` jumps to that overview
+   and island names float over their slots. `M` jumps to that overview
    (`Esc` zooms back). Clicking a revealed island while aboard starts a physical voyage;
    landing remains an explicit action. Clicking an unrevealed one explains its requirement.
-   A continuous fog wall covers the locked ocean as well as the islands; navigation uses
-   that same radius and cannot cross the fog. Ring rewards open more sea and islands together.
+   The chart sheet covers the locked ocean as well as the islands; navigation uses that same
+   radius and cannot sail onto the chart. Ring rewards open more sea and islands together.
    Islands are keyed by hex
    coordinate in [`WorldData`](../scripts/world/world_data.gd), and an island counts as
    discovered once the robot approaches close enough to reveal it (`IslandData.visited`). How many rings are

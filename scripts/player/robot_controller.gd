@@ -709,7 +709,8 @@ func sync_dog() -> void:
 
 	# Waits where it was left, once its island is drawn and discovered.
 	var dog_island := world.get_island(world.dog_coord)
-	if dog_island == null or world_view.renderer_for(world.dog_coord) == null or not dog_island.visited:
+	if dog_island == null or world_view.renderer_for(world.dog_coord) == null or not dog_island.visited \
+			or world_view.is_opening(world.dog_coord):
 		dog.halt()
 		return
 

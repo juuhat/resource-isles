@@ -4,24 +4,24 @@ extends Node3D
 # The whole world as one place: the flat-disc planet floating in space (docs/intro-story.md),
 # with every island at full scale on it. One calm ocean sits inside a snow-capped mountain range on a rocky,
 # tapering underside; sea water spills off the edge into the starfield. Each revealed island has
-# its own IslandRenderer standing on its slot, and the rings not yet revealed sit under thick
-# soft fog that fades when the player approaches and discovers an island. Ring unlocks
-# make islands reachable; unvisited islands show muted coastlines beneath their veil;
-# landing restores their full detail. Trade routes run across the open sea with their
+# its own IslandRenderer standing on its slot, and everything not yet charted lies under a
+# navigator's paper chart: one sheet beyond the sailing frontier, plus a torn patch over each
+# reachable island until the player sails close enough to discover it. Ring unlocks roll the
+# sheet back; discovery opens the island's patch; landing restores its full detail. Trade routes run across the open sea with their
 # boats, and island names float over the slots once the camera pulls back.
 #
 # Slots live on the world hex lattice (WorldData keys islands by axial coord and trade trips are
 # timed by hex distance); this decides where each one sits in world space. The planet itself is
 # authored in small "disc units" (one ring = DISC_UNIT) and scaled up into the world; islands,
-# clouds, labels and routes are placed directly in world units. main.gd owns the camera and
+# the chart, labels and routes are placed directly in world units. main.gd owns the camera and
 # routes picks through slot_at_ray.
 
 const IslandRendererScript := preload("res://scripts/island/island_renderer.gd")
 const Navigation := preload("res://scripts/world/world_navigation.gd")
-const FrontierFogShader := preload("res://assets/shaders/world_map/frontier_fog.gdshader")
+const UnchartedChartShader := preload("res://assets/shaders/world_map/uncharted_chart.gdshader")
+const ChartPaperNoise := preload("res://assets/shaders/world_map/chart_paper_noise.tres")
 const DiscOceanShader := preload("res://assets/shaders/world_map/disc_ocean.gdshader")
 const WaterfallShader := preload("res://assets/shaders/world_map/waterfall.gdshader")
-const IslandFogShader := preload("res://assets/shaders/world_map/island_fog.gdshader")
 const SurfaceNoise := preload("res://assets/shaders/water_toon/PerlinNoise.png")
 const DistortNoise := preload("res://assets/shaders/water_toon/WaterDistortion.png")
 
@@ -49,19 +49,32 @@ const RANGE_SKIRT: Array[Vector2] = [Vector2(-0.1, -3.2), Vector2(-0.35, -5.2)]
 # The passes the waterfalls run out through sit this high above the sea.
 const PASS_FLOOR := 0.12
 const WATERFALL_COUNT := 7
-const CLOUD_COUNT := 4
 
 # A ground point within this distance of a slot centre belongs to that slot's island.
 const ISLAND_PICK_RADIUS := 2700.0
-# Cloud banks cover roughly an island's footprint.
-const FOG_BANK_RADIUS := 3000.0
-const FOG_LIFT_SECONDS := 1.8
+# The uncharted chart lies flat just above the tallest silhouette tiles (STONE_TOP_Y).
+const CHART_Y := 30.0
+# Sketched coastlines on the chart; drawn the same on the sheet and on an island's patch so the
+# two match as the frontier rolls back.
+const SKETCH_RADIUS := 560.0
+# An island's patch reaches this far past its land, short of the open sea where a boat
+# discovers it (an island's own water runs roughly 1150 units from its centre).
+const PATCH_MARGIN := 200.0
+# The patch's hole while it is closed: far enough below zero that the torn edge never opens it.
+const PATCH_CLOSED := -400.0
+# The shader's torn edge and shadow reach (TORN + SHADOW in uncharted_chart.gdshader).
+const CHART_EDGE_REACH := 220.0
+# An object shows once the opening's torn edge has cleared it by this much.
+const OBJECT_CLEARANCE := 180.0
+const CHART_REVEAL_SECONDS := 2.2
+# Patches and sketches the chart shader takes (its uniform arrays).
+const MAX_CHART_ITEMS := 64
+const FRONTIER_UNROLL_SECONDS := 3.0
 const LABEL_HEIGHT := 900.0
 # Trade lanes start/end this far out from each slot centre, clear of the island.
 const ROUTE_CLEARANCE := 2600.0
 const ROUTE_Y := 8.0
 
-const CLOUD_COLOR := Color("#f4f6f8")
 const SNOW_COLOR := Color("#e9f3f6")
 const SNOW_SHADOW_COLOR := Color("#a9c3d4")
 const MOUNTAIN_ROCK_COLOR := Color("#6b5d53")
@@ -81,6 +94,9 @@ const LABEL_OUTLINE := Color("#15202e")
 # Render layer for the planet's rim and underside, so only they catch the bounce light.
 const PLANET_LAYER := 2
 
+# Discovery has finished opening the chart over the island at `coord`.
+signal patch_opened(coord: Vector2i)
+
 var world: WorldData
 var resource_node_database: ResourceNodeDatabase
 var building_manager: BuildingManager
@@ -93,10 +109,12 @@ var _disc_radius := 0.0 # disc units
 var _charted_radius := -1.0 # disc units
 var _planet: Node3D
 var _surface: Node3D
-var _clouds: Node3D
 var _islands: Node3D
-var _fog: Node3D
-var _frontier_fog: MeshInstance3D
+var _chart: MeshInstance3D
+var _chart_material: ShaderMaterial
+# The frontier the chart currently shows, behind the real one while the sheet rolls back.
+var _chart_frontier := -1.0
+var _frontier_tween: Tween
 var _sailing_hover: MeshInstance3D
 var _labels_root: Node3D
 var _routes: Node3D
@@ -107,8 +125,11 @@ var _overview := 0.0
 
 # coord -> IslandRenderer, for every revealed island.
 var _renderers: Dictionary = {}
-# coord -> Node3D cloud bank, for every slot still hidden.
-var _fog_banks: Dictionary = {}
+# coord -> Vector4 chart patch (centre x, z; radius; hole), for every reachable island not yet
+# discovered, and for those whose patch is still opening.
+var _chart_patches: Dictionary = {}
+# coord -> true while discovery opens that island's patch.
+var _opening: Dictionary = {}
 # coord -> Label3D
 var _labels: Dictionary = {}
 var _hovered := WorldData.NO_COORD
@@ -140,15 +161,22 @@ func _ready() -> void:
 	add_child(_planet)
 	_surface = Node3D.new()
 	_planet.add_child(_surface)
-	_clouds = Node3D.new()
-	_planet.add_child(_clouds)
 
 	_islands = Node3D.new()
 	_islands.name = "Islands"
 	add_child(_islands)
-	_fog = Node3D.new()
-	_fog.name = "Fog"
-	add_child(_fog)
+	_chart = MeshInstance3D.new()
+	_chart.name = "UnchartedChart"
+	_chart.position.y = CHART_Y
+	_chart.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_chart_material = ShaderMaterial.new()
+	_chart_material.shader = UnchartedChartShader
+	_chart_material.set_shader_parameter("paper_noise", ChartPaperNoise)
+	_chart_material.set_shader_parameter("ring_spacing", RING_SPACING)
+	# Over the island water and trade lanes, which are transparent too.
+	_chart_material.render_priority = 1
+	_chart.material_override = _chart_material
+	add_child(_chart)
 	_labels_root = Node3D.new()
 	_labels_root.name = "Labels"
 	add_child(_labels_root)
@@ -168,13 +196,16 @@ func refresh() -> void:
 	if not is_equal_approx(disc_radius, _disc_radius):
 		_disc_radius = disc_radius
 		_build_planet()
+		var sheet := PlaneMesh.new()
+		sheet.size = Vector2.ONE * world_disc_radius() * 2.0
+		_chart.mesh = sheet
+		_chart_material.set_shader_parameter("disc_radius", world_disc_radius())
 
 	var charted_radius := (world.revealed_rings + 0.5) * DISC_UNIT
 	if not is_equal_approx(charted_radius, _charted_radius):
 		_charted_radius = charted_radius
 		_ocean_material.set_shader_parameter("charted_radius", _charted_radius)
-		_build_clouds()
-		_build_frontier_fog()
+		_roll_back_frontier()
 
 	_sync_islands()
 	_build_labels()
@@ -240,37 +271,6 @@ func show_sailing_hover(point: Vector3, color: Color) -> void:
 func hide_sailing_hover() -> void:
 	if _sailing_hover != null:
 		_sailing_hover.visible = false
-
-
-# The foot of this continuous fog bank shares WorldNavigation's sailing boundary.
-func _build_frontier_fog() -> void:
-	if _frontier_fog != null:
-		_frontier_fog.free()
-	_frontier_fog = MeshInstance3D.new()
-	_frontier_fog.name = "SailingFrontierFog"
-	_fog.add_child(_frontier_fog)
-	var radius := (world.revealed_rings + 0.5) * RING_SPACING
-	var rings := [Vector2(radius - 128.0, Navigation.SEA_Y), Vector2(radius + 192.0, 420.0), Vector2(world_disc_radius(), 420.0)]
-	var surface := SurfaceTool.new()
-	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-	for band in range(rings.size() - 1):
-		for segment in 192:
-			var a := TAU * segment / 192.0
-			var b := TAU * (segment + 1) / 192.0
-			var points: Array[Vector3] = []
-			for ring in [rings[band], rings[band + 1]]:
-				for angle in [a, b]:
-					points.append(Vector3(cos(angle) * ring.x, ring.y, sin(angle) * ring.x))
-			for index in [0, 2, 1, 1, 2, 3]:
-				surface.set_normal(Vector3.UP)
-				surface.add_vertex(points[index])
-	_frontier_fog.mesh = surface.commit()
-	_frontier_fog.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var material := ShaderMaterial.new()
-	material.shader = FrontierFogShader
-	material.set_shader_parameter("frontier_radius", radius)
-	material.set_shader_parameter("cloud_noise", DistortNoise)
-	_frontier_fog.material_override = material
 
 
 func set_show_grid(value: bool) -> void:
@@ -349,27 +349,32 @@ static func slot_position(coord: Vector2i) -> Vector3:
 
 func _process(delta: float) -> void:
 	_time += delta
-	if _clouds != null:
-		_clouds.rotation.y = _time * 0.004
 	_update_boats()
 
 
-# --- Islands and the cloud banks over unrevealed rings ---
+# --- Islands and the uncharted chart over them ---
 
 func _sync_islands() -> void:
 	for coord in world.all_slots():
 		var island := world.get_island(coord)
-		if island != null and world.is_revealed(coord):
-			if not _renderers.has(coord):
-				_add_renderer(coord, island)
-			(_renderers[coord] as IslandRenderer).set_explored(island.visited or island.sighted)
-			if (island.visited or island.sighted) and _fog_banks.has(coord):
-				_lift_fog_bank(coord)
-		if (island == null or not world.is_revealed(coord) or not (island.visited or island.sighted)) \
-				and not _fog_banks.has(coord):
-			var bank := _make_fog_bank(coord)
-			_fog.add_child(bank)
-			_fog_banks[coord] = bank
+		if island == null or not world.is_revealed(coord):
+			continue
+		if not _renderers.has(coord):
+			_add_renderer(coord, island)
+		var discovered := island.visited or island.sighted
+		(_renderers[coord] as IslandRenderer).set_explored(discovered)
+		# The island the robot is on is never under the chart (a new game starts there before
+		# discovering it).
+		if not discovered and coord != world.current_coord and not _chart_patches.has(coord):
+			_chart_patches[coord] = _closed_patch(coord, island)
+		elif discovered and _chart_patches.has(coord) and not _opening.has(coord):
+			_open_patch(coord)
+	_update_chart()
+
+
+# Whether the chart still hides the slot: beyond the frontier, or under a patch not yet opened.
+func is_uncharted(coord: Vector2i) -> bool:
+	return not world.is_revealed(coord) or (_chart_patches.has(coord) and not _opening.has(coord))
 
 
 func _add_renderer(coord: Vector2i, island: IslandData) -> void:
@@ -390,37 +395,90 @@ func _add_renderer(coord: Vector2i, island: IslandData) -> void:
 	_renderers[coord] = renderer
 
 
-# A low, soft veil marks an unknown destination without resembling weather clouds.
-func _make_fog_bank(coord: Vector2i) -> Node3D:
-	var bank := Node3D.new()
-	bank.position = slot_position(coord)
-	var veil := MeshInstance3D.new()
-	var plane := PlaneMesh.new()
-	plane.size = Vector2.ONE * FOG_BANK_RADIUS * 2.0
-	veil.mesh = plane
-	var material := ShaderMaterial.new()
-	material.shader = IslandFogShader
-	material.set_shader_parameter("seed", float(coord.x * 7 + coord.y * 13))
-	veil.material_override = material
-	veil.position.y = 80.0
-	veil.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	bank.add_child(veil)
-	return bank
+# A torn piece of chart covering the island's land, short of the water where a boat discovers it.
+func _closed_patch(coord: Vector2i, island: IslandData) -> Vector4:
+	var center := slot_position(coord)
+	var land := SKETCH_RADIUS * 1.3
+	for cell in island.terrain:
+		if not GameTypes.is_water(island.get_terrain(cell)):
+			var point := Navigation.cell_center(cell)
+			land = maxf(land, Vector2(point.x - center.x, point.z - center.z).length())
+	return Vector4(center.x, center.z, land + PATCH_MARGIN, PATCH_CLOSED)
 
 
-# Fade the veil as discovery exposes the island and its contents.
-func _lift_fog_bank(coord: Vector2i) -> void:
-	var bank: Node3D = _fog_banks[coord]
-	_fog_banks.erase(coord)
-	var tween := bank.create_tween().set_parallel(true)
-	var veil := bank.get_child(0) as MeshInstance3D
-	var material := veil.material_override as ShaderMaterial
-	tween.tween_method(func(value: float): material.set_shader_parameter("opacity", value),
-		1.0, 0.0, FOG_LIFT_SECONDS) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.tween_property(bank, "scale", Vector3(1.15, 1.0, 1.15), FOG_LIFT_SECONDS) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.chain().tween_callback(bank.queue_free)
+# Discovery opens a hole at the island's centre that spreads out until the patch is gone. The
+# island's objects stand taller than the chart, so each one appears as the opening reaches it.
+func _open_patch(coord: Vector2i) -> void:
+	_opening[coord] = true
+	var closed: Vector4 = _chart_patches[coord]
+	var renderer: IslandRenderer = _renderers[coord]
+	var center := slot_position(coord)
+	var open_to := func(hole: float) -> void:
+		var piece: Vector4 = _chart_patches[coord]
+		piece.w = hole
+		_chart_patches[coord] = piece
+		_update_chart()
+		renderer.reveal_objects_within(center, hole - OBJECT_CLEARANCE)
+	open_to.call(closed.w)
+	var tween := create_tween()
+	tween.tween_method(open_to, closed.w, closed.z + CHART_EDGE_REACH, CHART_REVEAL_SECONDS) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_callback(func() -> void:
+		_chart_patches.erase(coord)
+		_opening.erase(coord)
+		_update_chart()
+		renderer.reveal_objects_within(center, INF)
+		patch_opened.emit(coord))
+
+
+# Whether discovery is still opening the chart over the slot's island.
+func is_opening(coord: Vector2i) -> bool:
+	return _opening.has(coord)
+
+
+# Ring unlocks roll the sheet back to the new frontier; loading a game sets it at once.
+func _roll_back_frontier() -> void:
+	var frontier := navigation.sailing_radius()
+	if _frontier_tween != null:
+		_frontier_tween.kill()
+	if _chart_frontier < 0.0 or frontier < _chart_frontier:
+		_chart_frontier = frontier
+		return
+	_frontier_tween = create_tween()
+	_frontier_tween.tween_method(func(radius: float) -> void:
+		_chart_frontier = radius
+		_update_chart(),
+		_chart_frontier, frontier, FRONTIER_UNROLL_SECONDS) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+# Hand the chart its frontier, patches, island sketches and K9-DA's mark.
+func _update_chart() -> void:
+	var patches := PackedVector4Array()
+	for coord in _chart_patches:
+		patches.append(_chart_patches[coord])
+	var sketches := PackedVector4Array()
+	var marker := Vector3.ZERO
+	for coord in world.all_slots():
+		if world.is_revealed(coord) and not _chart_patches.has(coord):
+			continue
+		var center := slot_position(coord)
+		sketches.append(Vector4(center.x, center.z, SKETCH_RADIUS, coord.x * 7.31 + coord.y * 3.17 + 11.0))
+		# The signal is only known once Set Sail charts the dog's ring.
+		if world.is_dog_stranded_on(coord) and world.is_revealed(coord):
+			marker = Vector3(center.x, center.z, SKETCH_RADIUS * 1.25)
+	_chart_material.set_shader_parameter("frontier_radius", _chart_frontier)
+	_chart_material.set_shader_parameter("patches", _padded(patches))
+	_chart_material.set_shader_parameter("patch_count", mini(patches.size(), MAX_CHART_ITEMS))
+	_chart_material.set_shader_parameter("sketches", _padded(sketches))
+	_chart_material.set_shader_parameter("sketch_count", mini(sketches.size(), MAX_CHART_ITEMS))
+	_chart_material.set_shader_parameter("marker", marker)
+
+
+static func _padded(items: PackedVector4Array) -> PackedVector4Array:
+	var padded := items.slice(0, MAX_CHART_ITEMS)
+	padded.resize(MAX_CHART_ITEMS)
+	return padded
 
 
 # --- Labels ---
@@ -804,49 +862,6 @@ func _lathe_jitter(rng: RandomNumberGenerator, rows: int, amount: float) -> Arra
 			ring.append(Vector2(rng.randf_range(-amount, amount), rng.randf_range(-amount, amount) * 0.4))
 		jitter.append(ring)
 	return jitter
-
-
-# --- Drifting clouds over the uncharted sea (in disc units) ---
-
-func _build_clouds() -> void:
-	_clear(_clouds)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 11
-	var material := _flat_material(CLOUD_COLOR, 1.0)
-	var min_radius := clampf(_charted_radius + DISC_UNIT * 0.6, _disc_radius * 0.3, _disc_radius * 0.8)
-	var max_radius := _disc_radius * 0.96
-	for i in range(CLOUD_COUNT):
-		var angle := TAU * (float(i) + rng.randf_range(0.0, 0.7)) / CLOUD_COUNT
-		var radius := rng.randf_range(min_radius, max_radius)
-		var cluster := Node3D.new()
-		var count := rng.randi_range(3, 5)
-		var puff_scale := rng.randf_range(0.6, 1.0)
-		for j in range(count):
-			var puff := _make_puff(material, puff_scale * rng.randf_range(0.7, 1.15))
-			puff.position = Vector3(
-				(j - count * 0.5 + 0.5) * puff_scale * 0.95,
-				rng.randf_range(-0.2, 0.4) * puff_scale,
-				rng.randf_range(-0.5, 0.5) * puff_scale
-			)
-			cluster.add_child(puff)
-		cluster.position = Vector3(cos(angle) * radius, rng.randf_range(1.6, 2.6), sin(angle) * radius)
-		cluster.rotation.y = rng.randf() * TAU
-		_clouds.add_child(cluster)
-
-
-func _make_puff(material: Material, radius: float) -> MeshInstance3D:
-	var puff := MeshInstance3D.new()
-	var sphere := SphereMesh.new()
-	sphere.radius = radius
-	sphere.height = radius * 2.0
-	sphere.radial_segments = 16
-	sphere.rings = 8
-	puff.mesh = sphere
-	puff.material_override = material
-	# Shadows from clouds read as dark holes in the calm sea, not as cloud shade.
-	puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	puff.scale = Vector3(1.0, 0.62, 1.0)
-	return puff
 
 
 # --- Trade routes (in world units) ---

@@ -45,9 +45,10 @@ func _run() -> void:
 		var radius := navigation.sailing_radius()
 		game._reveal_rings(1)
 		expect(not game.dog.visible, "Ring unlock alone must not reveal K9-DA")
-		expect(game.world_view._fog_banks.has(target), "K9-DA's island stays fogged until approach")
+		expect(game.world_view.is_uncharted(target), "K9-DA's island stays on the chart until approach")
 		expect(navigation.sailing_radius() > radius, "Quest unlock expands navigable sea")
-		expect(is_equal_approx(game.world_view._frontier_fog.material_override.get_shader_parameter("frontier_radius"), navigation.sailing_radius()), "Fog and navigation share boundary")
+		await create_timer(WorldView.FRONTIER_UNROLL_SECONDS + 0.1).timeout
+		expect(is_equal_approx(game.world_view._chart_material.get_shader_parameter("frontier_radius"), navigation.sailing_radius()), "Chart and navigation share boundary once the sheet rolls back")
 		expect(navigation.inside_frontier(locked_cell), "First ring becomes reachable")
 		var initial_position: Vector3 = game.player_unit.position
 		var started: int = Time.get_ticks_msec()
@@ -86,8 +87,10 @@ func _run() -> void:
 			steps += 1
 		expect(not game.player_unit.is_moving(), "Boat reaches destination coast")
 		expect(game.world.get_island(target).sighted and game.world.get_island(target).visited, "Approach reveals and discovers island before landing")
+		# The chart over the island opens in real time; K9-DA shows once it has.
+		await create_timer(WorldView.CHART_REVEAL_SECONDS + 0.1).timeout
 		expect(game.player_unit.boat_id == boat_id and game.dog.visible, "K9-DA appears while the player is still aboard")
-		expect(not game.world_view._fog_banks.has(target), "Approach clears K9-DA's island fog")
+		expect(not game.world_view.is_uncharted(target), "Approach opens K9-DA's chart patch")
 		expect(game.stat_tracker.get_value(GameTypes.Stat.DOG_ISLAND_DISCOVERED) == 1, "Approach records the rescue island discovery")
 		expect(game.world_view._labels[target].text.contains(game.world.get_island(target).island_name), "Approach reveals island name")
 		var discoveries: int = game.stat_tracker.get_value(GameTypes.Stat.ISLANDS_REACHED)
@@ -133,7 +136,7 @@ func _run() -> void:
 					if not game.player_unit.is_moving():
 						break
 					game.player_unit._process(0.25)
-				await _capture(game, "world_sailing_fog", game.player_unit.position, false)
+				await _capture(game, "world_sailing_chart", game.player_unit.position, false)
 			await _capture(game, "world_sailing_overview", game.player_unit.position, true)
 	root.remove_child(game)
 	game.free()

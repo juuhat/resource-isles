@@ -45,8 +45,8 @@ func _run() -> void:
 	for coord in game.world.island_slots():
 		game.world.get_island(coord).visited = true
 	game.world_view.refresh()
-	# Discovery veils use time-based tweens; finish them before freezing scene updates.
-	await create_timer(WorldView.FOG_LIFT_SECONDS + 0.2).timeout
+	# Chart patches open with time-based tweens; finish them before freezing scene updates.
+	await create_timer(WorldView.CHART_REVEAL_SECONDS + 0.2).timeout
 	game.process_mode = Node.PROCESS_MODE_DISABLED
 	game.renderer.clear_interaction()
 	var rig: CameraRig = game.camera_rig

@@ -78,16 +78,16 @@ Operate pose) and `salvage_skiff_dock_check.png` (spindle in the post socket, cl
   The camera can be panned freely; the bottom-right player portrait selects and centers on
   the robot. Approaching close enough to reveal an island discovers it and shows its name;
   landing activates the destination inventory.
-- A continuous fog bank covers locked sea and islands. Its radius is the navigation frontier,
+- A paper chart sheet covers locked sea and islands. Its radius is the navigation frontier,
   expanded by quest ring rewards. Paths cannot cross it.
 - K9-DA's boat pose, the screw animation and bobbing are future work. The companion resumes
   following after landing.
 
 Check with `Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/boat_navigation_check.gd`.
 Pass `-- --screenshot` without `--headless` to also capture `.godot/boat_preview.png`.
-`tools/world_sailing_check.gd` checks grid alignment, fog gating, crossing open ocean, reloading
+`tools/world_sailing_check.gd` checks grid alignment, chart gating, crossing open ocean, reloading
 at sea, landing on another island and reboarding there. Its `-- --screenshot` option captures
-`.godot/world_sailing_sea.png`, `.godot/world_sailing_fog.png` and `.godot/world_sailing_overview.png`.
+`.godot/world_sailing_sea.png`, `.godot/world_sailing_chart.png` and `.godot/world_sailing_overview.png`.
 
 ## Personal boat cargo
 

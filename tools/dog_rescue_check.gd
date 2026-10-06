@@ -50,6 +50,8 @@ func _run() -> void:
 	assert(not game.quest_manager.is_completed(GameTypes.QuestId.FOLLOW_THE_SIGNAL),
 		"Discovering another island cannot complete Follow the Signal")
 	game.discover_island(world.dog_coord)
+	assert(not dog.visible, "K9-DA waits for the chart over his island to open")
+	await create_timer(WorldView.CHART_REVEAL_SECONDS + 0.1).timeout
 	assert(dog.visible, "Discovery reveals K9-DA before landing")
 	assert(game.quest_manager.is_completed(GameTypes.QuestId.FOLLOW_THE_SIGNAL))
 	assert(game.quest_manager.get_current_milestone().id == GameTypes.QuestId.STRIKE_IRON)

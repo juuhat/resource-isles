@@ -21,14 +21,13 @@ func _check_discovery() -> void:
 	view.set_overview_amount(1.0)
 	var frontier: Vector2i = world.slots_within(1)[1]
 	assert(view.renderer_for(frontier) == null, "Locked islands must remain hidden")
-	assert(view._fog_banks.has(frontier), "Locked islands need fog")
+	assert(view.is_uncharted(frontier), "Locked islands lie under the chart")
 	assert(view._labels[frontier].text == "?", "Locked islands need an unknown marker")
-	var fading_bank: Node3D = view._fog_banks[frontier]
 	world.reveal_additional_rings()
 	view.refresh()
 	var renderer := view.renderer_for(frontier)
 	assert(renderer != null, "Revealed islands must be reachable")
-	assert(view._fog_banks.has(frontier), "Reachable islands keep fog until discovered")
+	assert(view.is_uncharted(frontier) and view._chart_patches.has(frontier), "Reachable islands keep a chart patch until discovered")
 	assert(not renderer._objects_root.visible, "Unvisited resources must stay hidden")
 	assert(not renderer._grid_instance.visible, "Unvisited islands must hide plot lines")
 	view.set_show_grid(true)
@@ -39,14 +38,13 @@ func _check_discovery() -> void:
 	world.get_island(frontier).visited = true
 	world.set_current(frontier)
 	view.set_current_coord(frontier)
-	assert(not view._fog_banks.has(frontier), "Discovery starts clearing the island's fog")
+	assert(not view.is_uncharted(frontier), "Discovery starts opening the island's patch")
 	assert(renderer._objects_root.visible, "Landing must restore detail")
 	assert(renderer._water_instance.visible, "Landing must restore shoreline water")
 	assert(renderer._grid_instance.visible, "Landing must restore enabled plot lines")
 	assert(world.get_island(frontier).island_name in view._labels[frontier].text)
-	await create_timer(WorldView.FOG_LIFT_SECONDS + 0.1).timeout
-	assert(not is_instance_valid(fading_bank), "Reveal animation must free the fog veil")
-	assert(not view._fog_banks.has(frontier), "Reveal must remove fog ownership")
+	await create_timer(WorldView.CHART_REVEAL_SECONDS + 0.1).timeout
+	assert(not view._chart_patches.has(frontier) and not view._opening.has(frontier), "An opened patch leaves the chart")
 	view.queue_free()
 	await process_frame
 	print("World discovery states: PASS")

@@ -217,6 +217,14 @@ func set_explored(value: bool) -> void:
 	_apply_exploration_style()
 
 
+# While the chart patch over a newly discovered island opens, show only the objects the opening
+# has reached, so none stand up through the paper. An infinite radius shows them all again.
+func reveal_objects_within(center: Vector3, radius: float) -> void:
+	for child: Node3D in _objects_root.get_children():
+		var offset := child.global_position - center
+		child.visible = Vector2(offset.x, offset.z).length() < radius
+
+
 func _apply_exploration_style() -> void:
 	if _terrain_root == null:
 		return

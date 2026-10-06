@@ -174,6 +174,8 @@ func _ready() -> void:
 	# Set up once the world and units exist.
 	robot = RobotController.new()
 	robot.setup(self)
+	# K9-DA stands taller than the chart, so it appears once its island's patch has opened.
+	world_view.patch_opened.connect(func(_coord: Vector2i) -> void: robot.sync_dog())
 	_add_ui()
 	# Set up once the robot and the UI it uses (the toast, the cargo panel) exist.
 	boats = BoatController.new()

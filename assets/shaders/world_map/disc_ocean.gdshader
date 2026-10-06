@@ -10,8 +10,8 @@ render_mode unshaded;
  * is dimmer still.
  *
  * Zoomed out, the charted area shows a navigator's grid — ring circles plus radial meridians,
- * like an azimuthal chart — and a brighter frontier line. `chart_visibility` (0 in play, 1 in
- * the full-disc overview, driven by the camera zoom) fades it in.
+ * like an azimuthal chart, carried on in ink across the uncharted paper (uncharted_chart.gdshader).
+ * `chart_visibility` (0 in play, 1 in the full-disc overview, driven by the camera zoom) fades it in.
  *
  * Geometry is in disc units (the planet node is scaled up into the world); `world_scale`
  * converts them back to world units for the noise, which must line up with the island water.
@@ -28,7 +28,6 @@ uniform vec3 deep_color : source_color = vec3(0.14, 0.43, 0.53);
 uniform vec3 edge_color : source_color = vec3(0.09, 0.29, 0.41);
 uniform vec3 uncharted_color : source_color = vec3(0.06, 0.18, 0.27);
 uniform vec3 grid_color : source_color = vec3(0.86, 0.95, 0.96);
-uniform vec3 frontier_color : source_color = vec3(0.98, 0.9, 0.62);
 uniform float grid_strength = 0.3;
 uniform float meridian_count = 12.0;
 
@@ -89,10 +88,6 @@ void fragment() {
 	float meridians = line_mask(meridian_distance, 0.04) * smoothstep(1.5, 4.0, r) * 0.7;
 	float grid = max(rings, meridians) * charted * chart_visibility;
 	color = mix(color, grid_color, grid * grid_strength);
-
-	// Frontier: the edge of the charted world.
-	float frontier = line_mask(abs(r - charted_radius), 0.12) * step(1.0, charted_radius) * chart_visibility;
-	color = mix(color, frontier_color, frontier * 0.7);
 
 	ALBEDO = color;
 }
