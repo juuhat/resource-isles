@@ -1,5 +1,6 @@
 extends SceneTree
 
+const CheckWatchdog := preload("res://tools/check_watchdog.gd")
 const FURNACE := GameTypes.BuildingType.FURNACE
 const ORE := GameTypes.ResourceType.IRON_ORE
 const COAL := GameTypes.ResourceType.COAL
@@ -8,6 +9,7 @@ const GameScene := preload("res://game.tscn")
 var failures := 0
 
 func _initialize() -> void:
+	CheckWatchdog.install(self)
 	call_deferred("_run")
 
 func expect(condition: bool, message: String) -> void:

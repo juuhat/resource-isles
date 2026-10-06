@@ -16,6 +16,7 @@ extends SceneTree
 #
 #   Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/footprint_check.gd
 
+const CheckWatchdog := preload("res://tools/check_watchdog.gd")
 const GameScene := preload("res://game.tscn")
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 
@@ -27,6 +28,7 @@ var _failures := 0
 
 
 func _initialize() -> void:
+	CheckWatchdog.install(self)
 	call_deferred("_run")
 
 

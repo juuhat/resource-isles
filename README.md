@@ -167,10 +167,15 @@ To open the project in the editor instead:
 powershell -ExecutionPolicy Bypass -File tools/run_checks.ps1
 ```
 
-It uses Godot from `-Godot <path>`, `$env:GODOT`, or the console build on `PATH`. Each check has a
-timeout, because a failed `assert()` hangs headless Godot instead of exiting. Each check also gets
+It uses Godot from `-Godot <path>`, `$env:GODOT`, or the console build on `PATH`. Each check also gets
 its own empty `user://` folder, so checks never see each other's saves and your real save is never
 touched.
+
+Every check installs `tools/check_watchdog.gd`. A failed `CheckWatchdog.require()` (used instead of
+`assert()`, which only stops the current function and leaves headless Godot idling) exits
+with code 1 straight away, and a check still running after 30 s is stopped. When you run a single
+check directly with `--script`, the watchdog also backs up your save first and restores it
+however the check ends; a backup left by a killed run is restored by the next check.
 
 ## Repository Structure
 

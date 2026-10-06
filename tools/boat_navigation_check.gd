@@ -1,5 +1,6 @@
 extends SceneTree
 
+const CheckWatchdog := preload("res://tools/check_watchdog.gd")
 const GameScene := preload("res://game.tscn")
 const Grid := preload("res://scripts/island/hex_grid.gd")
 var failures := 0
@@ -7,6 +8,7 @@ var saved_bytes := PackedByteArray()
 var had_save := false
 
 func _initialize() -> void:
+	CheckWatchdog.install(self)
 	call_deferred("_run")
 
 func expect(condition: bool, message: String) -> void:

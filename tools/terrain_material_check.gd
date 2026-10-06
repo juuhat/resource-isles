@@ -2,10 +2,13 @@ extends SceneTree
 
 # Interaction/discovery regression for shared terrain materials, without loading a game/save.
 
+const CheckWatchdog := preload("res://tools/check_watchdog.gd")
+
 var _failures := 0
 
 
 func _initialize() -> void:
+	CheckWatchdog.install(self)
 	call_deferred("_run")
 
 

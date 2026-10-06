@@ -1,5 +1,6 @@
 extends SceneTree
 
+const CheckWatchdog := preload("res://tools/check_watchdog.gd")
 const NODE := GameTypes.ResourceNodeType.COPPER_ORE
 const ORE := GameTypes.ResourceType.COPPER_ORE
 var failures := 0
@@ -10,6 +11,7 @@ func expect(condition: bool, message: String) -> void:
 		push_error(message)
 
 func _initialize() -> void:
+	CheckWatchdog.install(self)
 	var definition := ResourceNodeDatabase.new().get_definition(NODE)
 	expect(definition != null and definition.extracted_resource_type == ORE, "Copper deposit yields copper ore")
 	expect(definition.model != null and definition.true_tile_model, "Copper has a tile-scale model")

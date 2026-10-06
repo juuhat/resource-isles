@@ -1,8 +1,11 @@
 extends SceneTree
 
+const CheckWatchdog := preload("res://tools/check_watchdog.gd")
+
 var selected := false
 
 func _initialize() -> void:
+	CheckWatchdog.install(self)
 	call_deferred("_run")
 
 func _run() -> void:
@@ -11,27 +14,27 @@ func _run() -> void:
 	root.add_child(bar)
 	await process_frame
 	var viewport := bar.portrait_viewport
-	assert(viewport.own_world_3d and viewport.transparent_bg)
-	assert(viewport.render_target_update_mode == SubViewport.UPDATE_ALWAYS)
-	assert(bar.portrait.icon == viewport.get_texture())
+	CheckWatchdog.require(viewport.own_world_3d and viewport.transparent_bg)
+	CheckWatchdog.require(viewport.render_target_update_mode == SubViewport.UPDATE_ALWAYS)
+	CheckWatchdog.require(bar.portrait.icon == viewport.get_texture())
 	var animator := viewport.find_child("AnimationPlayer", true, false) as AnimationPlayer
-	assert(animator != null and animator.is_playing())
-	assert(String(animator.current_animation).get_file().to_lower() == "idle")
-	assert(animator.get_animation(animator.current_animation).loop_mode == Animation.LOOP_LINEAR)
+	CheckWatchdog.require(animator != null and animator.is_playing())
+	CheckWatchdog.require(String(animator.current_animation).get_file().to_lower() == "idle")
+	CheckWatchdog.require(animator.get_animation(animator.current_animation).loop_mode == Animation.LOOP_LINEAR)
 	var head := viewport.find_child("HeadPivot", true, false) as Node3D
 	animator.seek(0.0, true)
 	var rest := head.transform
 	animator.seek(0.75, true)
-	assert(not head.transform.is_equal_approx(rest), "Portrait's idle animates the head")
+	CheckWatchdog.require(not head.transform.is_equal_approx(rest), "Portrait's idle animates the head")
 	for tool_name in PlayerUnit.WORK_CLIPS.values():
-		assert(not (viewport.find_child(tool_name, true, false) as Node3D).visible)
+		CheckWatchdog.require(not (viewport.find_child(tool_name, true, false) as Node3D).visible)
 	bar.select_requested.connect(func() -> void: selected = true)
 	bar.portrait.pressed.emit()
-	assert(selected, "Portrait still selects the player")
+	CheckWatchdog.require(selected, "Portrait still selects the player")
 	bar.set_selected(true)
-	assert(bar.portrait.modulate == Color.WHITE)
+	CheckWatchdog.require(bar.portrait.modulate == Color.WHITE)
 	bar.set_selected(false)
-	assert(is_equal_approx(bar.portrait.modulate.a, 0.6))
+	CheckWatchdog.require(is_equal_approx(bar.portrait.modulate.a, 0.6))
 	bar.set_selected(true)
 	for i in 5:
 		await process_frame

@@ -10,6 +10,7 @@ extends SceneTree
 #
 #   Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/power_indicator_check.gd
 
+const CheckWatchdog := preload("res://tools/check_watchdog.gd")
 const GameScene := preload("res://game.tscn")
 
 var _saved_bytes := PackedByteArray()
@@ -17,6 +18,7 @@ var _had_save := false
 
 
 func _initialize() -> void:
+	CheckWatchdog.install(self)
 	call_deferred("_run")
 
 
@@ -31,36 +33,36 @@ func _run() -> void:
 	var island: IslandData = game.current_island
 	var renderer: IslandRenderer = game.renderer
 	var cell := _free_cell(game, island, GameTypes.BuildingType.SAWMILL)
-	assert(cell != GameTypes.NO_CELL, "Need a free spot for a sawmill")
-	assert(renderer.place_building_at(cell, GameTypes.BuildingType.SAWMILL))
+	CheckWatchdog.require(cell != GameTypes.NO_CELL, "Need a free spot for a sawmill")
+	CheckWatchdog.require(renderer.place_building_at(cell, GameTypes.BuildingType.SAWMILL))
 
 	var indicator := _indicator_for(renderer, cell)
-	assert(indicator != null, "A power consumer gets a bolt indicator")
+	CheckWatchdog.require(indicator != null, "A power consumer gets a bolt indicator")
 	await _frames(3)
-	assert(not island.is_consumer_powered(cell))
-	assert(indicator.visible, "The bolt shows while the building is unpowered")
+	CheckWatchdog.require(not island.is_consumer_powered(cell))
+	CheckWatchdog.require(indicator.visible, "The bolt shows while the building is unpowered")
 
 	var model_top := _model_top(renderer, indicator)
-	assert(is_equal_approx(indicator.position.y, model_top), "The indicator anchors on the building's roof")
+	CheckWatchdog.require(is_equal_approx(indicator.position.y, model_top), "The indicator anchors on the building's roof")
 	var bolt_screen_lift: float = indicator._bolt.position.y
-	assert(bolt_screen_lift > 0.0, "The bolt floats above the roof")
+	CheckWatchdog.require(bolt_screen_lift > 0.0, "The bolt floats above the roof")
 
 	# Hand-power it via the robot's Operate action.
 	game.robot.operate_cell = cell
 	game.robot.is_operating = true
 	await _frames(3)
-	assert(island.is_consumer_powered(cell))
-	assert(not indicator.visible, "Operate powers the building, so the bolt hides")
+	CheckWatchdog.require(island.is_consumer_powered(cell))
+	CheckWatchdog.require(not indicator.visible, "Operate powers the building, so the bolt hides")
 
 	game.robot.is_operating = false
 	game.robot.operate_cell = GameTypes.NO_CELL
 	await _frames(3)
-	assert(indicator.visible, "The bolt returns once the robot stops operating")
+	CheckWatchdog.require(indicator.visible, "The bolt returns once the robot stops operating")
 
 	# Non-consumers never get one.
 	var windmill_cell := _free_cell(game, island, GameTypes.BuildingType.WINDMILL)
 	if windmill_cell != GameTypes.NO_CELL and renderer.place_building_at(windmill_cell, GameTypes.BuildingType.WINDMILL):
-		assert(_indicator_for(renderer, windmill_cell) == null, "Generators get no bolt")
+		CheckWatchdog.require(_indicator_for(renderer, windmill_cell) == null, "Generators get no bolt")
 
 	print("POWER INDICATOR CHECK PASSED")
 	root.remove_child(game)

@@ -1,11 +1,13 @@
 extends SceneTree
 
+const CheckWatchdog := preload("res://tools/check_watchdog.gd")
 const Cargo := preload("res://scripts/player/boat_cargo.gd")
 const GameScene := preload("res://game.tscn")
 const Nav := preload("res://scripts/world/world_navigation.gd")
 var failures := 0
 
 func _initialize() -> void:
+	CheckWatchdog.install(self)
 	call_deferred("_run")
 
 func expect(condition: bool, message: String) -> void:

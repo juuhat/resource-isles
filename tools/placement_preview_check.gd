@@ -11,6 +11,7 @@ extends SceneTree
 #
 #   Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/placement_preview_check.gd
 
+const CheckWatchdog := preload("res://tools/check_watchdog.gd")
 const GameScene := preload("res://game.tscn")
 
 var _saved_bytes := PackedByteArray()
@@ -18,6 +19,7 @@ var _had_save := false
 
 
 func _initialize() -> void:
+	CheckWatchdog.install(self)
 	call_deferred("_run")
 
 
@@ -35,7 +37,7 @@ func _run() -> void:
 	for definition in game.building_manager.definitions.values():
 		if definition.model == null or not definition.player_buildable:
 			continue
-		assert(game.building_menu._building_art(definition) is ViewportTexture,
+		CheckWatchdog.require(game.building_menu._building_art(definition) is ViewportTexture,
 			"%s shows its 3D model in the build menu" % definition.display_name)
 		var cell := _free_cell(game, island, renderer, definition.id)
 		if cell == GameTypes.NO_CELL:
@@ -46,21 +48,21 @@ func _run() -> void:
 		renderer.hovered_cell = cell
 		renderer.set_placement_preview(true, definition.id)
 		var ghost := _ghost_model(renderer)
-		assert(ghost != null, "%s previews as its 3D model" % definition.display_name)
-		assert(renderer._preview_root.find_children("*", "Sprite3D", true, false).is_empty(),
+		CheckWatchdog.require(ghost != null, "%s previews as its 3D model" % definition.display_name)
+		CheckWatchdog.require(renderer._preview_root.find_children("*", "Sprite3D", true, false).is_empty(),
 			"%s shows no billboard ghost" % definition.display_name)
 		for node in ghost.find_children("*", "GeometryInstance3D", true, false):
-			assert((node as GeometryInstance3D).transparency > 0.0, "The ghost is see-through")
+			CheckWatchdog.require((node as GeometryInstance3D).transparency > 0.0, "The ghost is see-through")
 		var ghost_bounds := renderer._instance_aabb(ghost)
 		renderer.set_placement_preview(false, definition.id)
 		await process_frame
 
-		assert(renderer.place_building_at(cell, definition.id, rotation))
-		assert(_has_model_with_bounds(renderer, ghost_bounds),
+		CheckWatchdog.require(renderer.place_building_at(cell, definition.id, rotation))
+		CheckWatchdog.require(_has_model_with_bounds(renderer, ghost_bounds),
 			"%s preview matches the placed model's size and position" % definition.display_name)
 		checked += 1
 
-	assert(checked > 0, "At least one modelled building was checked")
+	CheckWatchdog.require(checked > 0, "At least one modelled building was checked")
 	print("Placement preview: %d buildings checked" % checked)
 	print("PLACEMENT PREVIEW CHECK PASSED")
 	root.remove_child(game)

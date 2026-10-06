@@ -4,10 +4,11 @@
 #   powershell -ExecutionPolicy Bypass -File tools/run_checks.ps1 -Filter boat,furnace
 #
 # A check fails on a non-zero exit, on any script error or FAILED line in its output, or when it
-# runs past -TimeoutSeconds: a failed assert() does not exit headless Godot, it hangs, so the
-# timeout is how those checks fail. Many checks boot game.tscn, which loads and autosaves the
-# user:// save, so each check runs with its own empty user:// folder: no check sees another's save,
-# and your real saves are never read or touched.
+# runs past -TimeoutSeconds. Checks stop themselves on a failed requirement or after their own
+# time limit (tools/check_watchdog.gd); this timeout is the backstop for a check that blocks.
+# Many checks boot game.tscn, which loads and autosaves the user:// save, so each check runs with
+# its own empty user:// folder: no check sees another's save, and your real saves are never read
+# or touched.
 #
 # Godot is found from -Godot, then $env:GODOT, then the console build on PATH.
 
