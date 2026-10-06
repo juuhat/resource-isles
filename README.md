@@ -248,7 +248,7 @@ Prototype controls:
 - **B** or the **BUILD** button: open or close the building menu. While it is open, **1-9** pick a card in the current tab. Cards show cost against current stock (red when short); locked buildings appear as silhouettes naming the quest that unlocks them.
 - **Esc** or **right click**: stop placing the selected building (also the placement bar's **Cancel**)
 - **Pilot boat**: walk beside a dock's skiff or parked boat, then press its power action to board. Right-click coast or ocean tiles to sail; the camera stays where you position it. Click the bottom-right player portrait to select the player and center the camera on them. Beside shore or a finished dock, use **Disembark** to land, leaving the boat afloat.
-- **Left click on another island while aboard**: sail continuously to a reachable shore. The uncharted paper chart covers locked sea and islands until quest progress expands the frontier. Every island persists and keeps producing.
+- **Left click on another island while aboard**: sail continuously to a reachable shore. The unscanned chart covers locked sea and islands until quest progress expands the frontier. Every island persists and keeps producing.
 - **M**: pull back to the whole disc (or zoom back to play). While aboard, click a revealed island to set a sailing destination and zoom in; drag to orbit around the disc. **Esc** also zooms back in.
 - **[** and **]**: inspect the previous or next visited island with the camera; the robot stays in place.
 - **=**: (debug builds, temporary) reveal one more ring of islands — a stand-in for a boat-tier unlock until that system exists

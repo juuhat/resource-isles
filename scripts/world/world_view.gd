@@ -4,8 +4,8 @@ extends Node3D
 # The whole world as one place: the flat-disc planet floating in space (docs/intro-story.md),
 # with every island at full scale on it. One calm ocean sits inside a snow-capped mountain range on a rocky,
 # tapering underside; sea water spills off the edge into the starfield. Each revealed island has
-# its own IslandRenderer standing on its slot, and everything not yet charted lies under a
-# navigator's paper chart: one sheet beyond the sailing frontier, plus a torn patch over each
+# its own IslandRenderer standing on its slot, and everything not yet charted lies under the
+# unscanned chart of dark hex tiles: one sheet beyond the sailing frontier, plus a patch over each
 # reachable island until the player sails close enough to discover it. Ring unlocks roll the
 # sheet back; discovery opens the island's patch; landing restores its full detail. Trade routes run across the open sea with their
 # boats, and island names float over the slots once the camera pulls back.
@@ -19,7 +19,7 @@ extends Node3D
 const IslandRendererScript := preload("res://scripts/island/island_renderer.gd")
 const Navigation := preload("res://scripts/world/world_navigation.gd")
 const UnchartedChartShader := preload("res://assets/shaders/world_map/uncharted_chart.gdshader")
-const ChartPaperNoise := preload("res://assets/shaders/world_map/chart_paper_noise.tres")
+const ChartScanNoise := preload("res://assets/shaders/world_map/chart_scan_noise.tres")
 const DiscOceanShader := preload("res://assets/shaders/world_map/disc_ocean.gdshader")
 const WaterfallShader := preload("res://assets/shaders/world_map/waterfall.gdshader")
 const SurfaceNoise := preload("res://assets/shaders/water_toon/PerlinNoise.png")
@@ -60,11 +60,11 @@ const SKETCH_RADIUS := 560.0
 # An island's patch reaches this far past its land, short of the open sea where a boat
 # discovers it (an island's own water runs roughly 1150 units from its centre).
 const PATCH_MARGIN := 200.0
-# The patch's hole while it is closed: far enough below zero that the torn edge never opens it.
+# The patch's hole while it is closed: far enough below zero that no tile ever switches off.
 const PATCH_CLOSED := -400.0
-# The shader's torn edge and shadow reach (TORN + SHADOW in uncharted_chart.gdshader).
+# How far past the coverage tiles still show (JITTER + BROAD + LOOSE in uncharted_chart.gdshader).
 const CHART_EDGE_REACH := 220.0
-# An object shows once the opening's torn edge has cleared it by this much.
+# An object shows once the opening has cleared it by this much, past the tiles' ragged edge.
 const OBJECT_CLEARANCE := 180.0
 const CHART_REVEAL_SECONDS := 2.2
 # Patches and sketches the chart shader takes (its uniform arrays).
@@ -171,7 +171,7 @@ func _ready() -> void:
 	_chart.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_chart_material = ShaderMaterial.new()
 	_chart_material.shader = UnchartedChartShader
-	_chart_material.set_shader_parameter("paper_noise", ChartPaperNoise)
+	_chart_material.set_shader_parameter("scan_noise", ChartScanNoise)
 	_chart_material.set_shader_parameter("ring_spacing", RING_SPACING)
 	# Over the island water and trade lanes, which are transparent too.
 	_chart_material.render_priority = 1
@@ -395,7 +395,7 @@ func _add_renderer(coord: Vector2i, island: IslandData) -> void:
 	_renderers[coord] = renderer
 
 
-# A torn piece of chart covering the island's land, short of the water where a boat discovers it.
+# A patch of chart covering the island's land, short of the water where a boat discovers it.
 func _closed_patch(coord: Vector2i, island: IslandData) -> Vector4:
 	var center := slot_position(coord)
 	var land := SKETCH_RADIUS * 1.3

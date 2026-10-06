@@ -263,10 +263,10 @@ Start tiny; do not build a sprawling tech UI up front.
    range of varied sharp peaks, flat summits, ridges, and low passes, on a rocky
    underside, water spilling off the edge into the starfield, the starter (and the wreck) at the
    dead center, three island slots per ring. Every island on the disc is generated up front and
-   has a slot. Everything uncharted lies under a navigator's paper chart (Civilization-style
-   parchment with a torn, singed edge, an ink grid, wave marks and a sketched
-   coastline plus `?` marker for each unknown island). Revealing a ring rolls the sheet back; each
-   newly reachable island keeps a torn patch of chart, labelled "Unexplored", until the player
+   has a slot. Everything uncharted lies under the robot's unscanned chart (dark hex tiles
+   on the world lattice with a glowing cyan rim, the navigator's ring grid, and a rough tile
+   silhouette plus `?` marker for each unknown island). Revealing a ring rolls the sheet back; each
+   newly reachable island keeps a patch of chart, labelled "Unexplored", until the player
    sails close enough to discover it, which opens the patch from the island's centre and shows
    its resources, buildings, shoreline water, plot lines and name.
    Hovering a destination explains travel or its unlock requirement (the first ring needs the

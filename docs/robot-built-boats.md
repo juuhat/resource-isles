@@ -78,7 +78,7 @@ Operate pose) and `salvage_skiff_dock_check.png` (spindle in the post socket, cl
   The camera can be panned freely; the bottom-right player portrait selects and centers on
   the robot. Approaching close enough to reveal an island discovers it and shows its name;
   landing activates the destination inventory.
-- A paper chart sheet covers locked sea and islands. Its radius is the navigation frontier,
+- The unscanned chart sheet covers locked sea and islands. Its radius is the navigation frontier,
   expanded by quest ring rewards. Paths cannot cross it.
 - K9-DA's boat pose, the screw animation and bobbing are future work. The companion resumes
   following after landing.
