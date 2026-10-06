@@ -93,7 +93,7 @@ func _is_green(game: Node, cell: Vector2i) -> bool:
 	renderer.hovered_cell = cell
 	renderer.refresh_hover()
 	var tile: MeshInstance3D = renderer._tiles[cell]
-	return tile.material_override == renderer._action_highlight_material(game.current_island.get_terrain(cell))
+	return tile.get_instance_shader_parameter("hover_state") == 2
 
 
 func _unlock(game: Node, robot_upgrade: int) -> void:

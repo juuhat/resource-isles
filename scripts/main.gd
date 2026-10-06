@@ -549,6 +549,8 @@ func _setup_lighting() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation = Vector3(deg_to_rad(-55.0), deg_to_rad(-40.0), 0.0)
+	# Restrained warm sunlight and cool ambient keep the earthy material palette readable.
+	sun.light_color = Color("#fff4e4")
 	# Sun-cast shadows. The world is large (128-unit cells, camera 300-1200 units out in play), so
 	# the shadow range is pushed well past the default 100; the camera rig grows it further as it
 	# zooms out. Biases are kept low — large values peter-pan the shadow inside the caster at this
@@ -577,8 +579,8 @@ func _setup_lighting() -> void:
 	# Lighting stays the hand-tuned flat ambient rather than coming from the (dark) sky.
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.6, 0.65, 0.75)
-	environment.ambient_light_energy = 0.5
+	environment.ambient_light_color = Color("#b3c2cf")
+	environment.ambient_light_energy = 0.4
 	# Islanders-style distance haze: depth fog fading the far ocean into a light cyan. The camera
 	# rig moves the fog start/end with zoom so the island itself always stays clear, and fades it
 	# out for the overview. It never touches the stars.

@@ -23,6 +23,8 @@ const BladeSpinnerScript := preload("res://scripts/island/blade_spinner.gd")
 const PowerIndicatorScript := preload("res://scripts/island/power_indicator.gd")
 const PoweredSpinnerScript := preload("res://scripts/island/powered_spinner.gd")
 const ConstructionSiteScript := preload("res://scripts/island/construction_site.gd")
+const TERRAIN_SHADER := preload("res://assets/shaders/terrain.gdshader")
+const TERRAIN_NOISE := preload("res://assets/shaders/terrain_noise.tres")
 # Toon water (see assets/shaders/water_toon.gdshader): a transparent animated plane whose
 # depth bands, foam rim and swell lines all key off the distance to the nearest land hex —
 # exact near the shore (per-cell land mask), baked coarse further out (set in _rebuild_water).
@@ -73,9 +75,11 @@ const POWERED_SPIN_PARTS := {
 	"BellowsCamPivot": [Vector3(1, 0, 0), 360.0 / BELLOWS_PERIOD_SECONDS],
 }
 
-const SAND_COLOR := Color("#e3bc83")
-const GRASS_COLOR := Color("#9ea131")
-const STONE_COLOR := Color("#8e8791")
+const SAND_COLOR := Color("#d3b586")
+const GRASS_COLOR := Color("#879347")
+const STONE_COLOR := Color("#8a8794")
+const GRID_IDLE_ALPHA := 0.045
+const GRID_PLACEMENT_ALPHA := 0.18
 # Hover tint for a cell the selected robot can work (see is_cell_actionable): the terrain colour
 # pulled most of the way to this green.
 const ACTION_HOVER_COLOR := Color("#4fe36f")
@@ -138,14 +142,10 @@ var _water_material: ShaderMaterial
 var _prism_mesh: ArrayMesh
 var _cap_mesh: ArrayMesh
 var _terrain_materials := {}
-var _seabed_materials := {}
-var _highlight_materials := {}
-var _action_highlight_materials := {}
 # cell -> the terrain MeshInstance3D for that cell, so hover can recolor it in place.
 var _tiles := {}
 var _highlighted_cell := GameTypes.NO_CELL
 var _explored := true
-var _silhouette_material: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -220,15 +220,10 @@ func set_explored(value: bool) -> void:
 func _apply_exploration_style() -> void:
 	if _terrain_root == null:
 		return
-	if _silhouette_material == null:
-		_silhouette_material = StandardMaterial3D.new()
-		_silhouette_material.albedo_color = Color("#89959b")
-		_silhouette_material.roughness = 1.0
-		_silhouette_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	for tile: MeshInstance3D in _terrain_root.get_children():
 		var terrain_type: int = tile.get_meta("terrain_type")
 		tile.visible = _explored or not GameTypes.is_water(terrain_type)
-		tile.material_override = _base_tile_material(terrain_type) if _explored else _silhouette_material
+		tile.set_instance_shader_parameter("explored", _explored)
 	_objects_root.visible = _explored
 	_preview_root.visible = _explored
 	_grid_instance.visible = show_grid and _explored
@@ -371,6 +366,7 @@ func cell_from_ray(origin: Vector3, direction: Vector3) -> Vector2i:
 # one the player is working on.
 func clear_interaction() -> void:
 	placement_preview_enabled = false
+	_update_grid_style()
 	hovered_cell = GameTypes.NO_CELL
 	_update_hover()
 	_rebuild_preview()
@@ -395,6 +391,7 @@ func set_placement_preview(
 	placement_preview_enabled = enabled
 	placement_building_type = building_type
 	placement_can_afford = can_afford
+	_update_grid_style()
 	_rebuild_preview()
 	# Placement mode turns the right-click into "cancel", so the action tint comes and goes.
 	_update_hover()
@@ -522,7 +519,9 @@ func _rebuild_terrain() -> void:
 		tile.mesh = _prism_mesh
 		# Land caps use their terrain colour; the submerged seabed uses sandy ground so
 		# the blue reads as the translucent water above it, not painted-on floor.
-		tile.material_override = _base_tile_material(terrain_type)
+		tile.material_override = _terrain_material(terrain_type)
+		tile.set_instance_shader_parameter("hover_state", 0)
+		tile.set_instance_shader_parameter("explored", _explored)
 		# The prism mesh is centered on its origin, so place it at the cell center (not
 		# the top-left anchor) to line up with units, objects, and mouse picking.
 		var center := HexGridScript.cell_center_3d(cell, cell_size)
@@ -541,47 +540,46 @@ func _rebuild_terrain() -> void:
 			_tiles[cell] = tile
 
 
-# Flat colour for a land cap (grass/sand/stone). The submerged seabed uses _seabed_material.
-func _tile_material(terrain_type: int) -> Material:
-	return _terrain_material(terrain_type)
-
-
-# Base material for a cell's tile: sandy seabed for water cells, terrain colour for land.
-# Used when (re)building tiles and when restoring a tile after a hover.
-func _base_tile_material(terrain_type: int) -> Material:
-	return _seabed_material(terrain_type) if GameTypes.is_water(terrain_type) else _terrain_material(terrain_type)
-
-
 # Base flat colour for a cell's tile (drives the brightened hover highlight).
 func _base_tile_color(terrain_type: int) -> Color:
 	return _seabed_color(terrain_type) if GameTypes.is_water(terrain_type) else _color_for_terrain(terrain_type)
 
 
-func _terrain_material(terrain_type: int) -> StandardMaterial3D:
+# One material per terrain type, shared by its cells; interaction is per-instance state.
+func _terrain_material(terrain_type: int) -> ShaderMaterial:
 	if _terrain_materials.has(terrain_type):
 		return _terrain_materials[terrain_type]
 
-	var material := StandardMaterial3D.new()
-	material.albedo_color = _color_for_terrain(terrain_type)
-	material.roughness = 1.0
-	# Cull disabled keeps every face visible regardless of winding — robust for the
-	# code-generated prism, cheap for opaque terrain.
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var material := ShaderMaterial.new()
+	material.shader = TERRAIN_SHADER
+	material.set_shader_parameter("ground_noise", TERRAIN_NOISE)
+	material.set_shader_parameter("base_color", _base_tile_color(terrain_type))
+	# WorldView keeps every renderer at height 0, so world heights match the local constants.
+	material.set_shader_parameter("water_level", WATER_TOP_Y)
+	# Match the existing sRGB feedback blends before the shader converts them to linear light.
+	material.set_shader_parameter("hover_color", _base_tile_color(terrain_type).lightened(0.35))
+	material.set_shader_parameter("action_hover_color", _base_tile_color(terrain_type).lerp(ACTION_HOVER_COLOR, ACTION_HOVER_WEIGHT))
+	material.set_shader_parameter("silhouette_color", Color("#89959b"))
+	match terrain_type:
+		GameTypes.Terrain.GRASS:
+			material.set_shader_parameter("patch_dark", Color("#737f43"))
+			material.set_shader_parameter("patch_light", Color("#9da55d"))
+			material.set_shader_parameter("soil_color", Color("#a18d65"))
+			material.set_shader_parameter("soil_strength", 0.5)
+			material.set_shader_parameter("side_color", Color("#80694a"))
+		GameTypes.Terrain.STONE:
+			# Slate ground with a narrow patch range, so the green-grey deposit
+			# rocks (lowpoly_kit 'stone', #89938D) stand apart from it.
+			material.set_shader_parameter("patch_dark", Color("#7e7b89"))
+			material.set_shader_parameter("patch_light", Color("#97949f"))
+			material.set_shader_parameter("side_color", Color("#686673"))
+		GameTypes.Terrain.SAND:
+			material.set_shader_parameter("patch_dark", Color("#c3a779"))
+			material.set_shader_parameter("patch_light", Color("#dfc499"))
+			material.set_shader_parameter("side_color", Color("#b99b70"))
+		_:
+			material.set_shader_parameter("detail_strength", 0.0)
 	_terrain_materials[terrain_type] = material
-	return material
-
-
-# Sandy ground for a submerged water cell. Coast is a lighter shelf, open ocean a darker
-# floor; the blue tint comes from the translucent surface plane drawn above, not from here.
-func _seabed_material(terrain_type: int) -> StandardMaterial3D:
-	if _seabed_materials.has(terrain_type):
-		return _seabed_materials[terrain_type]
-
-	var material := StandardMaterial3D.new()
-	material.albedo_color = _seabed_color(terrain_type)
-	material.roughness = 1.0
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_seabed_materials[terrain_type] = material
 	return material
 
 
@@ -758,36 +756,17 @@ func _rebuild_grid() -> void:
 func _make_grid_material() -> StandardMaterial3D:
 	var material := StandardMaterial3D.new()
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_color = Color(0.0, 0.0, 0.0, 0.1)
+	material.albedo_color = Color(0.0, 0.0, 0.0, GRID_IDLE_ALPHA)
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return material
 
 
-# Brightened terrain material for the cell under the cursor — the hover indicator.
-func _highlight_material(terrain_type: int) -> StandardMaterial3D:
-	if _highlight_materials.has(terrain_type):
-		return _highlight_materials[terrain_type]
-
-	var material := StandardMaterial3D.new()
-	material.albedo_color = _base_tile_color(terrain_type).lightened(0.35)
-	material.roughness = 1.0
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_highlight_materials[terrain_type] = material
-	return material
-
-
-# Green-tinted terrain material for a hovered cell the robot can work.
-func _action_highlight_material(terrain_type: int) -> StandardMaterial3D:
-	if _action_highlight_materials.has(terrain_type):
-		return _action_highlight_materials[terrain_type]
-
-	var material := StandardMaterial3D.new()
-	material.albedo_color = _base_tile_color(terrain_type).lerp(ACTION_HOVER_COLOR, ACTION_HOVER_WEIGHT)
-	material.roughness = 1.0
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_action_highlight_materials[terrain_type] = material
-	return material
+func _update_grid_style() -> void:
+	if _grid_instance == null:
+		return
+	var material := _grid_instance.material_override as StandardMaterial3D
+	material.albedo_color.a = GRID_PLACEMENT_ALPHA if placement_preview_enabled else GRID_IDLE_ALPHA
 
 
 # --- Objects (billboards) ---
@@ -1195,21 +1174,20 @@ func _update_hover() -> void:
 		_restore_tile(_highlighted_cell)
 		_highlighted_cell = GameTypes.NO_CELL
 
-	if island == null or hovered_cell == GameTypes.NO_CELL:
+	if island == null or hovered_cell == GameTypes.NO_CELL or not _explored:
 		return
 
 	var tile = _tiles.get(hovered_cell)
 	if tile != null:
-		var terrain_type := island.get_terrain(hovered_cell)
 		var actionable: bool = is_cell_actionable.is_valid() and is_cell_actionable.call(hovered_cell)
-		tile.material_override = _action_highlight_material(terrain_type) if actionable else _highlight_material(terrain_type)
+		tile.set_instance_shader_parameter("hover_state", 2 if actionable else 1)
 		_highlighted_cell = hovered_cell
 
 
 func _restore_tile(cell: Vector2i) -> void:
 	var tile = _tiles.get(cell)
 	if tile != null and island != null:
-		tile.material_override = _base_tile_material(island.get_terrain(cell))
+		tile.set_instance_shader_parameter("hover_state", 0)
 
 
 # --- Sprite helper ---

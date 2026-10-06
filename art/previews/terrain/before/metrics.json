@@ -1,0 +1,54 @@
+{
+	"adapter": "AMD Radeon RX 9070 XT",
+	"note": "Wall frame times include engine scheduling. CPU/GPU render times cover the root viewport. Compare warmed runs on the same machine; desktop Mobile renderer is not a mobile-device benchmark.",
+	"renderer": "mobile",
+	"resolution": [
+		1600,
+		900
+	],
+	"samples_per_view": 120,
+	"seed": 1,
+	"views": [
+		{
+			"draw_calls_mean": 1138.0,
+			"frame_ms_mean": 0.810483333333333,
+			"frame_ms_p95": 0.869,
+			"render_cpu_ms_mean": 0.455133334050576,
+			"render_gpu_ms_mean": 0.434349999576807,
+			"view": "starter_normal"
+		},
+		{
+			"draw_calls_mean": 941.0,
+			"frame_ms_mean": 0.809241666666667,
+			"frame_ms_p95": 0.897,
+			"render_cpu_ms_mean": 0.449466665585836,
+			"render_gpu_ms_mean": 0.433349999785423,
+			"view": "starter_close"
+		},
+		{
+			"draw_calls_mean": 886.0,
+			"frame_ms_mean": 0.693675,
+			"frame_ms_p95": 0.751,
+			"render_cpu_ms_mean": 0.374016666909059,
+			"render_gpu_ms_mean": 0.360175000627836,
+			"view": "mining_normal"
+		},
+		{
+			"draw_calls_mean": 689.0,
+			"frame_ms_mean": 0.684383333333333,
+			"frame_ms_p95": 0.749,
+			"render_cpu_ms_mean": 0.362199998646975,
+			"render_gpu_ms_mean": 0.349108332147201,
+			"view": "mining_close"
+		},
+		{
+			"draw_calls_mean": 2875.0,
+			"frame_ms_mean": 1.62105,
+			"frame_ms_p95": 1.758,
+			"render_cpu_ms_mean": 1.06815833250682,
+			"render_gpu_ms_mean": 0.90832500209411,
+			"view": "overview"
+		}
+	],
+	"vsync": false
+}

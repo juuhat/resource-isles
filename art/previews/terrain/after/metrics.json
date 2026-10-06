@@ -1,0 +1,94 @@
+{
+	"adapter": "AMD Radeon RX 9070 XT",
+	"note": "Wall frame times include engine scheduling. CPU/GPU render times cover the root viewport. Compare warmed runs on the same machine; desktop Mobile renderer is not a mobile-device benchmark.",
+	"renderer": "mobile",
+	"resolution": [
+		1600,
+		900
+	],
+	"samples_per_view": 120,
+	"seed": 1,
+	"views": [
+		{
+			"draw_calls_mean": 1138.0,
+			"frame_ms_mean": 0.988966666666667,
+			"frame_ms_p95": 1.076,
+			"render_cpu_ms_mean": 0.508108334740003,
+			"render_gpu_ms_mean": 0.536791668335597,
+			"view": "starter_normal"
+		},
+		{
+			"draw_calls_mean": 941.0,
+			"frame_ms_mean": 0.980958333333333,
+			"frame_ms_p95": 1.074,
+			"render_cpu_ms_mean": 0.516908331712087,
+			"render_gpu_ms_mean": 0.537783336391052,
+			"view": "starter_close"
+		},
+		{
+			"draw_calls_mean": 886.0,
+			"frame_ms_mean": 0.869033333333334,
+			"frame_ms_p95": 0.974,
+			"render_cpu_ms_mean": 0.441483332961798,
+			"render_gpu_ms_mean": 0.45518333191673,
+			"view": "mining_normal"
+		},
+		{
+			"draw_calls_mean": 689.0,
+			"frame_ms_mean": 0.857391666666667,
+			"frame_ms_p95": 0.959,
+			"render_cpu_ms_mean": 0.418516667932272,
+			"render_gpu_ms_mean": 0.453816667447488,
+			"view": "mining_close"
+		},
+		{
+			"draw_calls_mean": 2875.0,
+			"frame_ms_mean": 1.80455,
+			"frame_ms_p95": 2.024,
+			"render_cpu_ms_mean": 1.23357500334581,
+			"render_gpu_ms_mean": 0.899158336222172,
+			"view": "overview"
+		},
+		{
+			"draw_calls_mean": 1011.0,
+			"frame_ms_mean": 0.989041666666667,
+			"frame_ms_p95": 1.103,
+			"render_cpu_ms_mean": 0.532999999572833,
+			"render_gpu_ms_mean": 0.529525002092123,
+			"view": "hover_normal"
+		},
+		{
+			"draw_calls_mean": 1011.0,
+			"frame_ms_mean": 0.960291666666667,
+			"frame_ms_p95": 1.061,
+			"render_cpu_ms_mean": 0.52140000090003,
+			"render_gpu_ms_mean": 0.521941663821538,
+			"view": "hover_action"
+		},
+		{
+			"draw_calls_mean": 1035.0,
+			"frame_ms_mean": 0.830533333333334,
+			"frame_ms_p95": 0.899,
+			"render_cpu_ms_mean": 0.458549999942382,
+			"render_gpu_ms_mean": 0.443099998682737,
+			"view": "placement"
+		},
+		{
+			"draw_calls_mean": 788.0,
+			"frame_ms_mean": 0.667383333333333,
+			"frame_ms_p95": 0.712,
+			"render_cpu_ms_mean": 0.348883333057165,
+			"render_gpu_ms_mean": 0.339341666549444,
+			"view": "unexplored"
+		},
+		{
+			"draw_calls_mean": 1172.0,
+			"frame_ms_mean": 0.845558333333333,
+			"frame_ms_p95": 0.915,
+			"render_cpu_ms_mean": 0.47187499726812,
+			"render_gpu_ms_mean": 0.451808333645264,
+			"view": "shore_side"
+		}
+	],
+	"vsync": false
+}
