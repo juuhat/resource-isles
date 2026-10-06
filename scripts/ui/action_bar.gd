@@ -22,9 +22,16 @@ const BUTTON_SIZE := 88.0
 const EDGE_MARGIN := 16.0
 const ICON_MAX_WIDTH := 64
 
+var _portrait_blink: RefCounted
+
 var portrait: Button
 var action_row: HBoxContainer
 var portrait_viewport: SubViewport
+
+
+func _process(delta: float) -> void:
+	if _portrait_blink != null:
+		_portrait_blink.update(delta)
 
 
 func _ready() -> void:
@@ -166,6 +173,7 @@ func _build_player_portrait() -> Texture2D:
 
 	var model := PLAYER_MODEL.instantiate() as Node3D
 	portrait_viewport.add_child(model)
+	_portrait_blink = PlayerUnit.RobotBlink.new(model)
 	for tool_name in PlayerUnit.WORK_CLIPS.values():
 		var tool := model.find_child(tool_name, true, false) as Node3D
 		if tool != null:

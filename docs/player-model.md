@@ -26,6 +26,11 @@ which exports as Godot +Z to match the player's existing facing code. Runtime he
 This is a rigid mechanical pivot rig rather than a skinned character. The body, head, arms,
 and legs animate independently through parented nodes, which are preserved in the GLB.
 
+`PlayerUnit` also blinks both amber eyes together every 2.5–5 seconds. Each blink closes
+to a thin horizontal slit and reopens over 0.2 seconds, independently of movement and
+work playback speed. This runtime animation uses the existing eye meshes. The bottom-right
+portrait uses the same `robot_blink.gd` controller with its own blink timing.
+
 - **Idle:** 3-second loop with gentle body movement, head scanning, and arm movement. The
   antenna trails the head scan slightly.
 - **Walk:** 0.8-second loop with alternating legs, opposing arm swings, and a small body bob.

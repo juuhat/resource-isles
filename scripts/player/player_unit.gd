@@ -47,6 +47,8 @@ const SELECT_SOUNDS: Array[AudioStream] = [
 const WORK_CLIPS := {"chop": "HeldAxe", "mine": "HeldPickaxe", "operate": "HeldPTO", "build": "HeldWrench"}
 # How long a tool takes to pop into the hand when a swing starts.
 const EQUIP_TIME := 0.15
+const RobotBlink := preload("res://scripts/player/robot_blink.gd")
+var _blink: RefCounted
 
 # Where cells are and how high: anything with get_cell_center, get_step_height and cell_size. In
 # the game that's the WorldView (every island and the sea); a check may use one IslandRenderer.
@@ -111,6 +113,7 @@ func _ready() -> void:
 	_model.rotation.y = MODEL_YAW_OFFSET
 	add_child(_model)
 	_setup_animations()
+	_blink = RobotBlink.new(_model)
 
 	_update_marker()
 
@@ -294,6 +297,7 @@ func _face_direction(direction: Vector3, delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_update_animation()
+	_blink.update(delta)
 	if not _moving:
 		_settle(delta)
 		return

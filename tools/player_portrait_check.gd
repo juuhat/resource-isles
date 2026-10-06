@@ -26,6 +26,19 @@ func _run() -> void:
 	var rest := head.transform
 	animator.seek(0.75, true)
 	CheckWatchdog.require(not head.transform.is_equal_approx(rest), "Portrait's idle animates the head")
+	var blink = bar._portrait_blink
+	CheckWatchdog.require(blink._eyes.size() == 2, "Portrait must blink both eyes")
+	blink._blink_wait = 0.0
+	bar._process(0.0)
+	bar._process(0.08)
+	for i in blink._eyes.size():
+		var eye: MeshInstance3D = blink._eyes[i]
+		var open_bounds: AABB = blink._eye_rest_transforms[i] * eye.get_aabb()
+		var closed_bounds: AABB = eye.transform * eye.get_aabb()
+		CheckWatchdog.require(closed_bounds.size.y < open_bounds.size.y * 0.1, "Portrait eye must close")
+	bar._process(0.2)
+	for i in blink._eyes.size():
+		CheckWatchdog.require(blink._eyes[i].transform.is_equal_approx(blink._eye_rest_transforms[i]), "Portrait eye must reopen")
 	for tool_name in PlayerUnit.WORK_CLIPS.values():
 		CheckWatchdog.require(not (viewport.find_child(tool_name, true, false) as Node3D).visible)
 	bar.select_requested.connect(func() -> void: selected = true)

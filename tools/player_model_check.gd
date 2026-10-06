@@ -29,6 +29,22 @@ func _check_model() -> void:
 	CheckWatchdog.require(player._move_animation == player._run_animation, "The robot runs while moving")
 	CheckWatchdog.require(player._animation_player.current_animation == player._idle_animation)
 	var model := player._model
+	CheckWatchdog.require(player._blink._eyes.size() == 2, "Both amber eyes must support blinking")
+	var eye: MeshInstance3D = player._blink._eyes[0]
+	var open_bounds: AABB = eye.transform * eye.get_aabb()
+	player._blink._blink_wait = 0.0
+	player._blink.update(0.0)
+	player._blink.update(0.08)
+	var closed_bounds: AABB = eye.transform * eye.get_aabb()
+	CheckWatchdog.require(closed_bounds.size.y < open_bounds.size.y * 0.1, "Blink must close vertically")
+	CheckWatchdog.require(closed_bounds.get_center().is_equal_approx(open_bounds.get_center()), "Blink must keep the eye centred")
+	player._animation_player.advance(0.02)
+	CheckWatchdog.require((eye.transform * eye.get_aabb()).size.y < open_bounds.size.y * 0.1,
+		"Body animation must preserve the blink")
+	player._blink.update(PlayerScript.RobotBlink.BLINK_DURATION)
+	for i in player._blink._eyes.size():
+		CheckWatchdog.require(player._blink._eyes[i].transform.is_equal_approx(player._blink._eye_rest_transforms[i]), "Blink must fully reopen both eyes")
+	CheckWatchdog.require(player._blink._blink_wait >= 2.5 and player._blink._blink_wait <= 5.0, "Blinks must have a natural pause")
 	var head := model.find_child("HeadPivot", true, false) as Node3D
 	var leg := model.find_child("LeftLegPivot", true, false) as Node3D
 	CheckWatchdog.require(head != null and leg != null, "Export must preserve articulated pivots")
