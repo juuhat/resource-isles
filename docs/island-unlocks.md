@@ -278,7 +278,7 @@ Start tiny; do not build a sprawling tech UI up front.
    one exception is **K9-DA's signal**: once Set Sail charts the first ring, a tutorial-style ping
    (ripples spreading from a pulsing amber beacon inside a turning dashed ring, never smaller than
    a few dozen pixels so it reads from the overview) marks the dog's hidden island, labelled
-   "K9-DA's signal". After discovery the ping moves onto K9-DA itself until the rescue.
+   "K9-DA's signal". The ping ends once the island is discovered.
    Hovering that destination explains travel.
    The camera ([`camera_rig.gd`](../scripts/camera_rig.gd))
    zooms continuously from the island out to the whole disc: neighbours come into view across

@@ -58,10 +58,8 @@ const WATERFALL_COUNT := 7
 const ISLAND_PICK_RADIUS := 2700.0
 # The uncharted chart lies flat just above the tallest silhouette tiles (STONE_TOP_Y).
 const CHART_Y := 30.0
-# K9-DA's signal pings on the chart this far around its island until the island is discovered,
-# then this far around K9-DA itself until the rescue.
+# K9-DA's signal pings on the chart this far around its island until the island is discovered.
 const SIGNAL_RADIUS := 760.0
-const DOG_PING_RADIUS := 300.0
 # An island's patch reaches this far past its land (an island's own water runs roughly 1150 units
 # from its centre).
 const PATCH_MARGIN := 200.0
@@ -503,17 +501,14 @@ func _update_chart() -> void:
 
 
 # K9-DA's signal, the one island the chart gives away: once Set Sail charts the dog's ring it pings
-# over the island until discovery has opened it, then over K9-DA until the rescue. x, y = centre,
-# z = radius (0 for none).
+# over the island until the robot discovers it. x, y = centre, z = radius (0 for none).
 func _signal_ping() -> Vector3:
 	var coord := world.dog_coord
-	if not world.is_dog_stranded_on(coord) or not world.is_revealed(coord) or not world.has_island(coord):
+	if not world.is_dog_stranded_on(coord) or not world.is_revealed(coord) or not world.has_island(coord) \
+			or world.get_island(coord).visited:
 		return Vector3.ZERO
-	if not world.get_island(coord).visited or _chart_patches.has(coord):
-		var center := slot_position(coord)
-		return Vector3(center.x, center.z, SIGNAL_RADIUS)
-	var dog := Navigation.cell_center(world.dog_cell)
-	return Vector3(dog.x, dog.z, DOG_PING_RADIUS)
+	var center := slot_position(coord)
+	return Vector3(center.x, center.z, SIGNAL_RADIUS)
 
 
 # Whether the map shows the island at all: discovered, or giving off K9-DA's signal. The rest stay
