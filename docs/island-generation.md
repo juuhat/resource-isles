@@ -1,5 +1,11 @@
 # Island Generation, Biomes, and Resources
 
+> **Latest direction (2026-10-07):** [World map and island designs](world-map-and-island-designs.md)
+> replaces generation at game start with a hand-placed world map. The generator described here
+> becomes a tool for making island designs. One world for everyone is the long-term plan, so the
+> per-run world seed below is dropped, and new islands no longer arrive with dock materials (the
+> bootstrap rule mentioned below).
+
 Design notes for how islands are generated in Resource Isles — the architecture that lets new
 biomes be added as *data*, the role randomness plays, and how resources are distributed across
 the world. This is direction; parts propose a refactor of the current

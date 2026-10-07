@@ -1,0 +1,8 @@
+# A ring of sand and grass around a shallow lagoon, with one tree and a stone deposit.
+[grid]
+. . s s s . .
+ . s g T s s .
+. s g . . g s
+ s S . . g s .
+. s g g g s .
+ . . s s s . .

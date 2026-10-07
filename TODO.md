@@ -83,3 +83,16 @@ Follow-ups from the code review and the world-cell refactor.
 - [ ] Update stale descriptions: `IslandRenderer`'s header still describes the old 2D sprite renderer, and the README opens by calling the game 2D.
 - [ ] `IslandRenderer.refresh()` rebuilds every model on the island for any change, such as an item picked up or a building placed. Update just what changed once islands get bigger.
 - [ ] Headless checks only see class names Godot has registered, which happens when the editor rescans the project or on `--import`. Right after adding a `class_name` script, a check run can fail with "not declared" until then. Consider an `-Import` switch on `tools/run_checks.ps1`, only safe while the editor is closed.
+
+## World map and island designs
+
+See [World map and island designs](docs/world-map-and-island-designs.md). Replace generating the world at game start with a premade, hand-placed map of islands and islets, the same for every player. Islets are just smaller islands; the map keeps today's 4-ring disc.
+
+- [x] Add the island design (`.island`) and world map (`world_map.cfg`) formats, loading and placing designs, and a check that loads every design. `IslandDesign` and `WorldMap` aren't used by the game yet; checked by `tools/island_design_check.gd`. The first design is `assets/world/islands/atoll_small.island`.
+- [ ] Bake today's seed-1 world into designs and a world map, and check that building from the map gives the same cells.
+- [ ] Build new games from the world map: islands keyed by id with their own centre, loops over islands instead of slots, reveal by distance, island-sized water discs and click radius, trade trip time between centres, save version 3 (version 2 saves aren't converted).
+- [ ] Remove the free dock supplies (`WorldBuilder._stock_bootstrap_supplies`): new islands start with an empty stock, and dock materials come by boat.
+- [ ] Add `tools/world_map_check.gd` and `tools/world_map_preview.gd`; move the checks that loop over seeds onto the designs and the map.
+- [ ] Turn the generator into a design tool (`tools/design_island.gd`) whose land blob scales with the profile's size.
+- [ ] Design and place new islands and islets across the map.
+- [ ] Later: an island painter that reads and writes `.island` files.
