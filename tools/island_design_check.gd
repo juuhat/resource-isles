@@ -81,6 +81,7 @@ func _initialize() -> void:
 	_check_world_map()
 	_check_design_files()
 	_check_world_map_file()
+	_check_adding_islands()
 	print("Island designs: PASS" if failures == 0 else "Island designs: FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
 
@@ -252,6 +253,7 @@ func _check_world_map() -> void:
 		[MAP.replace(home_entry, "center = Vector2i(0, 0)"), "[home]: needs a design"],
 		[MAP.replace(home_entry, "design = \"no_such_island\"\ncenter = Vector2i(0, 0)"), "there is no design no_such_island"],
 		[MAP.replace("rotation = 3", "rotation = 6"), "rotation is 0 to 5"],
+		[MAP.replace("center = Vector2i(-25, -57)", "center = Vector2i(0, 0)"), "[rescue]: has the same center as [home]"],
 		[MAP.replace("k9da = true", "start = true"), "exactly one island needs start = true, not 2"],
 		[MAP.replace("k9da = true", ""), "exactly one island needs k9da = true, not 0"],
 		[MAP + "\n[home]\ndesign = \"atoll_small\"\n", "[home]: two islands have this id"],
@@ -291,6 +293,46 @@ func _check_world_map_file() -> void:
 			% [placement.id, "; ".join(design.errors + design.build_errors)])
 		if placement.k9da:
 			expect(design.markers.has("k9da"), "[%s] K9-DA's island marks where K9-DA waits" % placement.id)
+
+
+# WorldBuilder.add_map_islands: a new world gets every island on the map in map order, starts on
+# the start island with K9-DA at its marker, and every island starts with an empty stock. A saved
+# world keeps its own islands as they were, even one the map has moved since, and gains islands
+# added to the map since, but not one that would overlap an island already there.
+func _check_adding_islands() -> void:
+	var map_text := FileAccess.get_file_as_string(WorldMapScript.PATH)
+	var map := WorldMapScript.parse(map_text)
+	var manager := BuildingManager.new()
+	var world := WorldData.new()
+	WorldBuilder.add_map_islands(world, map, manager)
+	expect(world.island_count() == map.placements.size(), "A new world gets every island on the map")
+	var start: WorldMapScript.Placement = map.placements.filter(func(placement) -> bool: return placement.start)[0]
+	var rescue: WorldMapScript.Placement = map.placements.filter(func(placement) -> bool: return placement.k9da)[0]
+	expect(world.start_coord == start.center and world.current_coord == start.center, "A new world starts on the start island")
+	var marker := IslandDesignScript.load_named(rescue.design).marker_cell("k9da", rescue.center, rescue.rotation, rescue.mirror)
+	expect(world.dog_coord == rescue.center and world.dog_cell == marker, "K9-DA waits at its marker on its island")
+	expect(world.get_island(start.center).island_name == "World 1", "Islands are named in map order")
+	for coord: Vector2i in world.islands:
+		var island: IslandData = world.islands[coord]
+		expect(island.inventory.amounts.is_empty(), "%s starts with an empty stock" % island.map_id)
+
+	var saved := WorldData.from_dict(world.to_dict(0.0), 0.0)
+	saved.get_island(start.center).inventory.add_amount(GameTypes.ResourceType.WOOD, 5)
+	# Moved out to open sea, where only its map id says the saved world already has it.
+	var moved: WorldMapScript.Placement = map.placements[1]
+	var moved_to := Vector2i(-60, 20)
+	var later_text := map_text.replace("center = %s" % var_to_str(moved.center), "center = %s" % var_to_str(moved_to))
+	later_text += "\n[little_atoll]\ndesign = \"atoll_small\"\ncenter = Vector2i(25, -29)\n"
+	later_text += "\n[clash]\ndesign = \"atoll_small\"\ncenter = Vector2i(2, 1)\n"
+	WorldBuilder.add_map_islands(saved, WorldMapScript.parse(later_text), manager)
+	expect(saved.island_count() == world.island_count() + 1, "A saved world gains the new island, but not one that would overlap")
+	var atoll := saved.get_island(Vector2i(25, -29))
+	expect(atoll != null and atoll.map_id == &"little_atoll" and atoll.island_name == "World %d" % saved.island_count(),
+		"The new island is named after the saved ones")
+	expect(saved.get_island(start.center).inventory.get_amount(GameTypes.ResourceType.WOOD) == 5, "A saved island stays as saved")
+	expect(saved.get_island(moved.center) != null and saved.get_island(moved.center).map_id == moved.id
+		and not saved.has_island(moved_to), "A saved island stays where it was, though the map has moved it")
+	expect(saved.start_coord == start.center and saved.dog_coord == rescue.center, "A saved world keeps its start and K9-DA")
 
 
 func _has_error(errors: PackedStringArray, text: String) -> bool:

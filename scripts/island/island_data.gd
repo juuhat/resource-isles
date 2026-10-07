@@ -9,6 +9,8 @@ extends RefCounted
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
 
 var island_name: String = ""
+# The island's id on the world map (WorldMap), which ties a saved island to its entry there.
+var map_id: StringName = &""
 # Whether the robot has approached close enough to reveal this island. The saved key remains
 # `visited` for compatibility; it gates camera inspection and the one-time discovery stat.
 var visited := false
@@ -376,6 +378,7 @@ static func _shifted_keys(by_cell: Dictionary, axial_offset: Vector2i) -> Dictio
 func to_dict(reference_time: float) -> Dictionary:
 	return {
 		island_name = island_name,
+		map_id = map_id,
 		visited = visited,
 		sighted = sighted,
 		terrain = terrain.duplicate(),
@@ -394,6 +397,7 @@ func to_dict(reference_time: float) -> Dictionary:
 static func from_dict(data: Dictionary, reference_time: float) -> IslandData:
 	var island := IslandData.new()
 	island.island_name = data.get("island_name", "")
+	island.map_id = StringName(data.get("map_id", ""))
 	# Saves from before the shared world only ever held islands the robot had landed on.
 	island.visited = bool(data.get("visited", true))
 	island.sighted = bool(data.get("sighted", island.visited))

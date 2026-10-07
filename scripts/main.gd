@@ -47,10 +47,6 @@ const SIGHT_RANGE := 8
 # renderer inside world_view; this is the one hover, placement and the robot work against.
 var renderer: IslandRenderer
 var camera_rig: CameraRig
-# The world seed. Default 1 => every player gets the identical archipelago. Each island's own
-# seed is derived from this and its hex coord (WorldBuilder.island_seed), so a slot's layout is stable
-# across runs. Randomize this per-run later for varied worlds. See docs/island-generation.md.
-var seed_value := 1
 var is_panning := false
 var is_left_panning := false
 var left_button_down := false
@@ -158,13 +154,12 @@ func _ready() -> void:
 	world = WorldDataScript.new()
 	# A save, if present, replaces the fresh world plus the global progression (stats/quests)
 	# before the UI is built so building_menu wires up against the loaded state.
-	var loaded := _try_load_game()
-	# Every island on the disc exists from the start (unrevealed ones wait under the clouds).
-	# Also fills in slots an older save never generated.
-	WorldBuilder.ensure_generated(world, seed_value, building_manager)
+	_try_load_game()
+	# Every island on the world map exists from the start (unrevealed ones wait under the clouds),
+	# the same for every player. A new world also gets its start island and K9-DA's spot from the
+	# map, and a saved one any island added to the map since it was saved.
+	WorldBuilder.add_map_islands(world, WorldMap.load_file(), building_manager)
 	world_navigation.setup(world)
-	# Pick K9-DA's island and spot (or fill them in for an older save) before the map is drawn.
-	WorldBuilder.place_dog(world, seed_value)
 	world_view.setup(world, resource_node_database, building_manager, world_navigation)
 	# Discovered islands are always charted (older saves kept no exploration).
 	for coord in world.visited_coords():
@@ -190,7 +185,7 @@ func _ready() -> void:
 	# react to the mobile pause notification in _notification (the OS can kill a backgrounded
 	# app without further warning).
 	get_tree().set_auto_accept_quit(false)
-	switch_to_island(world.current_coord if loaded else WorldData.CENTER, true)
+	switch_to_island(world.current_coord, true)
 
 
 # Save on the ways the game can end: a desktop window close, or a mobile app suspend (which
@@ -225,7 +220,6 @@ func _try_load_game() -> bool:
 	world = WorldData.from_dict(payload.get("world", {}), reference_time)
 	for island in world.islands.values():
 		building_manager.migrate_footprints(island)
-	seed_value = int(payload.get("seed_value", seed_value))
 	stat_tracker.restore(payload.get("stats", {}))
 	quest_manager.restore_completed(payload.get("completed_quests", {}))
 	print("Loaded save: %d island(s)" % world.island_count())
@@ -255,7 +249,6 @@ func save_game() -> bool:
 		world,
 		stat_tracker.to_dict(),
 		quest_manager.completed_to_dict(),
-		seed_value,
 		reference_time
 	)
 	var saved := SaveManager.write(payload)
@@ -461,15 +454,13 @@ func _apply_reward(reward: QuestReward) -> void:
 			_reveal_rings(reward.ring_count)
 
 
-# Lift the clouds off more rings. Revealing past the disc's edge grows the disc, so its new
-# islands are generated and the overview reframed.
+# Lift the clouds off more rings. Revealing past the disc's edge grows the disc, so the overview
+# is reframed.
 func _reveal_rings(count: int) -> void:
 	var dog_was_hidden := not world.is_revealed(world.dog_coord)
 	world.reveal_additional_rings(count)
 	if dog_was_hidden and world.is_revealed(world.dog_coord) and not world.dog_rescued:
 		toast.show_message("K9-DA's signal detected! Press M to see where it's coming from.")
-	WorldBuilder.ensure_generated(world, seed_value, building_manager)
-	world_navigation.rebuild_regions()
 	world_view.refresh()
 	camera_rig.set_overview(world_view.overview_pivot(), world_view.overview_distance())
 	save_game()
@@ -524,7 +515,7 @@ func _update_hover(screen_position: Vector2) -> void:
 	var origin := camera.project_ray_origin(screen_position)
 	var direction := camera.project_ray_normal(screen_position)
 	hovered_cell = world_view.cell_from_ray(origin, direction)
-	world_view.set_hovered(world_view.slot_at_ray(origin, direction))
+	world_view.set_hovered(world_view.island_at_ray(origin, direction))
 	if player_unit.boat_id != -1 and player_unit.selected and selected_building_type == NO_BUILDING:
 		boats.show_hover(hovered_cell)
 		return
@@ -698,7 +689,7 @@ func look_around(cell: Vector2i) -> void:
 		mark_dirty()
 	var sighted := {}
 	for seen in in_sight:
-		var coord := world_navigation.slot_at(seen)
+		var coord := world_navigation.island_at(seen)
 		if coord != WorldData.NO_COORD and world.is_revealed(coord):
 			sighted[coord] = true
 	var discovered := false
@@ -718,7 +709,7 @@ func discover_island(coord: Vector2i) -> bool:
 	world.exploration.explore(world_view.island_chart_cells(coord))
 	world_view.set_current_coord(world.current_coord)
 	robot.sync_dog()
-	if coord != WorldData.CENTER:
+	if coord != world.start_coord:
 		stat_tracker.add(GameTypes.Stat.ISLANDS_REACHED, 1)
 	if world.is_dog_stranded_on(coord):
 		stat_tracker.add(GameTypes.Stat.DOG_ISLAND_DISCOVERED, 1)
@@ -854,7 +845,7 @@ func _try_travel_to_clicked_island(screen_position: Vector2) -> bool:
 	if camera == null:
 		return false
 
-	var coord := world_view.slot_at_ray(
+	var coord := world_view.island_at_ray(
 		camera.project_ray_origin(screen_position), camera.project_ray_normal(screen_position)
 	)
 	var in_overview := camera_rig.overview_amount() > 0.5

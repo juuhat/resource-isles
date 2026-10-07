@@ -4,21 +4,21 @@ extends Node3D
 # The whole world as one place: the flat-disc planet floating in space (docs/intro-story.md),
 # with every island at full scale on it. One calm ocean sits inside a snow-capped mountain range on a rocky,
 # tapering underside; sea water spills off the edge into the starfield. Each revealed island has
-# its own IslandRenderer standing on its slot, and everything not yet charted lies under the
-# unscanned chart of hex tiles in two layers: near-black tiles beyond the radar frontier, where no
-# boat can sail, and slate exploration fog over every cell inside it the robot has not seen yet
-# (WorldData.exploration), plus a patch over each reachable island until the robot's sight reaches
-# and discovers it. Islands nobody has found are not shown at all; only K9-DA's signal pings where
-# its island lies. Ring unlocks roll the dark tiles back into fog; the robot's sight clears the
-# fog; discovery opens the island's patch; landing restores its full detail. Trade routes run
-# across the open sea with their boats, and island names float over the slots once the camera
-# pulls back.
+# its own IslandRenderer standing where the world map puts it, and everything not yet charted
+# lies under the unscanned chart of hex tiles in two layers: near-black tiles beyond the radar
+# frontier, where no boat can sail, and slate exploration fog over every cell inside it the robot
+# has not seen yet (WorldData.exploration), plus a patch over each reachable island until the
+# robot's sight reaches and discovers it. Islands nobody has found are not shown at all; only
+# K9-DA's signal pings where its island lies. Ring unlocks roll the dark tiles back into fog; the
+# robot's sight clears the fog; discovery opens the island's patch; landing restores its full
+# detail. Trade routes run across the open sea with their boats, and island names float over the
+# islands once the camera pulls back.
 #
-# Slots live on the world hex lattice (WorldData keys islands by axial coord and trade trips are
-# timed by hex distance); this decides where each one sits in world space. The planet itself is
-# authored in small "disc units" (one ring = DISC_UNIT) and scaled up into the world; islands,
-# the chart, labels and routes are placed directly in world units. main.gd owns the camera and
-# routes picks through slot_at_ray.
+# Islands sit on the world hex lattice, keyed by their centre cell (WorldData), and
+# WorldNavigation.cell_center puts a cell in world space. The planet itself is authored in small
+# "disc units" (one ring = DISC_UNIT) and scaled up into the world; islands, the chart, labels and
+# routes are placed directly in world units. main.gd owns the camera and routes picks through
+# island_at_ray.
 
 const IslandRendererScript := preload("res://scripts/island/island_renderer.gd")
 const Navigation := preload("res://scripts/world/world_navigation.gd")
@@ -29,8 +29,8 @@ const WaterfallShader := preload("res://assets/shaders/world_map/waterfall.gdsha
 const SurfaceNoise := preload("res://assets/shaders/water_toon/PerlinNoise.png")
 const DistortNoise := preload("res://assets/shaders/water_toon/WaterDistortion.png")
 
-# World units between rings; ring k's slots sit k * RING_SPACING from the centre. Islands are
-# ~30 x 24 cells of 128 units, so this leaves a wide strait between neighbours.
+# World units between rings; ring k lies k * RING_SPACING from the centre (as
+# WorldNavigation.RING_SPACING).
 const RING_SPACING := 6400.0
 # The planet's geometry is authored at one ring = DISC_UNIT and scaled up by DISC_SCALE.
 const DISC_UNIT := 11.0
@@ -54,14 +54,14 @@ const RANGE_SKIRT: Array[Vector2] = [Vector2(-0.1, -3.2), Vector2(-0.35, -5.2)]
 const PASS_FLOOR := 0.12
 const WATERFALL_COUNT := 7
 
-# A ground point within this distance of a slot centre belongs to that slot's island.
-const ISLAND_PICK_RADIUS := 2700.0
+# A ground point belongs to an island when it is within this much of the island's land reach
+# (_land_reach) from its centre: about 2700 units for a ring island, less for a small one.
+const ISLAND_PICK_MARGIN := 2000.0
 # The uncharted chart lies flat just above the tallest silhouette tiles (STONE_TOP_Y).
 const CHART_Y := 30.0
 # K9-DA's signal pings on the chart this far around its island until the island is discovered.
 const SIGNAL_RADIUS := 760.0
-# An island's patch reaches this far past its land (an island's own water runs roughly 1150 units
-# from its centre).
+# An island's patch reaches this far past its land (its coast runs two cells past it).
 const PATCH_MARGIN := 200.0
 # The patch's hole while it is closed: far enough below zero that no tile ever switches off.
 const PATCH_CLOSED := -400.0
@@ -75,8 +75,9 @@ const CHART_REVEAL_SECONDS := 2.2
 const MAX_CHART_ITEMS := 64
 const FRONTIER_UNROLL_SECONDS := 3.0
 const LABEL_HEIGHT := 900.0
-# Trade lanes start/end this far out from each slot centre, clear of the island.
-const ROUTE_CLEARANCE := 2600.0
+# Trade lanes start/end this far past each island's land reach, clear of the island: about 2600
+# units from a ring island's centre.
+const ROUTE_MARGIN := 1900.0
 const ROUTE_Y := 8.0
 
 const SNOW_COLOR := Color("#e9f3f6")
@@ -141,6 +142,8 @@ var _chart_patches: Dictionary = {}
 var _opening: Dictionary = {}
 # coord -> Label3D
 var _labels: Dictionary = {}
+# coord -> how far the island's land reaches from its centre (_land_reach).
+var _land_reaches: Dictionary = {}
 var _hovered := WorldData.NO_COORD
 # One entry per trade route: {route: TradeRoute, boat: Node3D, start: Vector3, end: Vector3}
 var _boats: Array[Dictionary] = []
@@ -232,7 +235,7 @@ func renderer_for(coord: Vector2i) -> IslandRenderer:
 
 # The renderer of the island the cell belongs to, or null for open sea (or an island not drawn).
 func renderer_at(cell: Vector2i) -> IslandRenderer:
-	return _renderers.get(navigation.slot_at(cell))
+	return _renderers.get(navigation.island_at(cell))
 
 
 # World-space centre of a cell's top: an island tile at its own height, open sea at its surface.
@@ -321,9 +324,10 @@ func world_disc_radius() -> float:
 	return _disc_radius * DISC_SCALE
 
 
-# The slot whose island lies under a camera ray (any slot, revealed or not), or NO_COORD when
-# the ray meets open sea.
-func slot_at_ray(origin: Vector3, direction: Vector3) -> Vector2i:
+# The island under a camera ray (revealed or not): of those whose pick reach (land reach plus
+# ISLAND_PICK_MARGIN) the ray's sea point is inside, the one with the nearest centre; NO_COORD
+# when the ray meets open sea.
+func island_at_ray(origin: Vector3, direction: Vector3) -> Vector2i:
 	if world == null or absf(direction.y) < 0.00001:
 		return WorldData.NO_COORD
 	var t := (IslandRendererScript.WATER_TOP_Y - origin.y) / direction.y
@@ -331,11 +335,11 @@ func slot_at_ray(origin: Vector3, direction: Vector3) -> Vector2i:
 		return WorldData.NO_COORD
 	var hit := origin + direction * t
 	var best := WorldData.NO_COORD
-	var best_distance := ISLAND_PICK_RADIUS
-	for coord in world.all_slots():
-		var center := slot_position(coord)
+	var best_distance := INF
+	for coord in world.islands:
+		var center := island_position(coord)
 		var distance := Vector2(hit.x - center.x, hit.z - center.z).length()
-		if distance < best_distance:
+		if distance < _land_reach(coord) + ISLAND_PICK_MARGIN and distance < best_distance:
 			best_distance = distance
 			best = coord
 	return best
@@ -353,11 +357,26 @@ func set_current_coord(_coord: Vector2i) -> void:
 	_style_labels()
 
 
-# Where a slot sits in the world (on the water plane).
-static func slot_position(coord: Vector2i) -> Vector3:
-	var center := Navigation.slot_center(coord)
+# Where an island's centre sits in the world (on the water plane).
+static func island_position(coord: Vector2i) -> Vector3:
+	var center := Navigation.cell_center(coord)
 	center.y = 0.0
 	return center
+
+
+# How far the island's land reaches from its centre, to the middle of its farthest land cell.
+# Islands keep their shape, so this is worked out once.
+func _land_reach(coord: Vector2i) -> float:
+	if not _land_reaches.has(coord):
+		var island := world.get_island(coord)
+		var center := island_position(coord)
+		var reach := 0.0
+		for cell in island.terrain:
+			if not GameTypes.is_water(island.get_terrain(cell)):
+				var point := Navigation.cell_center(cell)
+				reach = maxf(reach, Vector2(point.x - center.x, point.z - center.z).length())
+		_land_reaches[coord] = reach
+	return _land_reaches[coord]
 
 
 func _process(delta: float) -> void:
@@ -370,9 +389,9 @@ func _process(delta: float) -> void:
 # --- Islands and the uncharted chart over them ---
 
 func _sync_islands() -> void:
-	for coord in world.all_slots():
+	for coord in world.islands:
 		var island := world.get_island(coord)
-		if island == null or not world.is_revealed(coord):
+		if not world.is_revealed(coord):
 			continue
 		if not _renderers.has(coord):
 			_add_renderer(coord, island)
@@ -387,7 +406,7 @@ func _sync_islands() -> void:
 	_update_chart()
 
 
-# Whether the chart still hides the slot: beyond the frontier, or under a patch not yet opened.
+# Whether the chart still hides the island: beyond the frontier, or under a patch not yet opened.
 func is_uncharted(coord: Vector2i) -> bool:
 	return not world.is_revealed(coord) or (_chart_patches.has(coord) and not _opening.has(coord))
 
@@ -412,31 +431,25 @@ func _add_renderer(coord: Vector2i, island: IslandData) -> void:
 
 # A patch of fog covering the island's land until the robot's sight reaches it.
 func _closed_patch(coord: Vector2i) -> Vector4:
-	var center := slot_position(coord)
+	var center := island_position(coord)
 	return Vector4(center.x, center.z, _patch_radius(coord), PATCH_CLOSED)
 
 
-# How far an island's patch reaches from its slot: past its land by PATCH_MARGIN.
+# How far an island's patch reaches from its centre: past its land by PATCH_MARGIN.
 func _patch_radius(coord: Vector2i) -> float:
-	var island := world.get_island(coord)
-	var center := slot_position(coord)
-	var land := 0.0
-	for cell in island.terrain:
-		if not GameTypes.is_water(island.get_terrain(cell)):
-			var point := Navigation.cell_center(cell)
-			land = maxf(land, Vector2(point.x - center.x, point.z - center.z).length())
-	return land + PATCH_MARGIN
+	return _land_reach(coord) + PATCH_MARGIN
 
 
-# The island's cells its patch covers. Discovery explores them all, so opening the patch leaves
-# no exploration fog over the island (the patch's ragged tiles reach CHART_EDGE_REACH past it);
-# the water beyond is explored by sight.
+# The cells the island's patch covers, its own and the sea around it. Discovery explores them all,
+# so opening the patch leaves no exploration fog where it was (its ragged tiles reach
+# CHART_EDGE_REACH past it); the water beyond is explored by sight.
 func island_chart_cells(coord: Vector2i) -> Array[Vector2i]:
-	var island := world.get_island(coord)
-	var center := slot_position(coord)
+	var center := island_position(coord)
 	var reach := _patch_radius(coord) + CHART_EDGE_REACH
+	# Neighbouring rows are the closest cells, 0.75 of a cell apart.
+	var steps := ceili(reach / (Navigation.CELL_SIZE.y * 0.75))
 	var cells: Array[Vector2i] = []
-	for cell in island.terrain:
+	for cell in ExplorationMap.cells_around(coord, steps):
 		var point := Navigation.cell_center(cell)
 		if Vector2(point.x - center.x, point.z - center.z).length() <= reach:
 			cells.append(cell)
@@ -449,7 +462,7 @@ func _open_patch(coord: Vector2i) -> void:
 	_opening[coord] = true
 	var closed: Vector4 = _chart_patches[coord]
 	var renderer: IslandRenderer = _renderers[coord]
-	var center := slot_position(coord)
+	var center := island_position(coord)
 	var open_to := func(hole: float) -> void:
 		var piece: Vector4 = _chart_patches[coord]
 		piece.w = hole
@@ -468,7 +481,7 @@ func _open_patch(coord: Vector2i) -> void:
 		patch_opened.emit(coord))
 
 
-# Whether discovery is still opening the chart over the slot's island.
+# Whether discovery is still opening the chart over the island.
 func is_opening(coord: Vector2i) -> bool:
 	return _opening.has(coord)
 
@@ -507,7 +520,7 @@ func _signal_ping() -> Vector3:
 	if not world.is_dog_stranded_on(coord) or not world.is_revealed(coord) or not world.has_island(coord) \
 			or world.get_island(coord).visited:
 		return Vector3.ZERO
-	var center := slot_position(coord)
+	var center := island_position(coord)
 	return Vector3(center.x, center.z, SIGNAL_RADIUS)
 
 
@@ -550,7 +563,7 @@ static func _padded(items: PackedVector4Array) -> PackedVector4Array:
 func _build_labels() -> void:
 	_clear(_labels_root)
 	_labels.clear()
-	for coord in world.all_slots():
+	for coord in world.islands:
 		var label := Label3D.new()
 		label.font_size = 48
 		label.outline_size = 12
@@ -561,7 +574,7 @@ func _build_labels() -> void:
 		label.render_priority = 10
 		label.outline_render_priority = 9
 		label.outline_modulate = LABEL_OUTLINE
-		label.position = slot_position(coord) + Vector3(0.0, LABEL_HEIGHT, 0.0)
+		label.position = island_position(coord) + Vector3(0.0, LABEL_HEIGHT, 0.0)
 		_labels_root.add_child(label)
 		_labels[coord] = label
 	_style_labels()
@@ -594,7 +607,8 @@ func _style_labels() -> void:
 
 
 func locked_island_hint(coord: Vector2i) -> String:
-	if WorldData.ring_of(coord) == 1:
+	# Set Sail reveals the first ring.
+	if WorldData.rings_out(coord) <= 1.5:
 		return "Build a Dock to complete Set Sail"
 	return "Beyond your sailing range"
 
@@ -936,12 +950,12 @@ func _build_routes() -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for route in world.trade_routes:
-		var home := slot_position(route.home_coord)
-		var away := slot_position(route.away_coord)
+		var home := island_position(route.home_coord)
+		var away := island_position(route.away_coord)
 		var direction := (away - home).normalized()
 		var side := direction.cross(Vector3.UP) * 18.0
-		var start := home + direction * ROUTE_CLEARANCE
-		var end := away - direction * ROUTE_CLEARANCE
+		var start := home + direction * (_land_reach(route.home_coord) + ROUTE_MARGIN)
+		var end := away - direction * (_land_reach(route.away_coord) + ROUTE_MARGIN)
 		var length := start.distance_to(end)
 		var dash := 140.0
 		var along := 0.0

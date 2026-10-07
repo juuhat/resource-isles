@@ -19,29 +19,30 @@ func _initialize() -> void:
 	var instance := definition.model.instantiate()
 	expect(instance.get_node_or_null("Footprint") != null, "Copper exports its solid footprint")
 	instance.free()
-	var generator := IslandGenerator.new()
+	# On the world map, K9-DA's rescue island is the one copper destination within reach of the
+	# first ring, and the start island has none.
 	var copper_island: IslandData
-	for seed_value in range(-3, 21):
-		var copper_count := 0
-		for coord in WorldData.slots_within(1).slice(1):
-			var biome := IslandProfiles.biome_for_coord(coord, seed_value)
-			if coord == WorldData.dog_slot_for_seed(seed_value):
-				expect(biome == IslandProfiles.Biome.COPPER, "Rescue island is the copper island")
-			if biome != IslandProfiles.Biome.COPPER:
-				continue
+	var copper_count := 0
+	for placement in WorldMap.load_file().placements:
+		var island := IslandDesign.load_named(placement.design).build(placement.center, placement.rotation,
+			placement.mirror, BuildingManager.new())
+		if placement.start:
+			expect(not island.resources.values().has(NODE), "Starter has no copper")
+		if not island.resources.values().has(NODE):
+			continue
+		expect(placement.k9da, "Copper is on the rescue island, not %s" % placement.id)
+		if WorldData.rings_out(placement.center) < 1.5:
 			copper_count += 1
-			copper_island = generator.generate(IslandProfiles.get_profile(biome), seed_value)
-			expect(copper_island.resources.values().count(NODE) >= 3, "Copper island has its required deposits")
-			expect(copper_island.resources.values().count(GameTypes.ResourceNodeType.STONE) >= 3, "Copper island supplies local stone")
-			expect(not copper_island.resources.values().has(GameTypes.ResourceNodeType.IRON_ORE), "Copper island has no iron")
-			expect(not copper_island.resources.values().has(GameTypes.ResourceNodeType.COAL), "Copper island has no coal")
-			for cell in copper_island.resources:
-				if copper_island.get_resource_node_type(cell) == NODE:
-					expect(copper_island.get_terrain(cell) == GameTypes.Terrain.STONE, "Copper is placed on rock")
-					expect(copper_island.can_scavenge(cell), "Copper can be scavenged")
-		var starter := generator.generate(IslandProfiles.get_profile(IslandProfiles.Biome.STARTER), seed_value, BuildingManager.new())
-		expect(not starter.resources.values().has(NODE), "Starter has no copper")
-		expect(copper_count == 1, "Exactly one ring-1 copper destination per seed")
+		copper_island = island
+		expect(copper_island.resources.values().count(NODE) >= 3, "Copper island has its required deposits")
+		expect(copper_island.resources.values().count(GameTypes.ResourceNodeType.STONE) >= 3, "Copper island supplies local stone")
+		expect(not copper_island.resources.values().has(GameTypes.ResourceNodeType.IRON_ORE), "Copper island has no iron")
+		expect(not copper_island.resources.values().has(GameTypes.ResourceNodeType.COAL), "Copper island has no coal")
+		for cell in copper_island.resources:
+			if copper_island.get_resource_node_type(cell) == NODE:
+				expect(copper_island.get_terrain(cell) == GameTypes.Terrain.STONE, "Copper is placed on rock")
+				expect(copper_island.can_scavenge(cell), "Copper can be scavenged")
+	expect(copper_count == 1 and copper_island != null, "Exactly one ring-1 copper destination")
 	var tracker := StatTracker.new()
 	copper_island.inventory.add_amount(ORE, definition.scavenge_amount)
 	tracker.record_resource_gained(ORE, definition.scavenge_amount)

@@ -104,8 +104,10 @@ const OCEAN_SEABED_TOP_Y := WATER_TILE_TOP_Y
 const WATER_FLOOR_Y := -8.0
 
 # The island's toon-water plane is a disc around the island, fading out over its last
-# WATER_FADE_WIDTH units into the shared open sea (WorldView). Kept under half of
-# WorldView.RING_SPACING so neighbouring islands' planes never overlap.
+# WATER_FADE_WIDTH units into the shared open sea (WorldView), whose deep water looks the same.
+# It reaches past the island's farthest land by the shore shading's reach (far_distance) and the
+# fade, so a small island's plane is small too; never more than WATER_PLANE_RADIUS, which a
+# ring island's plane stayed under so neighbours' planes never overlapped.
 const WATER_PLANE_RADIUS := 3150.0
 const WATER_FADE_WIDTH := 650.0
 
@@ -596,8 +598,8 @@ func _seabed_color(terrain_type: int) -> Color:
 
 # --- Water ---
 
-# A single horizontal plane around the island at water height, fading out at WATER_PLANE_RADIUS
-# into the shared open sea. The shader gets the island's per-cell land mask (exact hex distance
+# A single horizontal plane around the island at water height, fading out at _water_radius into
+# the shared open sea. The shader gets the island's per-cell land mask (exact hex distance
 # near the shore) and a coarse baked shore-distance field (the broad depth gradient) —
 # mobile-safe, no depth-buffer reads, so the plane itself needs no subdivision. The renderer must
 # already sit at its world position (the shader maps world space back onto the island's cells).
@@ -610,8 +612,10 @@ func _rebuild_water() -> void:
 		return
 
 	var bake := _build_shore_distance_texture()
+	var center := _local_map_center()
+	var radius := _water_radius(center, bake["far_distance"])
 	var plane := PlaneMesh.new()
-	plane.size = Vector2.ONE * WATER_PLANE_RADIUS * 2.0
+	plane.size = Vector2.ONE * radius * 2.0
 	_water_instance.mesh = plane
 
 	# The shader looks cells up in its own grid, numbered from the frame's corner; island_origin
@@ -619,10 +623,9 @@ func _rebuild_water() -> void:
 	var frame := _water_frame()
 	var frame_offset := HexGridScript.cell_to_world_3d(frame.position, cell_size)
 	var frame_origin := Vector2(position.x + frame_offset.x, position.z + frame_offset.z)
-	var center := _local_map_center()
 	_water_material.set_shader_parameter("island_origin", frame_origin)
 	_water_material.set_shader_parameter("fade_center", Vector2(position.x + center.x, position.z + center.z))
-	_water_material.set_shader_parameter("fade_radius", WATER_PLANE_RADIUS)
+	_water_material.set_shader_parameter("fade_radius", radius)
 	_water_material.set_shader_parameter("fade_width", WATER_FADE_WIDTH)
 
 	_water_material.set_shader_parameter("cell_mask", _build_land_mask_texture(frame))
@@ -635,6 +638,18 @@ func _rebuild_water() -> void:
 
 	_water_instance.position = Vector3(center.x, WATER_TOP_Y, center.z)
 	_water_instance.visible = true
+
+
+# How far the water plane reaches from its (renderer-local) centre: past the farthest land cell by
+# the shore shading's reach and the fade, plus a cell to spare. Further out, the toon water is the
+# same deep water as the open sea.
+func _water_radius(center: Vector3, far_distance: float) -> float:
+	var reach := 0.0
+	for cell in island.terrain:
+		if not GameTypes.is_water(island.get_terrain(cell)):
+			var point := HexGridScript.cell_center_3d(cell, cell_size)
+			reach = maxf(reach, Vector2(point.x - center.x, point.z - center.z).length())
+	return minf(WATER_PLANE_RADIUS, reach + far_distance + WATER_FADE_WIDTH + cell_size.x)
 
 
 # The toon water material. Colours and animation are tuned in the shader's uniform defaults;

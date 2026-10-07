@@ -1,6 +1,6 @@
 extends SceneTree
 
-# Fixed-seed captures of the uncharted map: the starting frontier around the home island, a
+# Captures of the uncharted map: the starting frontier around the home island, a
 # reachable island still waiting to be discovered, the overview before and after Set Sail, and the
 # exploration fog cleared along a voyage.
 # Never loads or writes the player's save. Run with a window, not --headless:
@@ -26,12 +26,11 @@ func _run() -> void:
 	root.size = Vector2i(1600, 900)
 	var game: Node = load("res://game.tscn").instantiate()
 	game.set_script(CaptureGame)
-	game.seed_value = 1
 	root.add_child(game)
 	await process_frame
-	var home: IslandRenderer = game.world_view.renderer_for(WorldData.CENTER)
+	var home: IslandRenderer = game.world_view.renderer_for(game.world.start_coord)
 	var target: Vector2i = game.world.dog_coord
-	var toward := WorldView.slot_position(target).normalized()
+	var toward := WorldView.island_position(target).normalized()
 
 	# Start of the game: only the home ring is charted.
 	await _shoot(game, "start_edge", home.get_map_center() + toward * 2600.0, 1400.0)
@@ -42,7 +41,7 @@ func _run() -> void:
 	await _shoot(game, "ring_rolling_back", home.get_map_center() + toward * 3400.0, 2600.0)
 	await create_timer(WorldView.FRONTIER_UNROLL_SECONDS).timeout
 	await _shoot(game, "ring_fog", home.get_map_center() + toward * 2600.0, 2600.0)
-	await _shoot(game, "ring_island", WorldView.slot_position(target), 1500.0)
+	await _shoot(game, "ring_island", WorldView.island_position(target), 1500.0)
 	await _shoot(game, "ring_overview", Vector3.ZERO, -1.0)
 
 	# Sailing out clears the exploration fog in the boat's wake.
@@ -56,9 +55,9 @@ func _run() -> void:
 	# Sailing close discovers the island: its patch opens from the centre.
 	game.discover_island(target)
 	await create_timer(WorldView.CHART_REVEAL_SECONDS * 0.35).timeout
-	await _shoot(game, "island_opening", WorldView.slot_position(target), 1500.0)
+	await _shoot(game, "island_opening", WorldView.island_position(target), 1500.0)
 	await create_timer(WorldView.CHART_REVEAL_SECONDS * 0.65).timeout
-	await _shoot(game, "island_discovered", WorldView.slot_position(target), 1500.0)
+	await _shoot(game, "island_discovered", WorldView.island_position(target), 1500.0)
 	root.remove_child(game)
 	game.free()
 	print("Chart fog captures: PASS — ", _out_dir)

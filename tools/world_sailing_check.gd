@@ -40,7 +40,7 @@ func _run() -> void:
 		var navigation: WorldNavigation = game.world_navigation
 		_check_sailing_hover(game)
 		var target: Vector2i = game.world.dog_coord
-		var locked_point := Nav.slot_center(target)
+		var locked_point := Nav.cell_center(target)
 		var locked_cell := navigation.cell_from_position(locked_point)
 		expect(not navigation.inside_frontier(locked_cell), "Fog boundary blocks outer region before quest")
 		expect(not game.boats.command_to(locked_cell), "Cannot command boat through locked fog")
@@ -63,8 +63,8 @@ func _run() -> void:
 			var before: Vector3 = game.player_unit.position
 			game.player_unit._process(0.25)
 			expect(before.distance_to(game.player_unit.position) <= game.player_unit.move_speed * 0.25 + 0.01, "Continuous movement across island boundaries")
-			expect(game.world.current_coord == WorldData.CENTER, "Sailing does not change active inventory")
-			if navigation.slot_at(game.player_unit.current_cell) == WorldData.NO_COORD:
+			expect(game.world.current_coord == game.world.start_coord, "Sailing does not change active inventory")
+			if navigation.island_at(game.player_unit.current_cell) == WorldData.NO_COORD:
 				crossed_sea = true
 				break
 			steps += 1
@@ -81,6 +81,7 @@ func _run() -> void:
 		root.add_child(game)
 		await process_frame
 		expect(game.player_unit.boat_id == boat_id and game.player_unit.current_cell == at_sea, "Reload restores boat and robot in open ocean")
+		expect(game.world.island_count() == WorldMap.load_file().placements.size(), "Reload keeps the saved islands, adding none twice")
 		expect(game.player_unit.position.is_equal_approx(Nav.cell_center(at_sea)), "Reload does not move boat to shore")
 		expect(game.boats.sail_to_island(target), "Continue voyage after reload")
 		steps = 0
@@ -121,13 +122,13 @@ func _run() -> void:
 		expect(game.player_unit.boat_id == boat_id and game.world.boats.size() == 1, "Same boat can be reboarded on new island")
 		game.boats.command_to(navigation.cell_from_position(Vector3(navigation.sailing_radius() + 500.0, Nav.SEA_Y, 0.0)))
 		expect(not game.player_unit.is_moving(), "Outer fog still blocks sailing after first unlock")
-		expect(game.boats.sail_to_island(WorldData.CENTER), "Plan return voyage to original island")
+		expect(game.boats.sail_to_island(game.world.start_coord), "Plan return voyage to original island")
 		for step in 2000:
 			if not game.player_unit.is_moving():
 				break
 			game.player_unit._process(0.25)
 		game.boats.disembark()
-		expect(game.world.current_coord == WorldData.CENTER and game.player_unit.boat_id == -1, "Return voyage lands on original island")
+		expect(game.world.current_coord == game.world.start_coord and game.player_unit.boat_id == -1, "Return voyage lands on original island")
 		expect(game.current_island.buildings[anchor].boat_launched, "Original dock remains unchanged after round trip")
 		game.boats.board()
 		expect(game.player_unit.boat_id == boat_id and game.world.boats.size() == 1, "World boat identity survives full round trip")
@@ -150,15 +151,19 @@ func _run() -> void:
 	print("World sailing: PASS" if failures == 0 else "World sailing: FAIL (%d)" % failures)
 	quit(0 if failures == 0 else 1)
 
-# Island cells are world lattice cells: each island is centred on its own slot, picking finds its
-# cells (negative rows too), and every renderer draws a cell exactly where the lattice has it.
+# Island cells are world lattice cells: each island sits where the world map puts it, picking finds
+# its cells (negative rows too), and every renderer draws a cell exactly where the lattice has it.
 func _check_coordinates(game: Node) -> void:
+	var centers := {}
+	for placement in WorldMap.load_file().placements:
+		centers[placement.id] = placement.center
+	expect(centers.size() == game.world.islands.size(), "The world has every island on the map")
 	for coord in game.world.islands:
 		var island: IslandData = game.world.islands[coord]
-		expect(island.has_cell(HexGrid.axial_to_offset(Nav.slot_axial(coord))), "Island is centred on its slot")
+		expect(centers.get(island.map_id) == coord, "%s sits where the world map puts it" % island.map_id)
 		var cells: Array = island.terrain.keys()
 		for cell in [cells.front(), cells[cells.size() / 2], cells.back()]:
-			expect(game.world_navigation.slot_at(cell) == coord, "Island cells belong to its slot")
+			expect(game.world_navigation.island_at(cell) == coord, "Island cells belong to their island")
 			expect(game.world_navigation.cell_from_position(Nav.cell_center(cell)) == cell, "World picking handles negative rows")
 			var renderer: IslandRenderer = game.world_view.renderer_for(coord)
 			if renderer != null:
@@ -180,7 +185,7 @@ func _check_coordinates(game: Node) -> void:
 	var past_edge := row_start + Vector2i.LEFT
 	expect(not home.has_cell(past_edge) and _pick(game, past_edge) == past_edge, "Picking finds the sea right past an island")
 	var open_sea := row_start + Vector2i.LEFT * 6
-	expect(game.world_navigation.slot_at(open_sea) == WorldData.NO_COORD and _pick(game, open_sea) == open_sea, "Picking finds open sea")
+	expect(game.world_navigation.island_at(open_sea) == WorldData.NO_COORD and _pick(game, open_sea) == open_sea, "Picking finds open sea")
 
 	# Moving an island keeps its shape, also by an odd number of rows (where adding the offset
 	# to odd-r cells directly would shear it).

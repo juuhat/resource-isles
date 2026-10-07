@@ -1,30 +1,21 @@
 class_name IslandProfiles
 extends RefCounted
 
-# Static catalog of biome profiles plus the coord -> biome mapping. The generator stays generic;
-# every biome's personality lives here as data. Add a biome = add a profile + a mapping rule.
-# See docs/island-generation.md.
+# Static catalog of biome profiles. The generator stays generic; every biome's personality lives
+# here as data. Add a biome = add a profile. The world itself comes from the world map, so the
+# generator only makes island designs now. See docs/island-generation.md and
+# docs/world-map-and-island-designs.md.
 
 const IslandProfileScript := preload("res://scripts/island/island_profile.gd")
 
 enum Biome {
 	STARTER, # ring 0 home: grass, wood + stone, the crash site
 	STONE,   # ring 1 frontier: rocky, iron + coal + stone, no wood (docs/second-island-progression.md)
-	COPPER,  # ring-1 rescue island (K9-DA's slot): copper + stone, no iron/coal, import wood
+	COPPER,  # ring-1 rescue island (K9-DA's): copper + stone, no iron/coal, import wood
 }
 
 const ISLAND_WIDTH := 30
 const ISLAND_HEIGHT := 24
-
-
-# K9-DA's rescue slot (WorldData.dog_slot_for_seed) is the copper + stone island; every other
-# frontier slot is a STONE (iron + coal + stone) colony.
-static func biome_for_coord(coord: Vector2i, world_seed: int = 1) -> int:
-	if coord == Vector2i.ZERO:
-		return Biome.STARTER
-	if coord == WorldData.dog_slot_for_seed(world_seed):
-		return Biome.COPPER
-	return Biome.STONE
 
 
 static func get_profile(biome: int) -> IslandProfile:

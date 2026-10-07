@@ -1,6 +1,6 @@
 extends SceneTree
 
-# Fixed-seed rendering comparison; never loads or writes the player's save.
+# Rendering comparison of the world map's islands; never loads or writes the player's save.
 # Run with a window, not --headless:
 # Godot_v4.6.3-stable_win64_console.exe --path . --script res://tools/terrain_visual_capture.gd -- <output_directory>
 # Outputs four play views, a seven-island overview, and sampled rendering statistics.
@@ -37,13 +37,13 @@ func _run() -> void:
 	Engine.max_fps = 0
 	var game: Node = load("res://game.tscn").instantiate()
 	game.set_script(CaptureGame)
-	game.seed_value = 1
 	root.add_child(game)
 	await process_frame
 	# Reveal the same seven islands for every run, including the overview benchmark.
 	game.world.revealed_rings = 2
-	for coord in game.world.island_slots():
-		game.world.get_island(coord).visited = true
+	for coord in game.world.islands:
+		if game.world.is_revealed(coord):
+			game.world.get_island(coord).visited = true
 	game.world_view.refresh()
 	# Chart patches open with time-based tweens; finish them before freezing scene updates.
 	await create_timer(WorldView.CHART_REVEAL_SECONDS + 0.2).timeout
@@ -51,12 +51,12 @@ func _run() -> void:
 	game.renderer.clear_interaction()
 	var rig: CameraRig = game.camera_rig
 	var mining_coord := WorldData.NO_COORD
-	for coord in game.world.island_slots():
-		if coord != WorldData.CENTER and coord != game.world.dog_coord:
+	for coord: Vector2i in game.world.islands:
+		if game.world.is_revealed(coord) and coord != game.world.start_coord and coord != game.world.dog_coord:
 			mining_coord = coord
 			break
 	RenderingServer.viewport_set_measure_render_time(root.get_viewport_rid(), true)
-	for entry in [["starter", WorldData.CENTER], ["mining", mining_coord]]:
+	for entry in [["starter", game.world.start_coord], ["mining", mining_coord]]:
 		var renderer: IslandRenderer = game.world_view.renderer_for(entry[1])
 		for shot in [["normal", 1200.0], ["close", 600.0]]:
 			rig._distance = shot[1]
@@ -72,7 +72,7 @@ func _run() -> void:
 	if "--interactions" in args:
 		await _capture_interactions(game)
 	var report := {
-		"seed": 1, "resolution": [1600, 900], "samples_per_view": SAMPLE_FRAMES,
+		"resolution": [1600, 900], "samples_per_view": SAMPLE_FRAMES,
 		"renderer": RenderingServer.get_current_rendering_method(),
 		"adapter": RenderingServer.get_video_adapter_name(), "vsync": false,
 		"note": "Wall frame times include engine scheduling. CPU/GPU render times cover the root viewport. Compare warmed runs on the same machine; desktop Mobile renderer is not a mobile-device benchmark.",

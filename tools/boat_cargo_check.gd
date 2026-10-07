@@ -90,7 +90,7 @@ func _run() -> void:
 		expect(away.buildings.values().all(func(building: Dictionary) -> bool: return int(building.type) != GameTypes.BuildingType.DOCK), "Destination has no dock")
 		var before := away.inventory.get_amount(GameTypes.ResourceType.WOOD)
 		game.boats.refresh_cargo()
-		expect(game.boat_cargo_panel.island == away and game.world.current_coord == WorldData.CENTER, "Aboard transfer targets destination, not home")
+		expect(game.boat_cargo_panel.island == away and game.world.current_coord == game.world.start_coord, "Aboard transfer targets destination, not home")
 		ui.island_slots[0]._drop_data(Vector2.ZERO, ui.boat_slots[0].drag_data())
 		expect(ui.amount_picker.value == 12, "Unloading defaults to whole boat stack")
 		game.boat_cargo_panel.amount_picker.value = 7

@@ -2,39 +2,27 @@ class_name WorldNavigation
 extends RefCounted
 
 # The world lattice: one hex grid covering every island and the sea between them. Island data is
-# keyed by its cells (IslandData), units stand on them and boats sail them. Each island sits on its
-# world-map slot; slots are far apart, so islands never share a cell.
+# keyed by its cells (IslandData), units stand on them and boats sail them. Each island sits where
+# the world map puts it, and no two share a cell (WorldBuilder leaves out one that would).
 const Grid := preload("res://scripts/island/hex_grid.gd")
 const Ground := preload("res://scripts/island/hex_pathfinder.gd")
 const CELL_SIZE := Vector2(128.0, 128.0)
+# World units between rings, counted out from WorldData.CENTER: 50 cells.
 const RING_SPACING := 6400.0
 const SEA_Y := 6.0
 
 var world: WorldData
-# Cell -> slot of the island it belongs to. Open sea has no entry.
+# Cell -> the centre (WorldData key) of the island it belongs to. Open sea has no entry.
 var regions: Dictionary = {}
 
 func setup(data: WorldData) -> void:
 	world = data
 	rebuild_regions()
 
-# A slot's centre on the lattice, in axial coordinates. The rounded spacing keeps the original
-# world layout within one tile.
-static func slot_axial(coord: Vector2i) -> Vector2i:
-	return Vector2i(coord.x * 50 - coord.y * 4, coord.y * 58)
-
-static func slot_center(coord: Vector2i) -> Vector3:
-	return cell_center(Grid.axial_to_offset(slot_axial(coord)))
-
 static func cell_center(cell: Vector2i) -> Vector3:
 	var point := Grid.cell_center_3d(cell, CELL_SIZE) - Grid.cell_center_3d(Vector2i.ZERO, CELL_SIZE)
 	point.y = SEA_Y
 	return point
-
-# The axial shift (IslandData.shift) that centres a freshly generated island, whose cells run from
-# (0, 0) to size - 1, on its slot.
-static func island_origin(coord: Vector2i, size: Vector2i) -> Vector2i:
-	return slot_axial(coord) - Grid.offset_to_axial(size / 2)
 
 func rebuild_regions() -> void:
 	regions.clear()
@@ -42,8 +30,9 @@ func rebuild_regions() -> void:
 		for cell in (world.islands[coord] as IslandData).terrain:
 			regions[cell] = coord
 
-# The slot of the island the cell belongs to, or WorldData.NO_COORD for open sea.
-func slot_at(cell: Vector2i) -> Vector2i:
+# The island the cell belongs to (its centre, as WorldData keys it), or WorldData.NO_COORD for
+# open sea.
+func island_at(cell: Vector2i) -> Vector2i:
 	return regions.get(cell, WorldData.NO_COORD)
 
 func sailing_radius() -> float:
@@ -58,7 +47,7 @@ func inside_frontier(cell: Vector2i) -> bool:
 func can_sail(cell: Vector2i, own_id := -1) -> bool:
 	if not inside_frontier(cell):
 		return false
-	var coord := slot_at(cell)
+	var coord := island_at(cell)
 	if coord != WorldData.NO_COORD:
 		if not world.is_revealed(coord) or not _island_water(world.islands[coord], cell):
 			return false
@@ -70,7 +59,7 @@ func can_sail(cell: Vector2i, own_id := -1) -> bool:
 # Whether the robot can step ashore from a boat on boat_cell onto the neighbouring shore: a deck
 # or unobstructed land on a revealed island. The boat stays afloat.
 func can_land(boat_cell: Vector2i, shore: Vector2i) -> bool:
-	var coord := slot_at(shore)
+	var coord := island_at(shore)
 	if coord == WorldData.NO_COORD or not world.is_revealed(coord):
 		return false
 	var island: IslandData = world.islands[coord]
@@ -84,7 +73,7 @@ func boat_at(cell: Vector2i) -> Dictionary:
 	for id in world.boats:
 		if world.boats[id].cell == cell:
 			return {id = id, cell = cell}
-	var coord := slot_at(cell)
+	var coord := island_at(cell)
 	if coord == WorldData.NO_COORD:
 		return {}
 	var island: IslandData = world.islands[coord]

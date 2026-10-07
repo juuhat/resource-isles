@@ -1,99 +1,56 @@
 class_name WorldBuilder
 extends RefCounted
 
-# Fills a world in from its seed: every island on the disc and where K9-DA waits. All of it is
-# derived from the world seed and each slot's coord, so a world comes out the same every run (see
-# docs/island-generation.md).
+# Puts the world map's islands into a world (see docs/world-map-and-island-designs.md), and finds
+# where units stand on an island.
 
 
-# Generate every slot on the disc that doesn't exist yet. The whole archipelago is one world, so
-# islands exist from the start (hidden under clouds until their ring is revealed); this also
-# fills in new slots when the disc grows.
-static func ensure_generated(world: WorldData, seed_value: int, building_manager: BuildingManager) -> void:
-	for coord in world.all_slots():
-		if not world.has_island(coord):
-			world.add_island(coord, generate_island(coord, seed_value, building_manager))
+# Builds every island on the map that the world doesn't have yet, matched by map id: all of them
+# for a new world, and for a saved one any island added to the map since. A saved island stays as
+# it was saved, even if the map has moved or changed it since, and an island that would overlap one
+# already there is left out. A new world starts on the map's start island, and a world without
+# K9-DA gets it at the k9da marker of the map's k9da island. Islands keep the map's order, so the
+# default names count up it ("World 1", "World 2", ...). New islands start with an empty stock.
+static func add_map_islands(world: WorldData, map: WorldMap, building_manager: BuildingManager) -> void:
+	for error in map.errors:
+		push_error("World map: " + error)
+	var new_world := world.islands.is_empty()
+	var known_ids := {}
+	var taken := {}
+	for coord in world.islands:
+		var existing: IslandData = world.islands[coord]
+		known_ids[existing.map_id] = true
+		for cell in existing.terrain:
+			taken[cell] = true
 
-
-# The center slot (World 1) is the crash site with the starting wreck (STARTER biome). It
-# begins with no resources — the opening loop is scavenging the first wood by hand (see
-# docs/progression-and-power.md). Other slots are frontier biomes and arrive
-# with just enough to establish their first dock. The biome and per-island seed are both
-# derived from the coord, so a slot's layout is intrinsic to where it is.
-static func generate_island(coord: Vector2i, seed_value: int, building_manager: BuildingManager) -> IslandData:
-	var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord, seed_value))
-	var island := IslandGenerator.new().generate(profile, island_seed(coord, seed_value), building_manager)
-	# Generated on cells from (0, 0); centre it on its slot of the world lattice.
-	island.shift(WorldNavigation.island_origin(coord, Vector2i(profile.width, profile.height)))
-	if coord != WorldData.CENTER:
-		_stock_bootstrap_supplies(island, building_manager)
-	return island
-
-
-# Per-slot seed: combines the world seed with the hex coord so each island is distinct yet
-# stable across runs (docs/island-generation.md).
-static func island_seed(coord: Vector2i, seed_value: int) -> int:
-	return hash(Vector3i(coord.x, coord.y, seed_value))
-
-
-# A newly reached island arrives with exactly enough to build its first dock, which
-# then lets it be the endpoint of a trade route — so a resource-barren island is
-# never a soft-lock. There is no manual cargo step; all other goods come via trade
-# routes once the dock exists (see docs/island-unlocks.md).
-static func _stock_bootstrap_supplies(island: IslandData, building_manager: BuildingManager) -> void:
-	var dock_cost := building_manager.get_cost(GameTypes.BuildingType.DOCK)
-	for resource_type in dock_cost.keys():
-		island.inventory.add_amount(resource_type, dock_cost[resource_type])
-
-
-# --- K9-DA ---
-
-# Give a new world its stranded dog: a ring-1 island (from the seed) and a spot on it.
-static func place_dog(world: WorldData, seed_value: int) -> void:
-	if world.dog_coord == WorldData.NO_COORD or not world.has_island(world.dog_coord):
-		world.dog_coord = WorldData.dog_slot_for_seed(seed_value)
-		world.dog_cell = GameTypes.NO_CELL
-
-	if world.dog_cell == GameTypes.NO_CELL:
-		world.dog_cell = choose_dog_cell(world.get_island(world.dog_coord), island_seed(world.dog_coord, seed_value))
-
-
-# A cell the robot can walk to from where it lands, a few steps in so the player sees the dog on
-# arrival and takes a short walk to reach it. Deterministic per island (seeded), so a world is
-# stable across runs.
-static func choose_dog_cell(island: IslandData, seed_of_island: int) -> Vector2i:
-	const MIN_STEPS := 3
-	const MAX_STEPS := 7
-	var start := find_spawn_cell(island)
-	# Breadth-first distances over walkable land from the robot's landing cell.
-	var steps := {start: 0}
-	var frontier: Array[Vector2i] = [start]
-	var head := 0
-	while head < frontier.size():
-		var cell := frontier[head]
-		head += 1
-		for neighbor in HexGrid.neighbors(cell):
-			if not steps.has(neighbor) and HexPathfinder.can_step(island, cell, neighbor):
-				steps[neighbor] = steps[cell] + 1
-				frontier.append(neighbor)
-
-	var preferred: Array[Vector2i] = []
-	var fallback: Array[Vector2i] = []
-	for cell in steps:
-		if cell == start or not is_open_ground(island, cell):
+	for placement: WorldMap.Placement in map.placements:
+		if known_ids.has(placement.id):
 			continue
-		if steps[cell] >= MIN_STEPS and steps[cell] <= MAX_STEPS:
-			preferred.append(cell)
-		else:
-			fallback.append(cell)
+		var design := IslandDesign.load_named(placement.design)
+		if not design.errors.is_empty():
+			for error in design.errors:
+				push_error("World map [%s]: %s" % [placement.id, error])
+			continue
+		var island := design.build(placement.center, placement.rotation, placement.mirror, building_manager)
+		if not design.build_errors.is_empty():
+			for error in design.build_errors:
+				push_error("World map [%s]: %s" % [placement.id, error])
+			continue
+		if world.has_island(placement.center) or island.terrain.keys().any(func(cell: Vector2i) -> bool: return taken.has(cell)):
+			push_warning("World map [%s]: left out, it would overlap an island already in the world" % placement.id)
+			continue
 
-	var candidates := preferred if not preferred.is_empty() else fallback
-	if candidates.is_empty():
-		return start
-
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_of_island
-	return candidates[rng.randi_range(0, candidates.size() - 1)]
+		island.map_id = placement.id
+		island.island_name = placement.name
+		world.add_island(placement.center, island)
+		for cell in island.terrain:
+			taken[cell] = true
+		if new_world and placement.start:
+			world.start_coord = placement.center
+			world.current_coord = placement.center
+		if placement.k9da and world.dog_coord == WorldData.NO_COORD:
+			world.dog_coord = placement.center
+			world.dog_cell = design.marker_cell("k9da", placement.center, placement.rotation, placement.mirror)
 
 
 # --- Where units stand ---

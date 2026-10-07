@@ -21,9 +21,10 @@ signal cargo_delivered(route: TradeRoute, coord: Vector2i, resource_type: int, a
 const TradeRouteScript := preload("res://scripts/world/trade_route.gd")
 
 const BOAT_CAPACITY := 5
-# One-way sailing time: a fixed launch/landing overhead plus time per world-map hex crossed.
+# One-way sailing time: a fixed launch/landing overhead plus time per cell between the islands'
+# centres. Rings are 50 cells apart, so hopping one ring out takes about 10 s.
 const BASE_TRIP_SECONDS := 12.0
-const SECONDS_PER_HEX := 10.0
+const SECONDS_PER_CELL := 0.2
 # How often a boat waiting at home for outbound cargo checks the stock again.
 const RELOAD_CHECK_SECONDS := 2.0
 
@@ -88,7 +89,7 @@ func reachable_destinations(coord: Vector2i) -> Array[Vector2i]:
 
 
 func trip_seconds(route: TradeRoute) -> float:
-	return BASE_TRIP_SECONDS + SECONDS_PER_HEX * _world_distance(route.home_coord, route.away_coord)
+	return BASE_TRIP_SECONDS + SECONDS_PER_CELL * HexGrid.distance(route.home_coord, route.away_coord)
 
 
 # "" when the route can sail, else a short player-facing reason it's idle.
@@ -223,10 +224,3 @@ func _cargo_text(route: TradeRoute) -> String:
 	if route.cargo_amount <= 0:
 		return " (empty)"
 	return " with %d %s" % [route.cargo_amount, ResourceManager.get_display_name_for_type(route.cargo_resource())]
-
-
-# Hex distance between two world-map slots (axial coords).
-static func _world_distance(a: Vector2i, b: Vector2i) -> int:
-	var dq := a.x - b.x
-	var dr := a.y - b.y
-	return (absi(dq) + absi(dr) + absi(dq + dr)) / 2

@@ -69,6 +69,7 @@ static func parse(text: String) -> WorldMap:
 	map._find_repeats(text)
 	for id in config.get_sections():
 		map._read_placement(config, id)
+	map._find_shared_centers()
 	for role in ROLES:
 		map._count_role(role)
 	return map
@@ -96,6 +97,16 @@ func _read_placement(config: ConfigFile, id: String) -> void:
 	if placement.design != "" and not FileAccess.file_exists(design_path):
 		errors.append("[%s]: there is no design %s (%s)" % [id, placement.design, design_path])
 	placements.append(placement)
+
+
+# The world keys an island by its centre, so no two islands may share one.
+func _find_shared_centers() -> void:
+	var ids_by_center := {}
+	for placement in placements:
+		if ids_by_center.has(placement.center):
+			errors.append("[%s]: has the same center as [%s]; every island needs its own"
+				% [placement.id, ids_by_center[placement.center]])
+		ids_by_center[placement.center] = placement.id
 
 
 func _count_role(role: String) -> void:

@@ -92,7 +92,7 @@ func _run() -> void:
 	# It survives a save round-trip; finished buildings from old saves have no progress key at all.
 	game.save_game()
 	var reloaded := WorldData.from_dict(SaveManager.read().get("world", {}), 0.0)
-	var saved_island := reloaded.get_island(WorldData.CENTER)
+	var saved_island := reloaded.get_island(reloaded.start_coord)
 	CheckWatchdog.require(saved_island.is_under_construction(cell), "The blueprint is saved")
 	CheckWatchdog.require(absf(saved_island.get_build_progress(cell) - paused_at) < 0.05, "Its progress is saved")
 	CheckWatchdog.require(not saved_island.is_under_construction(WorldBuilder.find_crashed_spaceship_cell(saved_island)),

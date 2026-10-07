@@ -1,25 +1,27 @@
 class_name WorldData
 extends RefCounted
 
-# Islands keyed by their world hex coordinate (axial Vector2i). The starter sits at CENTER.
-# Every slot on the disc is generated up front (main._ensure_world_generated) so the whole
-# archipelago exists as one world; unrevealed rings simply stay hidden under clouds, and an
-# island counts as discovered when the robot approaches close enough to reveal it (IslandData.visited).
-# Dictionaries preserve insertion order, so keys() doubles as generation order (used for
-# naming). See docs/island-unlocks.md.
+# Islands keyed by their centre: the world cell the middle of their design sits on, from the world
+# map (WorldMap, assets/world/world_map.cfg). Every island on the map is built up front
+# (WorldBuilder.add_map_islands) so the whole archipelago exists as one world; islands past the
+# sailing frontier simply stay hidden under clouds, and an island counts as discovered when the
+# robot approaches close enough to reveal it (IslandData.visited). Dictionaries preserve insertion
+# order, so keys() doubles as map order (used for naming). See docs/world-map-and-island-designs.md.
 
+# The middle of the world, which the rings are counted out from.
 const CENTER := Vector2i(0, 0)
 # Returned by coord_of for an island that is not in this world.
 const NO_COORD := Vector2i(-99999, -99999)
-# How many rings out the world map reveals at the start. 0 = only the starter
-# island, 1 = the starter plus the first ring of three islands, etc. Boat tiers
-# will grow this later via reveal_additional_rings().
+# How many rings out the world map reveals at the start. 0 = only the start island's ring, 1 =
+# the first ring of islands as well, etc. Quests grow this via reveal_additional_rings().
 const STARTING_REVEALED_RINGS := 0
 # The disc is always at least this many rings wide, so the clouded frontier reads as a big
 # world still to explore; it grows if more rings than this are ever revealed.
 const MIN_WORLD_RINGS := 4
 
 var islands: Dictionary = {}
+# The island the robot starts on: the world map's start island, the crash site.
+var start_coord := CENTER
 var current_coord := CENTER
 var revealed_rings := STARTING_REVEALED_RINGS
 var boats: Dictionary = {}
@@ -99,60 +101,23 @@ func reveal_additional_rings(count: int = 1) -> void:
 	revealed_rings = maxi(0, revealed_rings + count)
 
 
+# Whether the island centred on coord is out of the clouds: inside the sailing frontier, the same
+# reach as WorldNavigation.sailing_radius.
 func is_revealed(coord: Vector2i) -> bool:
-	return ring_of(coord) <= revealed_rings
+	return rings_out(coord) <= revealed_rings + 0.5
 
 
-# How many rings the disc holds (and how many are generated): the revealed rings plus a
-# clouded frontier, never fewer than MIN_WORLD_RINGS.
+# How many rings the disc holds: the revealed rings plus a clouded frontier, never fewer than
+# MIN_WORLD_RINGS.
 func world_rings() -> int:
 	return maxi(MIN_WORLD_RINGS, revealed_rings)
 
 
-# --- Island slots ---
-# Island slots sit on the world hex lattice: the centre, then three per ring on every other
-# ring "corner", 120 deg apart (ring k's slots are k hexes out). See docs/island-unlocks.md.
-
-const CUBE_DIRS := [
-	Vector3i(1, -1, 0),
-	Vector3i(1, 0, -1),
-	Vector3i(0, 1, -1),
-	Vector3i(-1, 1, 0),
-	Vector3i(-1, 0, 1),
-	Vector3i(0, -1, 1),
-]
-const SLOT_DIRECTIONS := [0, 2, 4]
-
-
-# Every slot on the revealed rings, centre first, then ring by ring.
-func island_slots() -> Array[Vector2i]:
-	return slots_within(revealed_rings)
-
-
-# Every slot on the disc, revealed or still under the clouds.
-func all_slots() -> Array[Vector2i]:
-	return slots_within(world_rings())
-
-
-static func slots_within(rings: int) -> Array[Vector2i]:
-	var slots: Array[Vector2i] = [CENTER]
-	for ring in range(1, rings + 1):
-		for direction in SLOT_DIRECTIONS:
-			var cube: Vector3i = CUBE_DIRS[direction] * ring
-			slots.append(Vector2i(cube.x, cube.z))
-	return slots
-
-
-# Which ring a hex coord lies on (0 = the centre).
-static func ring_of(coord: Vector2i) -> int:
-	return int((absi(coord.x) + absi(coord.y) + absi(-coord.x - coord.y)) / 2)
-
-
-# The ring-1 slot K9-DA is stranded on, picked from the world seed so each world is stable
-# across runs. Ring 1 is what Set Sail reveals, so the rescue is always within first reach.
-static func dog_slot_for_seed(seed_value: int) -> Vector2i:
-	var ring_one := slots_within(1).slice(1)
-	return ring_one[posmod(seed_value, ring_one.size())]
+# How many rings out from the middle of the world a cell lies: 1.0 is one RING_SPACING from CENTER.
+# An island's ring is that of its centre.
+static func rings_out(cell: Vector2i) -> float:
+	var point := WorldNavigation.cell_center(cell) - WorldNavigation.cell_center(CENTER)
+	return Vector2(point.x, point.z).length() / WorldNavigation.RING_SPACING
 
 
 # True while K9-DA still waits on the island at `coord` for the robot to pick it up.
@@ -161,11 +126,11 @@ func is_dog_stranded_on(coord: Vector2i) -> bool:
 
 
 # --- Save/load ---
-# The whole discovered world: every island keyed by its world-map coord, plus which slot is
-# current, how many rings are revealed, and the trade routes. `reference_time` is forwarded to
-# each island and route so their timers can be rebased (see IslandData.to_dict). Islands are
-# restored straight into the dict (not via add_island) so their saved names are preserved
-# verbatim. Saves from before trade routes simply load with none.
+# The whole discovered world: every island keyed by its centre, plus which island the game started
+# on and which is current, how many rings are revealed, and the trade routes. `reference_time` is
+# forwarded to each island and route so their timers can be rebased (see IslandData.to_dict).
+# Islands are restored straight into the dict (not via add_island) so their saved names are
+# preserved verbatim.
 
 func to_dict(reference_time: float) -> Dictionary:
 	var serialized_islands := {}
@@ -175,6 +140,7 @@ func to_dict(reference_time: float) -> Dictionary:
 	for route in trade_routes:
 		serialized_routes.append(route.to_dict(reference_time))
 	return {
+		start_coord = start_coord,
 		current_coord = current_coord,
 		revealed_rings = revealed_rings,
 		islands = serialized_islands,
@@ -190,6 +156,7 @@ func to_dict(reference_time: float) -> Dictionary:
 
 static func from_dict(data: Dictionary, reference_time: float) -> WorldData:
 	var world := WorldData.new()
+	world.start_coord = data.get("start_coord", CENTER)
 	world.current_coord = data.get("current_coord", CENTER)
 	world.revealed_rings = int(data.get("revealed_rings", STARTING_REVEALED_RINGS))
 	world.boats = (data.get("boats", {}) as Dictionary).duplicate(true)
@@ -202,7 +169,7 @@ static func from_dict(data: Dictionary, reference_time: float) -> WorldData:
 		# Drop a route whose island is gone (e.g. a hand-edited save) rather than crash on it.
 		if world.has_island(route.home_coord) and world.has_island(route.away_coord):
 			world.trade_routes.append(route)
-	# Without dog data, main gives the world a fresh spot (main._ensure_dog_placed).
+	# Without dog data, WorldBuilder.add_map_islands strands K9-DA where the map says.
 	world.dog_coord = data.get("dog_coord", NO_COORD)
 	world.dog_cell = data.get("dog_cell", GameTypes.NO_CELL)
 	world.dog_rescued = bool(data.get("dog_rescued", false))

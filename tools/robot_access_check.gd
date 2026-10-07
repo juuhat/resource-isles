@@ -5,7 +5,7 @@ extends SceneTree
 #     routes around resource nodes and the crashed spaceship, crossing one only when there is no
 #     other way;
 #   - sent somewhere new mid-step, the robot finishes the step and re-plans from there;
-#   - on generated islands, every open tile is reachable without crossing a node;
+#   - on every island on the world map, every open tile is reachable without crossing a node;
 #   - a resource node is worked from a neighbouring tile, the robot leaning toward it but clear
 #     of its model;
 #   - a building with a WorkSpot (the logger camp, the sawmill) is worked from its own yard,
@@ -42,7 +42,7 @@ func _run() -> void:
 	var game: Node = GameScene.instantiate()
 	root.add_child(game)
 	await process_frame
-	_check_generated_islands(game)
+	_check_map_islands(game)
 
 	var robot: PlayerUnit = game.player_unit
 	robot.entered_cell.connect(func(cell: Vector2i) -> void: _entered.append(cell))
@@ -242,30 +242,23 @@ func _check_walk_through_buildings(game: Node, robot: PlayerUnit) -> void:
 		_expect(not island.has_resource(cell), "It still crosses no resource node")
 
 
-# Generated islands across many seeds: every open tile (and every tool on the ground) can be
-# reached from the robot's landing spot without crossing a tree, rock or ore node, so the
-# last-resort crossing never actually happens in normal play. Reports any exceptions.
-func _check_generated_islands(game: Node) -> void:
-	var saved_seed: int = game.seed_value
-	var islands := 0
+# Every island on the world map: every open tile (and every tool on the ground) can be reached from
+# the robot's landing spot without crossing a tree, rock or ore node, so the last-resort crossing
+# never actually happens in normal play. Reports any exceptions.
+func _check_map_islands(game: Node) -> void:
 	var sealed := 0
-	for seed_value in range(1, 31):
-		game.seed_value = seed_value
-		for coord in [WorldData.CENTER, WorldData.dog_slot_for_seed(seed_value)]:
-			var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord, seed_value))
-			var island: IslandData = IslandGenerator.new().generate(profile, WorldBuilder.island_seed(coord, seed_value), game.building_manager)
-			var start: Vector2i = WorldBuilder.find_spawn_cell(island)
-			var costs: Dictionary = HexPathfinderScript.search(island, start).cost
-			islands += 1
-			for cell in island.terrain.keys():
-				if not HexPathfinderScript.is_walkable(island, cell) or island.has_resource(cell) \
-						or HexPathfinderScript.is_solid_building(island, cell):
-					continue
-				if costs.get(cell, HexPathfinderScript.OBSTACLE_COST) >= HexPathfinderScript.OBSTACLE_COST:
-					sealed += 1
-					_expect(not island.has_item(cell), "Seed %d %s: a tool is sealed in by nodes at %s" % [seed_value, coord, cell])
-	game.seed_value = saved_seed
-	print("Robot access: %d generated islands, %d land tiles sealed in by nodes" % [islands, sealed])
+	for coord: Vector2i in game.world.islands:
+		var island: IslandData = game.world.islands[coord]
+		var start: Vector2i = WorldBuilder.find_spawn_cell(island)
+		var costs: Dictionary = HexPathfinderScript.search(island, start).cost
+		for cell in island.terrain.keys():
+			if not HexPathfinderScript.is_walkable(island, cell) or island.has_resource(cell) \
+					or HexPathfinderScript.is_solid_building(island, cell):
+				continue
+			if costs.get(cell, HexPathfinderScript.OBSTACLE_COST) >= HexPathfinderScript.OBSTACLE_COST:
+				sealed += 1
+				_expect(not island.has_item(cell), "%s: a tool is sealed in by nodes at %s" % [island.map_id, cell])
+	print("Robot access: %d islands on the map, %d land tiles sealed in by nodes" % [game.world.islands.size(), sealed])
 
 
 func _grass_island() -> IslandData:

@@ -13,15 +13,16 @@ extends RefCounted
 
 # Each save version has its own file, so a build of the game never discards and overwrites a save
 # written by a newer one.
-const SAVE_PATH := "user://savegame_v2.sav"
+const SAVE_PATH := "user://savegame_v3.sav"
 # New saves are written here first, then swapped over SAVE_PATH, so a crash mid-write can
 # never corrupt an existing good save (read() falls back to this file if the swap is cut off).
-const TEMP_PATH := "user://savegame_v2.sav.tmp"
+const TEMP_PATH := "user://savegame_v3.sav.tmp"
 
 # Bump whenever the on-disk schema changes (enum reordering counts — values are stored as raw
 # ints), and give the new version its own SAVE_PATH. There is no migration: a save of another
-# version is simply not loaded.
-const SAVE_VERSION := 2
+# version is simply not loaded. Version 3 keys islands by their centre on the world map
+# (docs/world-map-and-island-designs.md) rather than by a generated world's slot.
+const SAVE_VERSION := 3
 
 
 static func has_save() -> bool:
@@ -35,18 +36,15 @@ static func delete_save() -> void:
 
 
 # Bundle already-serialized state into the versioned top-level payload. Callers pass plain
-# data (world, stat values, completed-quest set, the next-island seed counter) so this stays
-# decoupled from main.gd's managers.
+# data (world, stat values, completed-quest set) so this stays decoupled from main.gd's managers.
 static func build_payload(
 	world: WorldData,
 	stat_values: Dictionary,
 	completed_quests: Dictionary,
-	seed_value: int,
 	reference_time: float
 ) -> Dictionary:
 	return {
 		version = SAVE_VERSION,
-		seed_value = seed_value,
 		world = world.to_dict(reference_time),
 		stats = stat_values,
 		completed_quests = completed_quests,

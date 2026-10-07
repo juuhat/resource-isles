@@ -19,11 +19,11 @@ var rng := RandomNumberGenerator.new()
 var _size := Vector2i.ZERO
 
 
-# Generate the island for `profile` using `seed_value` as the per-island seed (derive it from the
-# world seed and coord in main.gd). building_manager is needed only for landmark placement
-# (the crashed spaceship footprint/terrain); it may be null for biomes without landmarks. The
-# island covers cells from (0, 0) to the profile's size: shift it into the world before use (see
-# main._generate_island_at).
+# Generate the island for `profile` using `seed_value` as its seed. building_manager is needed only
+# for landmark placement (the crashed spaceship footprint/terrain); it may be null for biomes
+# without landmarks. The island covers cells from (0, 0) to the profile's size. The game itself is
+# built from island designs on the world map (docs/world-map-and-island-designs.md); the generator
+# is a way to make designs.
 func generate(
 	profile: IslandProfile,
 	seed_value: int,

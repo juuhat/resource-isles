@@ -161,7 +161,7 @@ func disembark() -> void:
 	if shore == GameTypes.NO_CELL:
 		return
 	store_position()
-	var destination := world_navigation.slot_at(shore)
+	var destination := world_navigation.island_at(shore)
 	world.piloted_boat = -1
 	player_unit.leave_boat()
 	world_view.hide_sailing_hover()
@@ -245,7 +245,7 @@ func _cargo_island(id: int) -> IslandData:
 	if player_unit.boat_id == id:
 		var shore := landing_tile()
 		if shore != GameTypes.NO_CELL:
-			return world.get_island(world_navigation.slot_at(shore))
+			return world.get_island(world_navigation.island_at(shore))
 	elif player_unit.boat_id == -1:
 		var boat := nearby_boat()
 		if not boat.is_empty() and boat.id == id:

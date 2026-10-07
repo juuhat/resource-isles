@@ -2,9 +2,8 @@ extends SceneTree
 
 # Headless check for the K9-DA rescue (the MAIN quest). Runs the real game scene from a fresh
 # world and walks the flow end to end: the dog is hidden until its ring-1 island is reached, waits
-# at a reachable spot there, can be rescued only from beside it, then follows the robot between
-# islands, and the rescue survives a save round-trip. Also sweeps several world seeds to confirm
-# the chosen spot is always reachable from where the robot lands.
+# at the world map's k9da spot there, reachable from where the robot lands, can be rescued only
+# from beside it, then follows the robot between islands, and the rescue survives a save round-trip.
 #
 # The game saves to SaveManager.SAVE_PATH as it plays, so any existing save is backed up first and
 # restored at the end.
@@ -35,7 +34,10 @@ func _run() -> void:
 
 	var world: WorldData = game.world
 	var dog: Dog = game.dog
-	CheckWatchdog.require(WorldData.ring_of(world.dog_coord) == 1, "K9-DA must be stranded on ring 1")
+	CheckWatchdog.require(roundi(WorldData.rings_out(world.dog_coord)) == 1, "K9-DA must be stranded on ring 1")
+	var map_dog := WorldMap.load_file().placements.filter(func(placement: WorldMap.Placement) -> bool: return placement.k9da)
+	CheckWatchdog.require(map_dog.size() == 1 and world.dog_coord == map_dog[0].center
+		and world.get_island(world.dog_coord).map_id == map_dog[0].id, "K9-DA waits on the world map's k9da island")
 	CheckWatchdog.require(not world.dog_rescued, "A fresh game starts with K9-DA stranded")
 	CheckWatchdog.require(not dog.visible, "K9-DA stays hidden before his island is reached")
 	CheckWatchdog.require(not game.quest_manager.is_completed(GameTypes.QuestId.RESCUE_THE_DOG))
@@ -45,8 +47,8 @@ func _run() -> void:
 	game.stat_tracker.add(GameTypes.Stat.DOCKS_BUILT, 1)
 	CheckWatchdog.require(game.quest_manager.get_current_milestone().id == GameTypes.QuestId.FOLLOW_THE_SIGNAL)
 	CheckWatchdog.require(not dog.visible, "Unlocking sailing alone does not reveal K9-DA")
-	for coord in world.slots_within(1):
-		if coord != WorldData.CENTER and coord != world.dog_coord:
+	for coord: Vector2i in world.islands:
+		if coord != world.start_coord and coord != world.dog_coord and roundi(WorldData.rings_out(coord)) == 1:
 			game.discover_island(coord)
 			break
 	CheckWatchdog.require(not game.quest_manager.is_completed(GameTypes.QuestId.FOLLOW_THE_SIGNAL),
@@ -87,10 +89,10 @@ func _run() -> void:
 	CheckWatchdog.require(not game.robot._can_rescue_dog(), "K9-DA can only be rescued once")
 
 	# The rescued dog travels with the robot.
-	game.switch_to_island(WorldData.CENTER, true)
+	game.switch_to_island(world.start_coord, true)
 	CheckWatchdog.require(dog.visible and dog.mode == Dog.Mode.FOLLOWING)
-	CheckWatchdog.require(dog.is_on(game.world.get_island(WorldData.CENTER)), "K9-DA follows to the robot's island")
-	CheckWatchdog.require(dog.position.is_equal_approx(game.world_view.renderer_for(WorldData.CENTER).get_cell_center(dog.current_cell)),
+	CheckWatchdog.require(dog.is_on(game.world.get_island(world.start_coord)), "K9-DA follows to the robot's island")
+	CheckWatchdog.require(dog.position.is_equal_approx(game.world_view.renderer_for(world.start_coord).get_cell_center(dog.current_cell)),
 		"K9-DA stands on that island's ground")
 	CheckWatchdog.require(HexGridScript.neighbors(robot.current_cell).has(dog.current_cell) or dog.current_cell == robot.current_cell,
 		"K9-DA lands beside the robot")
@@ -100,21 +102,6 @@ func _run() -> void:
 	var reloaded := WorldData.from_dict(SaveManager.read().get("world", {}), 0.0)
 	CheckWatchdog.require(reloaded.dog_rescued and reloaded.dog_coord == world.dog_coord and reloaded.dog_cell == world.dog_cell,
 		"Rescue state must survive a save round-trip")
-
-	# Every seed puts K9-DA somewhere the robot can walk to.
-	for seed_value in range(1, 21):
-		var coord := WorldData.dog_slot_for_seed(seed_value)
-		CheckWatchdog.require(WorldData.ring_of(coord) == 1)
-		game.seed_value = seed_value
-		var island_seed: int = WorldBuilder.island_seed(coord, seed_value)
-		var profile := IslandProfiles.get_profile(IslandProfiles.biome_for_coord(coord, seed_value))
-		var generated: IslandData = IslandGenerator.new().generate(profile, island_seed, game.building_manager)
-		var start: Vector2i = WorldBuilder.find_spawn_cell(generated)
-		var cell: Vector2i = WorldBuilder.choose_dog_cell(generated, island_seed)
-		CheckWatchdog.require(cell != start, "Seed %d: K9-DA must not spawn on the robot" % seed_value)
-		CheckWatchdog.require(WorldBuilder.is_open_ground(generated, cell), "Seed %d: K9-DA must stand on open ground" % seed_value)
-		CheckWatchdog.require(not HexPathfinderScript.find_path(generated, start, cell).is_empty(),
-			"Seed %d: K9-DA must be reachable" % seed_value)
 
 	game.queue_free()
 	await process_frame

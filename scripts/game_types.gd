@@ -2,8 +2,8 @@ class_name GameTypes
 extends RefCounted
 
 # "No cell": an unset or not-found cell (nothing hovered, no target, no building there). Cells are
-# on the world lattice, which runs negative too, so this sits far outside any world. World-map
-# slots use WorldData.NO_COORD instead.
+# on the world lattice, which runs negative too, so this sits far outside any world. An island
+# that isn't there uses WorldData.NO_COORD instead.
 const NO_CELL := Vector2i(-1_000_000, -1_000_000)
 
 # Actions the selected robot can take where it stands, offered on its command bar (see

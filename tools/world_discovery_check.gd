@@ -2,6 +2,9 @@ extends SceneTree
 
 const CheckWatchdog := preload("res://tools/check_watchdog.gd")
 
+# Island centres: the start in the middle of the world, two on ring 1 and one on ring 2.
+const CENTERS: Array[Vector2i] = [Vector2i(0, 0), Vector2i(50, 0), Vector2i(-25, -58), Vector2i(100, 0)]
+
 
 func _initialize() -> void:
 	CheckWatchdog.install(self)
@@ -10,9 +13,10 @@ func _initialize() -> void:
 
 func _check_discovery() -> void:
 	var world := WorldData.new()
-	for coord in world.all_slots():
+	for coord in CENTERS:
 		var island := IslandData.new(3, 3)
 		island.set_terrain(Vector2i(1, 1), GameTypes.Terrain.GRASS)
+		island.shift(HexGrid.offset_to_axial(coord) - HexGrid.offset_to_axial(Vector2i(1, 1)))
 		world.add_island(coord, island)
 	world.get_current().visited = true
 	var navigation := WorldNavigation.new()
@@ -22,7 +26,7 @@ func _check_discovery() -> void:
 	root.add_child(view)
 	view.refresh()
 	view.set_overview_amount(1.0)
-	var frontier: Vector2i = world.slots_within(1)[1]
+	var frontier: Vector2i = CENTERS[1]
 	CheckWatchdog.require(view.renderer_for(frontier) == null, "Locked islands must remain hidden")
 	CheckWatchdog.require(view.is_uncharted(frontier), "Locked islands lie under the chart")
 	CheckWatchdog.require(not view._labels[frontier].visible, "Locked islands are left for the player to find")
@@ -43,8 +47,8 @@ func _check_discovery() -> void:
 	view.set_current_coord(world.current_coord)
 	CheckWatchdog.require(view.is_on_map(frontier), "K9-DA's island is on the map")
 	var ping := view._signal_ping()
-	var slot := WorldView.slot_position(frontier)
-	CheckWatchdog.require(ping.z > 0.0 and is_equal_approx(ping.x, slot.x) and is_equal_approx(ping.y, slot.z), "K9-DA's signal pings over its island")
+	var center := WorldView.island_position(frontier)
+	CheckWatchdog.require(ping.z > 0.0 and is_equal_approx(ping.x, center.x) and is_equal_approx(ping.y, center.z), "K9-DA's signal pings over its island")
 	CheckWatchdog.require(view._labels[frontier].visible and "K9-DA's signal" in view._labels[frontier].text, "K9-DA's island is labelled by its signal")
 	CheckWatchdog.require("Click to sail" in view._labels[frontier].text, "Reachable hover must explain travel")
 	world.get_island(frontier).visited = true

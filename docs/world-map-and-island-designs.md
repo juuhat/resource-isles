@@ -1,13 +1,13 @@
 # World Map and Island Designs
 
-> **Status (2026-10-07):** decided, not implemented. Replaces generating the world at game start
+> **Status (2026-10-07):** steps 1 to 3 of the [order of work](#order-of-work) are done: the game
+> runs on the world map instead of generating its world at game start
 > ([Island Generation, Biomes, and Resources](island-generation.md)); the generator stays, as a
 > tool for making island designs. See [Decisions](#decisions) for what was settled.
 
 Design notes for a premade world: every player sails the same hand-placed map, from full colony
 islands to small islets (atolls, sandbars, rocks) scattered across the open sea. Islands are built
-from **island design** files and placed by one **world map** file. This is direction, not
-implementation.
+from **island design** files and placed by one **world map** file.
 
 See also: [Island Generation](island-generation.md) for the generator and biome profiles that
 become the design tool, [Island Unlocks](island-unlocks.md) for rings and the sailing frontier,
@@ -15,19 +15,17 @@ and [Island Visual Variety](island-visual-variety.md) for making islands look di
 
 ## Why
 
-Today the world is generated when a new game starts
-([`world_builder.gd`](../scripts/world/world_builder.gd)):
+Until step 3, the world was generated when a new game started:
 
-- **Same for everyone, but not premade.** The world seed is fixed at 1
-  ([`main.gd`](../scripts/main.gd)), so every player gets the same archipelago, on the same
-  build. It works like a Minecraft seed: a change to the generator or the biome profiles, or a
-  Godot update that changes `hash()` or `RandomNumberGenerator`, gives new games a different
-  world. Saves keep the islands they already have, but islands added when the disc grows come
-  from whatever the code is then.
-- **Islands only on slots.** An island's key is its slot, and its position is computed from the
-  key (`WorldNavigation.slot_axial`): the centre plus three slots per ring, rings 50 cells apart.
-  The starting disc is 4 rings, about 240 cells in radius, and holds 13 islands; neighbours on
-  ring 4 are about 400 hexes apart. The sea between them is empty.
+- **Same for everyone, but not premade.** The world seed was fixed at 1, so every player got
+  the same archipelago, on the same build. It worked like a Minecraft seed: a change to the
+  generator or the biome profiles, or a Godot update that changes `hash()` or
+  `RandomNumberGenerator`, gave new games a different world. Saves kept the islands they already
+  had, but islands added when the disc grew came from whatever the code was then.
+- **Islands only on slots.** An island's key was its slot, and its position was computed from the
+  key: the centre plus three slots per ring, rings 50 cells apart. The disc is 4 rings, about
+  240 cells in radius, and held 13 islands; neighbours on ring 4 are about 400 hexes apart. The
+  sea between them is empty.
 - **One island size.** The generator's land blob is a hard-coded ~11 × 9 cells whatever the
   profile asks for, so it can't make a small islet.
 
@@ -161,19 +159,23 @@ land, build and dock on them, and trade routes can reach them.
 
 **No free supplies.** A new island starts with an empty stock. The materials for its first dock
 come on the robot's boat ([Rescue, first metals, and boat cargo](rescue-metals-and-cargo.md)), so
-islands no longer arrive with them as they do today.
+islands no longer arrive with them as generated islands did.
 
 Turning one design and mirroring it gives up to twelve different-looking placements, so a handful
 of islet designs can fill a lot of sea.
 
-**Ids.** Islands are keyed by their map id (`&"copper_isle"`) instead of a slot coord.
-Everything that holds a coord today (`current_coord`, `dog_coord`, trade routes, the navigation
-regions, the renderers) holds an id. An id doesn't change when an island moves on the map, and it
-lets quests and story name a specific island. The baked map names its islands after the
-progression: `crash_site`, `copper_isle` (K9-DA's), `iron_isle` and `windward_isle` on ring 1,
-then the power tiers planned for the outer rings (`coal_isle`, `oil_isle`, `uranium_isle`, …).
-Each section's comment says what it is named for. Renaming is free until the game switches to
-the map; after that, saves store the ids.
+**Keys and ids.** The world keys an island by its centre: the world cell its design's middle sits
+on, the `center` of its section. That is a cell anywhere on the lattice, so an island can sit
+anywhere, not only on a ring slot, and everything that held a slot coord (`current_coord`,
+`dog_coord`, trade routes, the navigation regions, the renderers) now holds a centre without
+changing type. Each island also keeps its section's id (`IslandData.map_id`, saved), which is what
+ties a saved island to its entry on the map: an id doesn't change when an island moves on the map,
+and it lets quests and story name a specific island. (The first plan keyed islands by id outright;
+keying by centre plus `map_id` gives the same behaviour without retyping every coord in the game.)
+The map names its islands after the progression: `crash_site`, `copper_isle` (K9-DA's),
+`iron_isle` and `windward_isle` on ring 1, then the power tiers planned for the outer rings
+(`coal_isle`, `oil_isle`, `uranium_isle`, …). Each section's comment says what it is named for.
+Saves store the ids, so renaming one now means a saved game no longer recognises that island.
 
 **Size and rings.** The map covers today's disc: 4 rings (`WorldData.MIN_WORLD_RINGS`), about 240
 cells in radius. Rings stay the way the sea opens up: the sailing frontier and the
@@ -218,56 +220,70 @@ same safety net, as checks run with the others (`tools/run_checks.ps1`).
 ids, a coordinate grid, the ring frontiers) so islands can be placed without sailing around in
 the game.
 
-The checks that loop over seeds today (`dog_rescue_check`, `robot_access_check`,
-`copper_deposit_check`) move onto the designs and the map.
+Some of this already runs: `island_design_check` builds every island on the map,
+`robot_access_check` looks for anything sealed in on them, and `dog_rescue_check` walks to
+K9-DA's spot.
 
 ## Code changes
 
-- **Loading.** New `IslandDesign` (parses a `.island` file) and `WorldMap` (parses
-  `world_map.cfg`). Placing a design turns and mirrors it in axial coordinates
-  (`HexGrid.rotate_axial`), shifts it to its centre, adds the coast ring, then places deposits,
-  items, landmarks and K9-DA. `WorldBuilder.ensure_generated` builds from the map, and
-  `seed_value`, `WorldBuilder.island_seed`, `WorldData.dog_slot_for_seed`,
-  `IslandProfiles.biome_for_coord` and `WorldBuilder.choose_dog_cell` leave the game.
-- **No free supplies.** `WorldBuilder._stock_bootstrap_supplies` goes, and new islands start with
-  an empty stock.
-- **Ids and centres.** Islands are keyed by id, and `IslandData` stores its centre cell (saved).
-  Every `slot_position(coord)` in [`world_view.gd`](../scripts/world/world_view.gd) (picking, fog
-  patches, chart cells, the opening animation, K9-DA's signal, labels, route lines) uses the
-  centre instead.
-- **Loops.** The loops over `WorldData.all_slots()` (generation in `world_builder.gd`; drawing,
-  picking and labels in `world_view.gd`) loop over the islands instead, and generation over the
-  map.
+Done in step 3, except the export filter.
+
+- **Loading.** `IslandDesign` parses a `.island` file and `WorldMap` parses `world_map.cfg`.
+  Placing a design turns and mirrors it in axial coordinates (`HexGrid.rotate_axial`), shifts it
+  to its centre, adds the coast ring, then places deposits, items and landmarks.
+  `WorldBuilder.add_map_islands` builds the world from the map: the start island, K9-DA at its
+  island's marker, and every other island. `seed_value`, `WorldBuilder.ensure_generated`,
+  `island_seed`, `choose_dog_cell`, `WorldData.dog_slot_for_seed` and the slot helpers, and
+  `IslandProfiles.biome_for_coord` are gone.
+- **No free supplies.** `WorldBuilder._stock_bootstrap_supplies` is gone, and new islands start
+  with an empty stock.
+- **Keys and centres.** Islands are keyed by their centre cell and remember their `map_id`;
+  `WorldData.start_coord` says which island the game started on. `WorldView.island_position`
+  (formerly `slot_position`) is just the centre cell's position, and
+  `WorldNavigation.island_at` (formerly `slot_at`) finds the island a cell belongs to.
+- **Loops.** Drawing, picking and labels in [`world_view.gd`](../scripts/world/world_view.gd)
+  loop over the islands that exist, not over `all_slots()`.
 - **Reveal by distance.** `WorldData.is_revealed` and `WorldView.locked_island_hint` measure the
-  centre's distance from the middle of the world, not `ring_of`.
-- **Sizes from the island.** The water disc around each island
-  (`IslandRenderer.WATER_PLANE_RADIUS`, sized today so slot neighbours never overlap) and the
-  click radius (`WorldView.ISLAND_PICK_RADIUS`) come from the island's extent. Fog patches
-  already do.
-- **Trade trip time.** `TradeManager` measures trips in slot coords; measure between centres in
-  cells instead, and rescale `SECONDS_PER_HEX`.
-- **Saves.** The keys change, so this is save version 3, in its own file. By the rule in
-  [`save_manager.gd`](../scripts/save_manager.gd), version 2 saves aren't loaded, and they aren't
-  converted. Loading a version 3 save keeps its islands as saved, since they hold the player's
-  buildings, and adds any map island whose id it doesn't have, unless it would overlap a saved
-  one. New islets then show up in existing games.
+  centre's distance from the middle of the world in rings (`WorldData.rings_out`).
+- **Sizes from the island.** Each island's water plane reaches past its land by the shore
+  shading's reach and the fade (`IslandRenderer._water_radius`), never more than the old 3150
+  units; deep toon water looks the same as the open sea, so a ring island looks as it did. The
+  click reach (`WorldView.ISLAND_PICK_MARGIN`) and where trade lanes start
+  (`WorldView.ROUTE_MARGIN`) are margins past the island's land, matching the old fixed radii for
+  a ring island.
+- **Chart cells.** Discovery explores every cell under the island's fog patch, sea included
+  (`WorldView.island_chart_cells`), since an island no longer owns a rectangle of water.
+- **Discovery distance.** An island owns its land and two coast rings, not a 30 × 24 rectangle
+  of water, so the robot's sight (8 cells) discovers it about 10 cells from its land rather than
+  15 to 17. Widen the sighting range for islands if that feels too late.
+- **Trade trip time.** `TradeManager` measures trips in cells between centres
+  (`SECONDS_PER_CELL`, 0.2 s, so a ring's hop still takes about 10 s).
+- **Saves.** Version 3, in `savegame_v3.sav`. By the rule in
+  [`save_manager.gd`](../scripts/save_manager.gd), version 2 saves aren't loaded or converted.
+  Loading a version 3 save keeps its islands as saved, since they hold the player's buildings,
+  and adds any map island whose id it doesn't have, unless it would overlap a saved one. New
+  islets then show up in existing games.
 - **Export.** `.island` and `.cfg` files aren't Godot resources: the export preset needs
   `assets/world/*` in its non-resource include filter, or exported builds won't contain the map.
+  There is no export preset yet.
+- **Close neighbours' water.** Each island's water plane reaches about 12 cells past its land, so
+  the planes of two islands closer than that overlap, and one draws over the other's shore.
+  Today's islands are far apart; placing islets near islands will need a look at this.
 
 ## Order of work
 
 1. **Formats** (done): `IslandDesign` ([`island_design.gd`](../scripts/island/island_design.gd)),
    `WorldMap` ([`world_map.gd`](../scripts/world/world_map.gd)), placing a design, and the shared
-   legend, checked by `tools/island_design_check.gd`. Nothing in the game uses them yet.
-2. **Bake today's world** (done): `tools/bake_world_map.gd` wrote the 13 seed-1 islands as
+   legend, checked by `tools/island_design_check.gd`.
+2. **Bake today's world** (done): a one-off tool (`tools/bake_world_map.gd`, removed in step 3
+   since it ran on the old world generation; see commit 807ad51) wrote the 13 seed-1 islands as
    designs (`starter`, `copper_01`, `stone_01` to `stone_11`) plus a `world_map.cfg` with their
    current positions, then built every island from the map and found the same cells as the
-   seed-1 world, which tests the loader against known output. That comparison lives in the tool,
-   not in a check, because step 5 changes the generator on purpose. `island_design_check` builds
-   every island on the map from now on. The current, tuned layout is the first version of the
-   map.
-3. **Switch the game to the map:** ids, centres, loops, reveal by distance, island-sized water
-   and click radius, trade trip time, no free supplies, save version 3.
+   seed-1 world, which tested the loader against known output. The current, tuned layout is the
+   first version of the map.
+3. **Switch the game to the map** (done): see Code changes. `island_design_check` also covers
+   building a world from the map, and the checks that swept seeds (`dog_rescue_check`,
+   `robot_access_check`, `copper_deposit_check`) now check the islands on the map.
 4. **`world_map_check` and `world_map_preview`.**
 5. **The design tool:** a size-aware land blob and `.island` output.
 6. **Content:** new islands and islets across the map.
