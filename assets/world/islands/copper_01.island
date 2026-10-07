@@ -12,4 +12,5 @@ s s r r r r r r r r s
  . . . . s s . . . . .
 
 [markers]
-k9da 8,1
+# K9-DA lies in the middle of the island, clear of the deposits.
+k9da 5,5
