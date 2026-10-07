@@ -1,0 +1,15 @@
+# World 3, ring 1: K9-DA's island: copper and stone. Baked from the seed-1 world.
+[grid]
+. . . . s s s . . . .
+ . . s s r r s s s . .
+. s s r U U r r r s .
+ s r r r U r r r r s s
+s r r r r r r r r r s
+ s r r r r r r S r r s
+s s r r r r r r r r s
+ . s r r S r r r s s .
+. . s s s S s s s . .
+ . . . . s s . . . . .
+
+[markers]
+k9da 8,1

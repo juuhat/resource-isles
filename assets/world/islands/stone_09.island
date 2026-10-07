@@ -1,0 +1,11 @@
+# World 11, ring 4: iron, coal and stone. Baked from the seed-1 world.
+[grid]
+. . . s s s s s . . .
+ . . s r r r C s s . .
+. s s r r r r r r s .
+ s r r r r S r r r s s
+s I r C S r r r r r s
+ s r r I r r r r r r s
+s s r r r r r r r S s
+ . s r r r I r r s s s
+. . s s s s s s s . .

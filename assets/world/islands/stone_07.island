@@ -1,0 +1,12 @@
+# World 9, ring 3: iron, coal and stone. Baked from the seed-1 world.
+[grid]
+. . . . s s . . . . .
+ . . s s r s s s s . .
+. s s r r r S r r s .
+ s I r r r r r r r s s
+s r r r S C r r I r s
+ s r r r r r r r r S s
+. s C r r r r r I r s
+ . s r r r r r r s s .
+. . s s s r s s s . .
+ . . . . s s . . . . .

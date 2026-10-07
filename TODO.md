@@ -89,7 +89,7 @@ Follow-ups from the code review and the world-cell refactor.
 See [World map and island designs](docs/world-map-and-island-designs.md). Replace generating the world at game start with a premade, hand-placed map of islands and islets, the same for every player. Islets are just smaller islands; the map keeps today's 4-ring disc.
 
 - [x] Add the island design (`.island`) and world map (`world_map.cfg`) formats, loading and placing designs, and a check that loads every design. `IslandDesign` and `WorldMap` aren't used by the game yet; checked by `tools/island_design_check.gd`. The first design is `assets/world/islands/atoll_small.island`.
-- [ ] Bake today's seed-1 world into designs and a world map, and check that building from the map gives the same cells.
+- [x] Bake today's seed-1 world into designs and a world map, and check that building from the map gives the same cells. `tools/bake_world_map.gd` wrote `assets/world/world_map.cfg` and 13 designs, and compared every island cell for cell; it won't bake over the map again without `--force`. Island ids follow the progression docs (`crash_site`, `copper_isle`, `iron_isle`, …).
 - [ ] Build new games from the world map: islands keyed by id with their own centre, loops over islands instead of slots, reveal by distance, island-sized water discs and click radius, trade trip time between centres, save version 3 (version 2 saves aren't converted).
 - [ ] Remove the free dock supplies (`WorldBuilder._stock_bootstrap_supplies`): new islands start with an empty stock, and dock materials come by boat.
 - [ ] Add `tools/world_map_check.gd` and `tools/world_map_preview.gd`; move the checks that loop over seeds onto the designs and the map.

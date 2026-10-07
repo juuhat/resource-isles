@@ -1,0 +1,12 @@
+# World 13, ring 4: iron, coal and stone. Baked from the seed-1 world.
+[grid]
+. . . . s s s . . . .
+ . . s s r r s s s . .
+. s s r r r r I r s .
+ s r r r r S r C r s s
+s S r r r r r r r r s
+ s S r r r r r r r r s
+. s r r r r r r I r s
+ . s C r r I r r s s s
+. . s s s s r s s . .
+ . . . . . s s . . . .

@@ -1,0 +1,15 @@
+# World 1, ring 0: the crash site, where the robot starts. Baked from the seed-1 world.
+[grid]
+. . . s s s s . . . .
+ . . s g g g s s s . .
+. s s g g g g g g s .
+ s g g g g g g a g s s
+s g g r r g g T T g s
+ s g r S S g g T g g s
+s s g r r g g w g g s
+ . s g g p g g g s s .
+. . s s s s g s s . .
+ . . . . . s s . . . .
+
+[landmarks]
+crashed_spaceship 5,4 0

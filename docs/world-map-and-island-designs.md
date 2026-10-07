@@ -169,7 +169,11 @@ of islet designs can fill a lot of sea.
 **Ids.** Islands are keyed by their map id (`&"copper_isle"`) instead of a slot coord.
 Everything that holds a coord today (`current_coord`, `dog_coord`, trade routes, the navigation
 regions, the renderers) holds an id. An id doesn't change when an island moves on the map, and it
-lets quests and story name a specific island.
+lets quests and story name a specific island. The baked map names its islands after the
+progression: `crash_site`, `copper_isle` (K9-DA's), `iron_isle` and `windward_isle` on ring 1,
+then the power tiers planned for the outer rings (`coal_isle`, `oil_isle`, `uranium_isle`, …).
+Each section's comment says what it is named for. Renaming is free until the game switches to
+the map; after that, saves store the ids.
 
 **Size and rings.** The map covers today's disc: 4 rings (`WorldData.MIN_WORLD_RINGS`), about 240
 cells in radius. Rings stay the way the sea opens up: the sailing frontier and the
@@ -255,10 +259,13 @@ The checks that loop over seeds today (`dog_rescue_check`, `robot_access_check`,
 1. **Formats** (done): `IslandDesign` ([`island_design.gd`](../scripts/island/island_design.gd)),
    `WorldMap` ([`world_map.gd`](../scripts/world/world_map.gd)), placing a design, and the shared
    legend, checked by `tools/island_design_check.gd`. Nothing in the game uses them yet.
-2. **Bake today's world:** a tool writes the 13 seed-1 islands as designs plus a
-   `world_map.cfg` with their current positions. A check confirms that building from the map
-   gives the same cells as the seed-1 world, which tests the loader against known output. The
-   current, tuned layout becomes the first version of the map.
+2. **Bake today's world** (done): `tools/bake_world_map.gd` wrote the 13 seed-1 islands as
+   designs (`starter`, `copper_01`, `stone_01` to `stone_11`) plus a `world_map.cfg` with their
+   current positions, then built every island from the map and found the same cells as the
+   seed-1 world, which tests the loader against known output. That comparison lives in the tool,
+   not in a check, because step 5 changes the generator on purpose. `island_design_check` builds
+   every island on the map from now on. The current, tuned layout is the first version of the
+   map.
 3. **Switch the game to the map:** ids, centres, loops, reveal by distance, island-sized water
    and click radius, trade trip time, no free supplies, save version 3.
 4. **`world_map_check` and `world_map_preview`.**

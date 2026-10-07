@@ -1,0 +1,12 @@
+# World 2, ring 1: iron, coal and stone. Baked from the seed-1 world.
+[grid]
+. . . s s s s . . . .
+ . . s r r C s s s . .
+. s s r r r r r S s .
+ s S r I r r r r r s s
+s r S r I r r r r r s
+ s r r I r r r r r r s
+s r r r r r r r r r s
+ s s r C r r r r s s .
+. . s s s s r s s . .
+ . . . . . s s . . . .

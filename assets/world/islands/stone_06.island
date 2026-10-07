@@ -1,0 +1,12 @@
+# World 8, ring 3: iron, coal and stone. Baked from the seed-1 world.
+[grid]
+. . . . s s s s . . .
+ . . s s r r r s s . .
+. s s r r r I r S s .
+ s r r C S r I r r s s
+s r r r r r r r r r s
+ s S I r r r r r r r s
+s s r r r r r r r r s
+ . s r C r r r r s s .
+. . s s s r r s s . .
+ . . . . s s s . . . .
