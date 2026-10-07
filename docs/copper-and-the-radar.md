@@ -107,6 +107,6 @@ Checked by `tools/radar_repair_check.gd`. The chain is checked in `tools/furnace
 
 ## Still open
 
-- Later ship parts and what they unlock (see [Intro Story](intro-story.md)).
+- Later ship parts and what they unlock: see [Ship repair roadmap](ship-repair-roadmap.md).
 - Playtest the amounts: 6 copper ore is a short stretch of hand mining, and the boat's 20-unit
   slots carry it in one trip.

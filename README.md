@@ -163,6 +163,8 @@ Some older design docs open with a note pointing to the newer direction that rep
 - [Quest Design Review](docs/quest-design.md)
 - [Copper and the Radar](docs/copper-and-the-radar.md): the copper chain after the rescue, Furnace
   recipes and repairing the ship (latest progression)
+- [Ship Repair Roadmap](docs/ship-repair-roadmap.md): the planned ship parts after the radar, up
+  to the Power Core
 - [Rescue, First Metals, and Boat Cargo](docs/rescue-metals-and-cargo.md)
 - [First Island Progression](docs/first-island-progression.md) and
   [Second Island Progression](docs/second-island-progression.md)

@@ -54,6 +54,8 @@ It polls each frame, so finishing a repair needs no re-render.
    existing slots (`Windshield`, `Hull`, `Wing`, `Engine`) only need this step.
 
 Parts are repaired in `ShipPart` order, so adding a `ShipPart` puts it in the repair queue.
+Which parts come next, and what they cost and give, is planned in
+[Ship repair roadmap](ship-repair-roadmap.md).
 
 ## Rebuild
 

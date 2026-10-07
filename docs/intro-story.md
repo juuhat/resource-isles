@@ -125,6 +125,7 @@ from it ([Island Unlocks](island-unlocks.md)). Lean into that geometry:
 - The crash site is a **permanent landmark and a build target you keep returning to.** Each new
   island's rare material repairs **one more ship module** (hull → engine → nav → power core),
   fused with the boat-tier ladder that reaches the next ring.
+  The parts, materials and rewards are planned in [Ship Repair Roadmap](ship-repair-roadmap.md).
 - The map literally **radiates from the goal**: explore outward → bring rare materials back to
   the center → restore the ship piece by piece. Calm center (home, the dog), wild rim (the road
   home).
