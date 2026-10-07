@@ -93,7 +93,8 @@ See [World map and island designs](docs/world-map-and-island-designs.md). Replac
 - [x] Build new games from the world map: islands keyed by their centre cell with their map id saved, loops over islands instead of slots, reveal by distance, island-sized water planes and click reach, discovery exploring the sea under an island's patch, trade trip time between centres, save version 3 (version 2 saves aren't converted). A saved game gains islands added to the map later. The seed-sweeping checks now check the islands on the map.
 - [x] Remove the free dock supplies (`WorldBuilder._stock_bootstrap_supplies`): new islands start with an empty stock, and dock materials come by boat.
 - [ ] Play-test sailing to the ring-1 islands: an island now owns its land and two coast rings rather than a 30 × 24 rectangle of water, so the robot's sight discovers it about 10 cells from its land instead of 15 to 17. Widen the sighting range for islands if that feels too late.
-- [ ] Add `tools/world_map_check.gd` and `tools/world_map_preview.gd`.
+- [x] Add `tools/world_map_check.gd`: islands don't overlap and stay within the sea, every island has a dock shore, nothing is walled in by deposits, the start island has the wreck and tools, and K9-DA waits on a ring-1 island at a spot reachable from the shore. The rules are in `tools/world_map_rules.gd`.
+- [ ] Add `tools/world_map_preview.gd`: the whole map as an image, with ground colours, island ids, a coordinate grid and the ring frontiers.
 - [ ] Before placing islets close to other islands, handle overlapping water planes: each island draws its own toon-water plane, reaching about 12 cells past its land, and a neighbour's plane draws over its shore.
 - [ ] Turn the generator into a design tool (`tools/design_island.gd`) whose land blob scales with the profile's size.
 - [ ] Design and place new islands and islets across the map.

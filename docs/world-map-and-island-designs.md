@@ -202,27 +202,32 @@ passes it.
 The generator re-rolled any island that broke its biome's contract. Hand-made designs need the
 same safety net, as checks run with the others (`tools/run_checks.ps1`).
 
-`tools/world_map_check.gd`:
+`tools/world_map_check.gd` (done) fails with every problem it finds, each naming the islands
+involved and where, e.g. `[iron_isle] and [too_close] overlap at <cell>`. The rules live in
+`tools/world_map_rules.gd`, so the preview can use them too:
 
-- Every design loads: known characters, consistent rows, deposits on legal ground, landmarks
-  that fit.
-- Every island lies inside the 4-ring disc.
-- Islands don't overlap and leave open sea between them (at least ~3 cells) so boats can pass.
-- Exactly one `start` island, with the crashed spaceship, and all three tools reachable from the
-  robot's spawn.
-- Exactly one `k9da` island, inside the first ring's frontier, with its marker on reachable open
-  ground.
-- Every island has a shore a dock can use (sand next to coast).
-- Nothing is sealed in: every item and deposit can be reached (today's `robot_access_check`
-  logic).
+- **The map and its designs read**, and every island builds (`island_design_check` also loads
+  every design file, placed or not).
+- **No two islands share a cell.** An island's coast reaches 2 cells past its land, so land needs
+  about 5 cells of sea between islands; the coast between them is sailable, so boats pass. The
+  game would leave the later island out.
+- **Every island lies within the sea:** 4.5 rings of the centre, the sailing frontier with every
+  ring revealed, inside the mountains.
+- **Every island has a dock shore:** sand beside the coast with room for the pier.
+- **Nothing is walled in:** the robot can reach every item, and a tile beside every deposit,
+  without climbing over deposits: on the start island from where it wakes beside the wreck,
+  elsewhere from any shore it can step onto from a boat.
+- **The start island** is revealed from the start (within 0.5 rings of the centre) and has the
+  crashed spaceship and the axe, pickaxe and wrench.
+- **K9-DA's island** isn't the start island, lies within 1.5 rings (what Set Sail reveals), and
+  has a `k9da` marker reachable from the shore.
+
+The check also breaks a copy of the map one way at a time, to make sure each rule catches its
+mistake.
 
 `tools/world_map_preview.gd` draws the whole map to an image (hexes coloured by ground, island
 ids, a coordinate grid, the ring frontiers) so islands can be placed without sailing around in
 the game.
-
-Some of this already runs: `island_design_check` builds every island on the map,
-`robot_access_check` looks for anything sealed in on them, and `dog_rescue_check` walks to
-K9-DA's spot.
 
 ## Code changes
 
@@ -284,7 +289,7 @@ Done in step 3, except the export filter.
 3. **Switch the game to the map** (done): see Code changes. `island_design_check` also covers
    building a world from the map, and the checks that swept seeds (`dog_rescue_check`,
    `robot_access_check`, `copper_deposit_check`) now check the islands on the map.
-4. **`world_map_check` and `world_map_preview`.**
+4. **`world_map_check`** (done) **and `world_map_preview`.**
 5. **The design tool:** a size-aware land blob and `.island` output.
 6. **Content:** new islands and islets across the map.
 7. **Later:** the island painter.
