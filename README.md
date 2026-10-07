@@ -12,10 +12,10 @@ boat and rescues the dog. Then it finds out the planet is rich enough to rebuild
 
 ## Status
 
-Early prototype. The opening is playable from the crash through the K9-DA rescue, the first
-smelting and the first generators. Copper processing, autonomous cargo drones and the
-ship-repair goal are still to come. See the [To-do list](TODO.md) for outstanding work and
-playtest feedback.
+Early prototype. The opening is playable from the crash through the K9-DA rescue, copper
+smelting and the radar repair, the first iron smelting and the first generators. Autonomous
+cargo drones and the rest of the ship repair are still to come. See the [To-do list](TODO.md)
+for outstanding work and playtest feedback.
 
 ## Gameplay Loop
 
@@ -26,12 +26,14 @@ playtest feedback.
    bonuses.
 3. **Power.** At first the robot powers buildings by hand with **Operate**; later Burner
    Generators and Windmills supply MW.
-4. **Process.** A Sawmill turns logs into planks; a Furnace smelts iron ore and coal into
+4. **Process.** A Sawmill turns logs into planks; a Furnace smelts copper or iron ore into
    ingots.
-5. **Sail.** A Dock launches the robot's personal boat, with a small cargo hold. The robot
-   sails out through the fog of exploration to new islands, each with its own inventory, and
-   rescues K9-DA.
-6. **Connect.** Trade routes between Docks move goods between islands; every island keeps
+5. **Sail.** A Dock launches the robot's personal boat. The robot sails out through the fog of
+   exploration to K9-DA's island nearby, rescues K9-DA and finds copper there, and carries it
+   home in the boat's small cargo hold.
+6. **Repair.** Copper ingots fix the crashed ship's radar, which charts the first ring of
+   islands further out, each with its own inventory.
+7. **Connect.** Trade routes between Docks move goods between islands; every island keeps
    producing while the robot is elsewhere.
 
 Quests drive the progression. They complete by playing (no spending) and unlock buildings,
@@ -159,7 +161,9 @@ Some older design docs open with a note pointing to the newer direction that rep
 
 - [Intro Story](docs/intro-story.md)
 - [Quest Design Review](docs/quest-design.md)
-- [Rescue, First Metals, and Boat Cargo](docs/rescue-metals-and-cargo.md): latest progression direction
+- [Copper and the Radar](docs/copper-and-the-radar.md): the copper chain after the rescue, Furnace
+  recipes and repairing the ship (latest progression)
+- [Rescue, First Metals, and Boat Cargo](docs/rescue-metals-and-cargo.md)
 - [First Island Progression](docs/first-island-progression.md) and
   [Second Island Progression](docs/second-island-progression.md)
 - [Island Unlocks, the Dock, and the World Map](docs/island-unlocks.md)

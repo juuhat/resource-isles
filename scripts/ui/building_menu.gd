@@ -732,7 +732,18 @@ func _show_details(definition: BuildingDefinition) -> void:
 func _stat_rows(definition: BuildingDefinition) -> Array[Control]:
 	var rows: Array[Control] = []
 	var output_unit := ""
-	if definition.production_resource_type != -1:
+	if not definition.recipes.is_empty():
+		# One row per recipe: what it makes from what.
+		output_unit = ResourceManager.get_display_name_for_type(definition.production_resource_type)
+		for recipe in definition.recipes:
+			var parts: Array[String] = []
+			for resource in recipe.inputs:
+				parts.append("%d %s" % [recipe.inputs[resource], ResourceManager.get_display_name_for_type(resource)])
+			rows.append(_detail_row(_resource_icon(recipe.output), "Makes %d %s from %s every %s" % [
+				definition.production_base_amount, ResourceManager.get_display_name_for_type(recipe.output),
+				" + ".join(parts), _format_seconds(definition.production_interval_seconds),
+			]))
+	elif definition.production_resource_type != -1:
 		output_unit = ResourceManager.get_display_name_for_type(definition.production_resource_type)
 		rows.append(_detail_row(_resource_icon(definition.production_resource_type), "Makes %d %s every %s" % [
 			definition.production_base_amount, output_unit,

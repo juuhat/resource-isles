@@ -11,7 +11,7 @@ const IslandProfileScript := preload("res://scripts/island/island_profile.gd")
 enum Biome {
 	STARTER, # ring 0 home: grass, wood + stone, the crash site
 	STONE,   # ring 1 frontier: rocky, iron + coal + stone, no wood (docs/second-island-progression.md)
-	COPPER,  # ring-1 rescue island (K9-DA's): copper + stone, no iron/coal, import wood
+	COPPER,  # K9-DA's rescue island, in the home waters: copper + stone, no iron/coal, import wood
 }
 
 const ISLAND_WIDTH := 30

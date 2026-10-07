@@ -20,10 +20,10 @@ var terrain: Dictionary = {}
 var resources: Dictionary = {}
 var items: Dictionary = {}
 var scavenged_cells: Dictionary = {}
-# Anchor cell -> building entry {type, cells, rotation, [build_progress], [boat_launched]}. Add,
-# remove or replace entries only through place_building / remove_building / set_building_record /
-# detach_building / set_buildings, which keep _anchor_by_cell and building_revision in step;
-# editing the fields of an existing entry (boat_launched) is fine.
+# Anchor cell -> building entry {type, cells, rotation, [build_progress], [boat_launched],
+# [recipe]}. Add, remove or replace entries only through place_building / remove_building /
+# set_building_record / detach_building / set_buildings, which keep _anchor_by_cell and
+# building_revision in step; editing the fields of an existing entry (boat_launched, recipe) is fine.
 var buildings: Dictionary = {}
 # Every footprint cell -> its building's anchor, so a cell lookup doesn't scan every building.
 var _anchor_by_cell: Dictionary = {}
@@ -222,6 +222,19 @@ func set_build_progress(anchor_cell: Vector2i, progress: float) -> void:
 func complete_construction(anchor_cell: Vector2i) -> void:
 	if buildings.has(anchor_cell) and buildings[anchor_cell].erase("build_progress"):
 		building_revision += 1
+
+
+# The output of the recipe a processor with several (the furnace) is set to, or -1 for none. See
+# BuildingManager.get_recipe.
+func get_recipe(anchor_cell: Vector2i) -> int:
+	if not buildings.has(anchor_cell):
+		return -1
+	return int(buildings[anchor_cell].get("recipe", -1))
+
+
+func set_recipe(anchor_cell: Vector2i, output: int) -> void:
+	if buildings.has(anchor_cell):
+		buildings[anchor_cell].recipe = output
 
 
 # Anchors of every blueprint on the island.
@@ -431,6 +444,8 @@ func _buildings_to_dict() -> Dictionary:
 			result[anchor_cell].build_progress = float(building.build_progress)
 		if building.get("boat_launched", false):
 			result[anchor_cell].boat_launched = true
+		if building.has("recipe"):
+			result[anchor_cell].recipe = int(building.recipe)
 	return result
 
 
@@ -448,6 +463,8 @@ static func _buildings_from_dict(saved_buildings: Dictionary) -> Dictionary:
 			result[anchor_cell].build_progress = float(saved.build_progress)
 		if saved.get("boat_launched", false):
 			result[anchor_cell].boat_launched = true
+		if saved.has("recipe"):
+			result[anchor_cell].recipe = int(saved.recipe)
 	return result
 
 

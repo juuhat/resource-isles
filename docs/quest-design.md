@@ -1,10 +1,11 @@
 # Quest design review — 2026-10-04
 
-> **Later design decision:** [Rescue, first metals, and boat cargo](rescue-metals-and-cargo.md)
+> **Later design decisions:** [Rescue, first metals, and boat cargo](rescue-metals-and-cargo.md)
 > takes precedence over the proposed teaching sequence below: rescue before electricity,
 > a fuel-fired Furnace before the iron-built Burner Generator, manual boat deliveries before
-> automatic trade, and proposed ring-1 copper for later drone freight. The implementation
-> snapshot below remains a record of current behavior.
+> automatic trade. [Copper and the radar](copper-and-the-radar.md) (2026-10-07) then puts
+> K9-DA's copper island in the home waters and has its copper repair the ship's radar, which
+> reveals ring 1. The implementation snapshot below is kept up to date with current behavior.
 
 This records the current quest chain and the proposed next design pass. The recommendations
 below are not implemented or final balance decisions. Each milestone should teach one clear
@@ -22,21 +23,27 @@ quest, **Rescue K9-DA**, and a linear milestone chain:
 | Lay the Foundations | Build a Logger's Camp and a Quarry | Operate (hand-power buildings) |
 | Live Wire | Operate a building; gather 20 wood and 20 stone | Sawmill |
 | Refine | Build a sawmill; gather 12 planks | Dock |
-| Set Sail | Build a dock | Reveal ring 1 |
+| Set Sail | Build a dock | No mechanical reward |
 | Follow the Signal | Discover K9-DA's island by sailing close enough to chart it | No mechanical reward |
+| Copper Glint | Rescue K9-DA; gather 6 copper ore | The boat's cargo hold |
+| Haul It Home | Unload 6 copper ore at the start island | Furnace |
+| First Melt | Build a Furnace; smelt 3 copper ingots | Repairing the ship |
+| Eyes on the Horizon | Repair the ship's radar (3 copper ingots) | Reveal ring 1 |
 | Strike Iron | Gather 5 iron ore | Iron Mine and Coal Mine |
-| Light the Forge | Rescue K9-DA; build a Furnace; produce 6 iron ingots | Burner Generator |
+| Light the Forge | Smelt 6 iron ingots | Burner Generator |
 | Power On | Build a Burner Generator | Windmill |
 | The Supply Line | Establish a route; ship 20 goods | No mechanical reward; chain ends here |
 
 Rescue K9-DA now requires the actual Rescue action on the dog's island; simply reaching another
-island does not complete it. It runs independently of the milestones and now unlocks the
-Furnace. See [Furnace](furnace.md) for recipes, power gates, and existing-save behavior.
+island does not complete it. It runs independently of the milestones and has no reward of its
+own; Copper Glint asks for it, so the chain waits there. See
+[Copper and the radar](copper-and-the-radar.md) for the copper milestones and
+[Furnace](furnace.md) for recipes, power gates, and existing-save behavior.
 
-Follow the Signal sits between Set Sail and Strike Iron. Unlocking ring 1 makes its islands
-reachable, but each island keeps its patch of uncharted map until the player sails close enough
-to discover it. Discovery opens the patch, revealing resources and then stranded K9-DA once it
-has fully opened, before landing.
+Follow the Signal sits between Set Sail and Copper Glint. K9-DA's island lies in the home
+waters, sailable from the start, but it keeps its patch of uncharted map until the player sails
+close enough to discover it. Discovery opens the patch, revealing resources and then stranded
+K9-DA once it has fully opened, before landing.
 Only discovering K9-DA's specific island completes Follow the Signal. Existing saves retain
 credit for an already discovered rescue island.
 
@@ -45,8 +52,9 @@ progress since a quest began. Spending materials does not reduce quest progress.
 completed actions can satisfy a newly activated milestone immediately.
 
 Light the Forge unlocks the Burner Generator. Power On teaches its construction and unlocks the Windmill. There are
-no dedicated objectives for building a windmill, proving a mine
-is automatically powered, or delivering a particular resource to a particular island.
+no dedicated objectives for building a windmill or proving a mine is automatically powered.
+Haul It Home is the first objective to deliver a particular resource to a particular island:
+copper ore, unloaded from the boat at the start island.
 
 ## Changes needed next
 

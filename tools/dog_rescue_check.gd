@@ -1,7 +1,7 @@
 extends SceneTree
 
 # Headless check for the K9-DA rescue (the MAIN quest). Runs the real game scene from a fresh
-# world and walks the flow end to end: the dog is hidden until its ring-1 island is reached, waits
+# world and walks the flow end to end: the dog is hidden until its island in the home waters is reached, waits
 # at the world map's k9da spot there, reachable from where the robot lands, can be rescued only
 # from beside it, then follows the robot between islands, and the rescue survives a save round-trip.
 #
@@ -34,7 +34,8 @@ func _run() -> void:
 
 	var world: WorldData = game.world
 	var dog: Dog = game.dog
-	CheckWatchdog.require(roundi(WorldData.rings_out(world.dog_coord)) == 1, "K9-DA must be stranded on ring 1")
+	CheckWatchdog.require(world.is_revealed(world.dog_coord) and WorldData.rings_out(world.dog_coord) < 1.0,
+		"K9-DA must be stranded in the home waters, closer than ring 1 and sailable from the start")
 	var map_dog := WorldMap.load_file().placements.filter(func(placement: WorldMap.Placement) -> bool: return placement.k9da)
 	CheckWatchdog.require(map_dog.size() == 1 and world.dog_coord == map_dog[0].center
 		and world.get_island(world.dog_coord).map_id == map_dog[0].id, "K9-DA waits on the world map's k9da island")
@@ -58,7 +59,7 @@ func _run() -> void:
 	await create_timer(WorldView.CHART_REVEAL_SECONDS + 0.1).timeout
 	CheckWatchdog.require(dog.visible, "Discovery reveals K9-DA before landing")
 	CheckWatchdog.require(game.quest_manager.is_completed(GameTypes.QuestId.FOLLOW_THE_SIGNAL))
-	CheckWatchdog.require(game.quest_manager.get_current_milestone().id == GameTypes.QuestId.STRIKE_IRON)
+	CheckWatchdog.require(game.quest_manager.get_current_milestone().id == GameTypes.QuestId.COPPER_GLINT)
 	game.switch_to_island(world.dog_coord, true)
 	CheckWatchdog.require(dog.visible, "K9-DA is visible once his island is reached")
 	CheckWatchdog.require(dog.mode == Dog.Mode.STRANDED)
@@ -87,6 +88,13 @@ func _run() -> void:
 	CheckWatchdog.require(dog.mode == Dog.Mode.FOLLOWING and dog.leader == robot)
 	CheckWatchdog.require(dog._anim_player.current_animation == dog._idle_anim, "Rescue returns dog to standing idle")
 	CheckWatchdog.require(not game.robot._can_rescue_dog(), "K9-DA can only be rescued once")
+
+	# The rescue island's copper opens the boat's cargo hold, to haul it home.
+	CheckWatchdog.require(island.resources.values().has(GameTypes.ResourceNodeType.COPPER_ORE), "K9-DA's island has copper")
+	CheckWatchdog.require(not game.quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.CARGO_HOLD), "Rescue alone doesn't open the cargo hold")
+	game.stat_tracker.add(GameTypes.Stat.COPPER_ORE_GATHERED, 6)
+	CheckWatchdog.require(game.quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.CARGO_HOLD), "Copper opens the cargo hold")
+	CheckWatchdog.require(game.quest_manager.get_current_milestone().id == GameTypes.QuestId.HAUL_IT_HOME)
 
 	# The rescued dog travels with the robot.
 	game.switch_to_island(world.start_coord, true)

@@ -3,7 +3,9 @@
 Implementation update: [Furnace](furnace.md) records the delivered stone kiln, ingot recipe,
 iron-built Burner Generator, rescue/smelting power gates, and save behavior. Personal-boat
 cargo is also implemented. Copper deposits and manual gathering are implemented for new
-worlds; copper processing, autonomous drones and the manual-delivery quest remain TODOs.
+worlds. [Copper and the radar](copper-and-the-radar.md) (2026-10-07) adds copper smelting, the
+first manual delivery (copper ore hauled home) and the radar repair, and moves K9-DA's island into
+the home waters; autonomous drones remain a TODO.
 
 Current design direction from the playtest discussion. These are implementation TODOs,
 not changes already made to gameplay. This direction supersedes older plans for an

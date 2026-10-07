@@ -36,7 +36,7 @@ func island_at(cell: Vector2i) -> Vector2i:
 	return regions.get(cell, WorldData.NO_COORD)
 
 func sailing_radius() -> float:
-	return (world.revealed_rings + 0.5) * RING_SPACING
+	return world.frontier_rings() * RING_SPACING
 
 func inside_frontier(cell: Vector2i) -> bool:
 	var point := cell_center(cell)

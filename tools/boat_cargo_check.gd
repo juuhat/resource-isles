@@ -39,6 +39,11 @@ func _run() -> void:
 		game.player_unit.place_at(origin.buildings[anchor].cells[1])
 		game.player_unit.set_selected(true)
 		game.refresh_action_bar()
+		expect(not game.action_bar.action_row.get_children().any(func(button: Button) -> bool: return button.text == "Cargo"), "The cargo hold is locked until copper is found")
+		game.boats.open_cargo()
+		expect(not game.boat_cargo_panel.is_open(), "A locked cargo hold doesn't open")
+		game.quest_manager.restore_completed({GameTypes.QuestId.COPPER_GLINT: true})
+		game.refresh_action_bar()
 		expect(game.action_bar.action_row.get_children().any(func(button: Button) -> bool: return button.text == "Cargo"), "Cargo control offered beside initial boat")
 		game.boats.open_cargo()
 		var id: int = game.boats.cargo_boat_id
@@ -59,6 +64,14 @@ func _run() -> void:
 		ui.amount_dialog.hide()
 		ui.amount_dialog.canceled.emit()
 		expect(hold.get_amount(GameTypes.ResourceType.WOOD) == 12, "Cancelling leaves both inventories unchanged")
+		# Copper unloaded at the start island counts as shipped home (Haul It Home); loading doesn't.
+		origin.inventory.set_amount(GameTypes.ResourceType.COPPER_ORE, 3)
+		game.boats.transfer(GameTypes.ResourceType.COPPER_ORE, 3, true)
+		expect(game.stat_tracker.get_value(GameTypes.Stat.COPPER_ORE_SHIPPED_HOME) == 0, "Loading copper doesn't count as shipping it home")
+		game.boats.transfer(GameTypes.ResourceType.COPPER_ORE, 3, false)
+		expect(game.stat_tracker.get_value(GameTypes.Stat.COPPER_ORE_SHIPPED_HOME) == 3, "Unloading copper at the start island counts as shipping it home")
+		origin.inventory.set_amount(GameTypes.ResourceType.COPPER_ORE, 0)
+		ui.refresh()
 		origin.inventory.set_amount(GameTypes.ResourceType.COAL, 4)
 		ui.refresh()
 		var coal_slot: Control = ui.island_slots[GameTypes.ResourceType.COAL]

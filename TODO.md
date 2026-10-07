@@ -9,7 +9,8 @@ design direction. Numbers and the copper/drone unlock are proposed starting poin
 - [x] Add a fuel-fired Furnace with animated bellows driven by robot Operate or 2 MW; it needs no iron to build. Cost: 12 stone + 4 wood; recipe: 2 iron ore + 1 coal -> 1 iron ingot every 6 seconds. Unlock it after rescue and before ingot objectives. See [Furnace](docs/furnace.md) and `tools/furnace_check.gd`.
 - [x] Add iron ingots and change the Burner Generator construction recipe to use them. Cost: 6 iron ingots + 4 stone + 2 planks; unlock it after the first smelting lesson.
 - [x] Make the K9-DA rescue island a copper + stone island (no iron or coal); iron/coal/stone stay on the other ring-1 islands. Harvestable copper applies to new worlds.
-- [ ] Design copper processing and its later uses in wiring/drone controls.
+- [x] Design copper processing: the Furnace's copper recipe (2 copper ore + 1 wood) and the radar repair it feeds. See [Copper and the radar](docs/copper-and-the-radar.md).
+- [ ] Design copper's later uses in wiring/drone controls.
 - [ ] Make the robot's boat a unique, upgradeable personal vehicle. Prevent extra docks, dock moves/deletion, and save/load from creating duplicate personal boats; keep K9-DA's passenger space separate from cargo.
 - [x] Add a small personal-boat cargo hold (two resource slots of 20 units each), with island/boat icon slots and drag-and-drop transfers. Ask for stack size after dropping, defaulting to the maximum that fits. See [Boat cargo controls](docs/robot-built-boats.md#personal-boat-cargo).
 - [x] Allow personal-boat cargo transfers at any suitable reachable shoreline, without a Dock building. Unload starter supplies into a new island's stock before constructing its first buildings.
@@ -17,6 +18,21 @@ design direction. Numbers and the copper/drone unlock are proposed starting poin
 - [ ] Replace the early automatic-route lesson with a manual construction-supply delivery to island 2; tune cargo capacity and recipes so the first furnace does not require tedious repeated trips.
 - [ ] Delay automatic trade routes until after manual hauling, proposed after copper. Make other ships autonomous cargo drones requiring docks at both endpoints; reserve player travel for the personal boat.
 - [ ] Reconcile old boat-tier, dock-bootstrap, quest, and power-ladder plans with this direction. Verify a fresh-game bootstrap with no pre-rescue generator and handle existing saves explicitly.
+
+## Copper and the radar
+
+See [Copper and the radar](docs/copper-and-the-radar.md). K9-DA's copper island now lies in the home waters, open from the start; after the rescue, copper is mined by hand, hauled home in the newly unlocked cargo hold, smelted at the crash site and wired into the ship's radar, which reveals ring 1.
+
+- [x] Move K9-DA's island into the home waters (0.75 rings, `WorldData.HOME_WATERS_RINGS`), closer than ring 1, with map rules keeping it there and every other island out.
+- [x] Add the Copper Glint, Haul It Home, First Melt and Eyes on the Horizon milestones; Set Sail no longer reveals ring 1 and the rescue no longer unlocks the Furnace.
+- [x] Lock the boat's cargo hold until Copper Glint.
+- [x] Give the Furnace a copper and an iron recipe, picked in its info panel; old Furnaces stay on iron.
+- [x] Add the robot's Repair action at the wreck, with saved progress (`ShipRepairs`, `WorldData.ship_repairs`). Checked by `tools/radar_repair_check.gd`.
+- [ ] Playtest the chain from a fresh game: the 6-ore / 3-ingot amounts, the sail between the crash site and K9-DA's island, and whether the signal showing from the very start reads well.
+- [x] Hide the chart's radar sweep until the radar is repaired; it fades in when the repair finishes.
+- [ ] Show the radar on the wreck model (broken, then working).
+- [ ] Design the next ship parts and what each unlocks.
+- [ ] Existing saves keep `copper_isle` on ring 1 where it was saved; decide whether to move it or leave old saves as they are.
 
 ## Quest design
 
@@ -93,7 +109,7 @@ See [World map and island designs](docs/world-map-and-island-designs.md). Replac
 - [x] Build new games from the world map: islands keyed by their centre cell with their map id saved, loops over islands instead of slots, reveal by distance, island-sized water planes and click reach, discovery exploring the sea under an island's patch, trade trip time between centres, save version 3 (version 2 saves aren't converted). A saved game gains islands added to the map later. The seed-sweeping checks now check the islands on the map.
 - [x] Remove the free dock supplies (`WorldBuilder._stock_bootstrap_supplies`): new islands start with an empty stock, and dock materials come by boat.
 - [ ] Play-test sailing to the ring-1 islands: an island now owns its land and two coast rings rather than a 30 × 24 rectangle of water, so the robot's sight discovers it about 10 cells from its land instead of 15 to 17. Widen the sighting range for islands if that feels too late.
-- [x] Add `tools/world_map_check.gd`: islands don't overlap and stay within the sea, every island has a dock shore, nothing is walled in by deposits, the start island has the wreck and tools, and K9-DA waits on a ring-1 island at a spot reachable from the shore. The rules are in `tools/world_map_rules.gd`.
+- [x] Add `tools/world_map_check.gd`: islands don't overlap and stay within the sea, every island has a dock shore, nothing is walled in by deposits, the start island has the wreck and tools, and K9-DA waits on an island in the home waters at a spot reachable from the shore. The rules are in `tools/world_map_rules.gd`.
 - [x] Add `tools/world_map_preview.gd`: the whole map as an image (`art/previews/world_map/world_map.png`), or a close-up with `--around column,row --cells n`, with ground colours, deposits, island ids and centres, a coordinate grid, the ring frontiers, and rule problems circled in red.
 - [ ] Before placing islets close to other islands, handle overlapping water planes: each island draws its own toon-water plane, reaching about 12 cells past its land, and a neighbour's plane draws over its shore.
 - [ ] Turn the generator into a design tool (`tools/design_island.gd`) whose land blob scales with the profile's size.

@@ -5,6 +5,8 @@ extends CanvasLayer
 # for the same building type (free), delete removes it outright.
 signal move_requested(building_type: int, anchor_cell: Vector2i, island: IslandData)
 signal delete_requested(anchor_cell: Vector2i, island: IslandData)
+# The player switched a processor's recipe (already set on the island), so main can save.
+signal recipe_changed
 
 const POWER_ICON := preload("res://assets/icons/power.png")
 # Shown for any resource type without a dedicated icon yet (matches ResourceBar's fallback).
@@ -76,7 +78,7 @@ func show_building(building_type: int, cell: Vector2i, island: IslandData) -> vo
 		_add_hint("The robot builds it. Right-click it with the robot selected to resume.")
 	_add_text_line("Location: %d, %d" % [anchor_cell.x, anchor_cell.y])
 	_build_production(building_type, anchor_cell, island)
-	_build_input(building_type)
+	_build_input(building_type, anchor_cell, island)
 	_build_power(building_type, anchor_cell, island)
 	_build_adjacency(building_type, anchor_cell, island)
 	_route_status_labels.clear()
@@ -198,20 +200,48 @@ func _build_production(building_type: int, anchor_cell: Vector2i, island: Island
 	if definition == null or definition.production_resource_type == -1:
 		return
 
+	if definition.recipes.size() > 1:
+		_build_recipe_picker(definition, anchor_cell, island)
+
+	var output: int = building_manager.get_recipe(anchor_cell, island).output
 	var amount := building_manager.get_production_amount(anchor_cell, building_type, island)
 	_add_icon_line(
-		_resource_icon(definition.production_resource_type),
+		_resource_icon(output),
 		"Produces %d / %.0fs" % [amount, definition.production_interval_seconds],
-		ResourceManager.get_display_name_for_type(definition.production_resource_type),
+		ResourceManager.get_display_name_for_type(output),
 	)
 
 
-func _build_input(building_type: int) -> void:
+# One button per recipe; the one running is pressed. Switching takes effect from the next batch.
+func _build_recipe_picker(definition: BuildingDefinition, anchor_cell: Vector2i, island: IslandData) -> void:
+	_add_text_line("Recipe", SECTION_COLOR)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	var chosen: int = building_manager.get_recipe(anchor_cell, island).output
+	for recipe in definition.recipes:
+		var output: int = recipe.output
+		var button := Button.new()
+		button.text = ResourceManager.get_display_name_for_type(output)
+		button.icon = _resource_icon(output)
+		button.expand_icon = true
+		button.custom_minimum_size = Vector2(0.0, 28.0)
+		button.toggle_mode = true
+		button.button_pressed = output == chosen
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.pressed.connect(func() -> void:
+			island.set_recipe(anchor_cell, output)
+			recipe_changed.emit()
+			show_building(current_building_type, anchor_cell, island))
+		row.add_child(button)
+	detail_box.add_child(row)
+
+
+func _build_input(building_type: int, anchor_cell: Vector2i, island: IslandData) -> void:
 	var definition := building_manager.get_definition(building_type)
 	if definition == null:
 		return
 
-	var inputs := definition.get_production_inputs()
+	var inputs: Dictionary = building_manager.get_recipe(anchor_cell, island).inputs if island != null else definition.get_production_inputs()
 	for resource in inputs:
 		_add_icon_line(
 			_resource_icon(resource),

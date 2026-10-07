@@ -39,9 +39,16 @@ func _run() -> void:
 		var boat_id: int = game.player_unit.boat_id
 		var navigation: WorldNavigation = game.world_navigation
 		_check_sailing_hover(game)
+		# K9-DA's island lies in the home waters; the first ring waits for the radar.
 		var target: Vector2i = game.world.dog_coord
-		var locked_point := Nav.cell_center(target)
-		var locked_cell := navigation.cell_from_position(locked_point)
+		expect(navigation.inside_frontier(navigation.cell_from_position(Nav.cell_center(target))), "K9-DA's island is sailable from the start")
+		var ring_island := WorldData.NO_COORD
+		for coord: Vector2i in game.world.islands:
+			if roundi(WorldData.rings_out(coord)) == 1 and coord != target:
+				ring_island = coord
+				break
+		var locked_cell := navigation.cell_from_position(Nav.cell_center(ring_island))
+		expect(not game.world.is_revealed(ring_island), "The first ring stays under the clouds until the radar is repaired")
 		expect(not navigation.inside_frontier(locked_cell), "Fog boundary blocks outer region before quest")
 		expect(not game.boats.command_to(locked_cell), "Cannot command boat through locked fog")
 		var radius := navigation.sailing_radius()

@@ -3,7 +3,8 @@ extends SceneTree
 # Headless check that the world map (assets/world/world_map.cfg) keeps the rules the game relies on
 # (tools/world_map_rules.gd): islands that don't overlap and stay within the sea, a dock shore on
 # every island, nothing walled in by deposits, a start island with the wreck and the robot's tools,
-# and K9-DA on a ring-1 island at a spot reachable from the shore. Fails with every problem found.
+# and K9-DA on an island in the home waters at a spot reachable from the shore. Fails with every
+# problem found.
 #
 # Then breaks a copy of the map one way at a time, to make sure each rule catches what it should.
 #
@@ -74,22 +75,26 @@ func _check_rules_catch_mistakes() -> void:
 		"[iron_isle] and [too_close] overlap", ["iron_isle", "too_close"])
 	_expect_problem(map.replace("center = Vector2i(-100, 232)", "center = Vector2i(-130, 290)"),
 		"[rim_isle] runs past the edge of the sea", ["rim_isle"])
-	_expect_problem(map.replace("center = Vector2i(0, 0)", "center = Vector2i(0, 40)"),
+	_expect_problem(map.replace("center = Vector2i(0, 0)", "center = Vector2i(0, 70)"),
 		"[crash_site] is the start island but lies", ["crash_site"])
 	var no_wreck := map.replace("design = \"starter\"", "design = \"atoll_small\"")
 	_expect_problem(no_wreck, "[crash_site] is the start island but has no crashed spaceship", ["crash_site"])
 	_expect_problem(no_wreck, "[crash_site] is the start island but has no wrench", ["crash_site"])
-	_expect_problem(map.replace("center = Vector2i(-25, -58)", "center = Vector2i(-40, -90)"),
-		"[copper_isle] is K9-DA's island but lies", ["copper_isle"])
+	# Its coast just crossing the edge of the home waters is enough.
+	_expect_problem(map.replace("center = Vector2i(-12, -28)", "center = Vector2i(-16, -38)"),
+		"[copper_isle] is K9-DA's island but reaches", ["copper_isle"])
+	_expect_problem(map.replace("center = Vector2i(50, 0)", "center = Vector2i(30, 0)"),
+		"[iron_isle] lies", ["iron_isle"])
 	_expect_problem(map.replace("k9da = true", "").replace("start = true", "start = true\nk9da = true"),
 		"[crash_site] K9-DA must wait on another island", ["crash_site"])
 
-	# Islands that break the rules of their own, K9-DA moved onto one of them.
-	var extra := map.replace("k9da = true", "")
-	extra += "\n[walled_item]\ndesign = \"walled_item\"\ncenter = Vector2i(25, -29)\n"
-	extra += "\n[walled_deposit]\ndesign = \"walled_deposit\"\ncenter = Vector2i(-30, 25)\n"
-	extra += "\n[no_shore]\ndesign = \"no_shore\"\ncenter = Vector2i(30, 25)\n"
-	extra += "\n[walled_k9da]\ndesign = \"walled_k9da\"\ncenter = Vector2i(-35, -20)\nk9da = true\n"
+	# Islands that break the rules of their own, K9-DA moved onto one of them (and copper_isle,
+	# no longer K9-DA's, out of the home waters).
+	var extra := map.replace("k9da = true", "").replace("center = Vector2i(-12, -28)", "center = Vector2i(-25, -58)")
+	extra += "\n[walled_item]\ndesign = \"walled_item\"\ncenter = Vector2i(30, -40)\n"
+	extra += "\n[walled_deposit]\ndesign = \"walled_deposit\"\ncenter = Vector2i(-40, 35)\n"
+	extra += "\n[no_shore]\ndesign = \"no_shore\"\ncenter = Vector2i(35, 30)\n"
+	extra += "\n[walled_k9da]\ndesign = \"walled_k9da\"\ncenter = Vector2i(14, 22)\nk9da = true\n"
 	var designs := {
 		walled_item = IslandDesign.parse(WALLED_ITEM, "walled_item"),
 		walled_deposit = IslandDesign.parse(WALLED_DEPOSIT, "walled_deposit"),

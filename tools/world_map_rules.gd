@@ -12,7 +12,9 @@ extends RefCounted
 #     deposits: on the start island from where it wakes, elsewhere from the shore;
 #   - the start island is revealed from the start and has the crashed spaceship and the robot's
 #     three tools;
-#   - K9-DA waits on another island, one Set Sail reveals, at a marked spot reachable from the shore.
+#   - K9-DA waits on another island, at a marked spot reachable from the shore, and all of that
+#     island lies in the home waters (WorldData.HOME_WATERS_RINGS), sailable from the start;
+#   - no other island's centre lies in the home waters: the rest wait for the radar.
 #
 # A problem is {islands: Array[StringName] (the ids involved), message: String}.
 
@@ -64,7 +66,15 @@ static func problems(map: WorldMap, building_manager: BuildingManager, designs :
 			_check_start(id, island, placement, found)
 		if placement.k9da:
 			_check_k9da(id, island, placement, built_designs[id], reached, found)
+		elif not placement.start and WorldData.rings_out(placement.center) <= _home_waters():
+			found.append(_problem([id], "[%s] lies %.2f rings out, in the home waters; only the start and K9-DA's islands may, the rest wait for the radar to reveal them"
+				% [id, WorldData.rings_out(placement.center)]))
 	return found
+
+
+# How far the sea is open at the start, in rings: the home waters.
+static func _home_waters() -> float:
+	return WorldData.frontier_rings_for(WorldData.STARTING_REVEALED_RINGS)
 
 
 static func _problem(ids: Array, message: String) -> Dictionary:
@@ -154,7 +164,7 @@ static func _check_deposits(id: StringName, island: IslandData, reached: Diction
 
 
 static func _check_start(id: StringName, island: IslandData, placement: WorldMap.Placement, found: Array[Dictionary]) -> void:
-	var limit := WorldData.STARTING_REVEALED_RINGS + 0.5
+	var limit := _home_waters()
 	if WorldData.rings_out(placement.center) > limit:
 		found.append(_problem([id], "[%s] is the start island but lies %.2f rings out, under the clouds when the game starts; keep it within %.1f"
 			% [id, WorldData.rings_out(placement.center), limit]))
@@ -176,9 +186,15 @@ static func _check_k9da(
 ) -> void:
 	if placement.start:
 		found.append(_problem([id], "[%s] K9-DA must wait on another island than the start island" % id))
-	if WorldData.rings_out(placement.center) > 1.5:
-		found.append(_problem([id], "[%s] is K9-DA's island but lies %.2f rings out; Set Sail only reveals up to 1.5"
-			% [id, WorldData.rings_out(placement.center)]))
+	# All of it, coast included, so the boat can sail right around it before the radar is repaired.
+	var home_radius := _home_waters() * WorldNavigation.RING_SPACING
+	var farthest := 0.0
+	for cell: Vector2i in island.terrain:
+		var point := WorldNavigation.cell_center(cell)
+		farthest = maxf(farthest, Vector2(point.x, point.z).length() + WorldNavigation.CELL_SIZE.x * 0.5)
+	if farthest > home_radius:
+		found.append(_problem([id], "[%s] is K9-DA's island but reaches %.2f rings out, past the home waters (%.2f), which are all the boat can sail before the radar is repaired"
+			% [id, farthest / WorldNavigation.RING_SPACING, _home_waters()]))
 	var spot := design.marker_cell("k9da", placement.center, placement.rotation, placement.mirror)
 	if spot == GameTypes.NO_CELL:
 		found.append(_problem([id], "[%s] is K9-DA's island but its design %s has no k9da marker" % [id, placement.design]))

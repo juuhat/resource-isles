@@ -42,7 +42,7 @@ func _initialize() -> void:
 			if copper_island.get_resource_node_type(cell) == NODE:
 				expect(copper_island.get_terrain(cell) == GameTypes.Terrain.STONE, "Copper is placed on rock")
 				expect(copper_island.can_scavenge(cell), "Copper can be scavenged")
-	expect(copper_count == 1 and copper_island != null, "Exactly one ring-1 copper destination")
+	expect(copper_count == 1 and copper_island != null, "Exactly one copper destination near home")
 	var tracker := StatTracker.new()
 	copper_island.inventory.add_amount(ORE, definition.scavenge_amount)
 	tracker.record_resource_gained(ORE, definition.scavenge_amount)

@@ -20,9 +20,12 @@ Keys and mouse controls for the current prototype. Input is handled in
   robot. The portrait also centres the camera on it.
 - **Right click** with the robot selected: send it there. Tiles it can work are tinted green
   when hovered; it walks over and starts working: harvesting a resource node, operating
-  (hand-powering) a building, building a blueprint, rescuing K9-DA, or boarding a boat.
+  (hand-powering) a building, building a blueprint, repairing the crashed ship, rescuing K9-DA,
+  or boarding a boat.
 - **Command bar**, to the left of the portrait: the actions the robot can take where it
-  stands: Harvest, Operate, Build, Rescue, Pilot boat, Disembark and Cargo.
+  stands: Harvest, Operate, Build, Repair, Rescue, Pilot boat, Disembark and Cargo. **Repair**
+  (beside the wreck, once First Melt unlocks it) starts the next ship part, paying its materials
+  from the island's stock.
 
 ## Boat
 
@@ -33,8 +36,10 @@ Keys and mouse controls for the current prototype. Input is handled in
   reachable shore.
 - **Disembark**: land beside a shore or a finished Dock, leaving the boat afloat.
 - **Cargo**: open the boat's cargo hold and drag resources between the island and the boat.
+  The hold opens once the Copper Glint quest is done.
 
-Dark tiles beyond the radar frontier can't be sailed until quests expand it. Exploration fog
+Dark tiles beyond the radar frontier can't be sailed until quests expand it: at first only the
+home waters around the crash site are open, until the ship's radar is repaired. Exploration fog
 inside the frontier lifts as the robot sees the sea.
 
 ## Building

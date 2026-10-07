@@ -16,6 +16,7 @@ enum UnitAction {
 	PILOT_BOAT,
 	DISEMBARK,
 	CARGO,
+	REPAIR,
 }
 
 enum Terrain {
@@ -81,6 +82,10 @@ enum QuestId {
 	LIGHT_THE_FORGE,
 	POWER_ON,
 	FOLLOW_THE_SIGNAL, # discover K9-DA's island after building the dock
+	COPPER_GLINT,      # rescue K9-DA and hand-mine copper -> the boat's cargo hold
+	HAUL_IT_HOME,      # ship copper ore home to the crash site -> the furnace
+	FIRST_MELT,        # build a furnace and smelt copper ingots
+	EYES_ON_THE_HORIZON, # repair the ship's radar -> reveal the first ring of islands
 }
 
 # Loose pickups scattered on the ground that the robot collects by walking onto them.
@@ -101,6 +106,14 @@ enum RewardKind {
 enum RobotUpgrade {
 	HARVESTING,  # the robot can harvest resource nodes at all (gated until tools recovered)
 	OPERATING,   # the robot can hand-power a building with Operate (gated until the first extractors stand)
+	CARGO_HOLD,  # the robot can load and unload its boat's cargo hold (gated until copper is found)
+	REPAIRING,   # the robot can repair the crashed ship at the wreck (gated until the first copper smelting)
+}
+
+# Parts of the crashed ship the robot repairs at the wreck, in repair order (see ShipRepairs).
+# Saved as ints, so new parts are appended.
+enum ShipPart {
+	RADAR,
 }
 
 enum ResourceNodeType {
@@ -119,6 +132,7 @@ enum ResourceType {
 	COAL,      # raw coal mined from a COAL node; smelter reductant + power fuel
 	IRON_INGOT,
 	COPPER_ORE,
+	COPPER_INGOT,
 }
 
 enum AdjacencyKind {
@@ -157,6 +171,9 @@ enum Stat {
 	FURNACES_BUILT,
 	COPPER_ORE_GATHERED,
 	DOG_ISLAND_DISCOVERED,
+	COPPER_ORE_SHIPPED_HOME, # copper ore unloaded from the boat at the start island
+	COPPER_INGOTS_GATHERED,
+	SHIP_PARTS_REPAIRED,     # parts of the crashed ship the robot has repaired (see ShipPart)
 }
 
 
@@ -228,6 +245,12 @@ static func stat_display_name(stat: int) -> String:
 			return "Furnaces built"
 		Stat.COPPER_ORE_GATHERED:
 			return "Copper ore gathered"
+		Stat.COPPER_ORE_SHIPPED_HOME:
+			return "Copper ore shipped home"
+		Stat.COPPER_INGOTS_GATHERED:
+			return "Copper ingots produced"
+		Stat.SHIP_PARTS_REPAIRED:
+			return "Ship parts repaired"
 		_:
 			return "Unknown"
 

@@ -161,17 +161,22 @@ static func build_all() -> Array[BuildingDefinition]:
 	var furnace := BuildingDefinitionScript.new()
 	furnace.id = GameTypes.BuildingType.FURNACE
 	furnace.display_name = "Furnace"
-	furnace.description = "Coal heats the kiln; power drives its bellows. Operate it by hand for the first ingots, then let a generator take over."
+	furnace.description = "Smelts copper over a wood fire, or iron with coal; pick the recipe in its panel. Power drives its bellows: Operate it by hand for the first ingots, then let a generator take over."
 	furnace.category = GameTypes.BuildingCategory.PROCESSING
 	furnace.model = FURNACE_MODEL
 	furnace.true_tile_model = true
 	furnace.visual_size_tiles = Vector2(0.70, 0.70)
 	furnace.cost = {GameTypes.ResourceType.STONE: 12, GameTypes.ResourceType.WOOD: 4}
 	furnace.required_terrains = GameTypes.LAND_TERRAINS
-	furnace.production_resource_type = GameTypes.ResourceType.IRON_INGOT
+	# Copper first: the first furnace stands on the home island, smelting copper for the ship's
+	# radar (docs/copper-and-the-radar.md). Copper melts low enough for a wood fire; iron needs coal.
+	furnace.recipes = [
+		{output = GameTypes.ResourceType.COPPER_INGOT, inputs = {GameTypes.ResourceType.COPPER_ORE: 2, GameTypes.ResourceType.WOOD: 1}},
+		{output = GameTypes.ResourceType.IRON_INGOT, inputs = {GameTypes.ResourceType.IRON_ORE: 2, GameTypes.ResourceType.COAL: 1}},
+	]
+	furnace.production_resource_type = GameTypes.ResourceType.COPPER_INGOT
 	furnace.production_base_amount = 1
 	furnace.production_interval_seconds = 6.0
-	furnace.production_inputs = {GameTypes.ResourceType.IRON_ORE: 2, GameTypes.ResourceType.COAL: 1}
 	furnace.power_consumed = 2
 	definitions.append(furnace)
 

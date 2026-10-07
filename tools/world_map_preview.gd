@@ -5,7 +5,7 @@ extends SceneTree
 #   - every island cell coloured by its ground, with a dot for a deposit, a tool or the wreck;
 #   - each island's id and centre, which is what a section's `center` says, and K9-DA's spot;
 #   - a grid of world cells with their coordinates (column, row; odd rows sit half a cell right);
-#   - the ring frontiers: what is revealed at the start, after Set Sail, and further out;
+#   - the ring frontiers: the home waters open at the start, what the radar reveals, and further out;
 #   - the edge of the sea at 4.5 rings, and the mountains;
 #   - circled in red and listed, any island that breaks a rule of tools/world_map_rules.gd.
 #
@@ -215,9 +215,9 @@ class MapCanvas extends Node2D:
 	func _draw_frontiers() -> void:
 		var middle := to_image(Vector2.ZERO)
 		for ring in range(0, WorldData.MIN_WORLD_RINGS + 1):
-			var radius := (ring + 0.5) * Nav.RING_SPACING * _scale
+			var radius := WorldData.frontier_rings_for(ring) * Nav.RING_SPACING * _scale
 			draw_arc(middle, radius, 0.0, TAU, 256, Color(FRONTIER_COLOR, 0.55), 2.0)
-			var title := "revealed at the start" if ring == 0 else ("revealed by Set Sail" if ring == 1 else "ring %d revealed" % ring)
+			var title := "home waters: open at the start" if ring == 0 else ("revealed by the radar" if ring == 1 else "ring %d revealed" % ring)
 			if ring == WorldData.MIN_WORLD_RINGS:
 				title += ": edge of the sea"
 			var at := middle + Vector2(cos(-PI * 0.3), sin(-PI * 0.3)) * radius

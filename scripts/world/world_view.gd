@@ -74,6 +74,8 @@ const CHART_REVEAL_SECONDS := 2.2
 # Patches the chart shader takes (its uniform arrays).
 const MAX_CHART_ITEMS := 64
 const FRONTIER_UNROLL_SECONDS := 3.0
+# The radar's sweep fades in over this long when the repaired radar comes back online.
+const RADAR_POWER_UP_SECONDS := 2.0
 const LABEL_HEIGHT := 900.0
 # Trade lanes start/end this far past each island's land reach, clear of the island: about 2600
 # units from a ring island's centre.
@@ -120,6 +122,8 @@ var _chart_material: ShaderMaterial
 # The frontier the chart currently shows, behind the real one while the sheet rolls back.
 var _chart_frontier := -1.0
 var _frontier_tween: Tween
+# Whether the chart shows the radar's sweep (WorldData.is_radar_online); -1 until the first refresh.
+var _radar_online := -1
 # The explored cells as the chart shader reads them (ExplorationMap.cells), refreshed when they
 # change.
 var _explored_image: Image
@@ -215,11 +219,12 @@ func refresh() -> void:
 		_chart.mesh = sheet
 		_chart_material.set_shader_parameter("disc_radius", world_disc_radius())
 
-	var charted_radius := (world.revealed_rings + 0.5) * DISC_UNIT
+	var charted_radius := world.frontier_rings() * DISC_UNIT
 	if not is_equal_approx(charted_radius, _charted_radius):
 		_charted_radius = charted_radius
 		_ocean_material.set_shader_parameter("charted_radius", _charted_radius)
 		_roll_back_frontier()
+	_sync_radar_sweep()
 
 	_sync_islands()
 	if _explored_dirty:
@@ -502,6 +507,21 @@ func _roll_back_frontier() -> void:
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
+# The radar's sweep circles the chart only once the ship's radar works: on at once when a game
+# loads, faded in when the repair finishes.
+func _sync_radar_sweep() -> void:
+	var online := 1 if world.is_radar_online() else 0
+	if online == _radar_online:
+		return
+	var first := _radar_online == -1
+	_radar_online = online
+	if first or online == 0:
+		_chart_material.set_shader_parameter("radar_sweep", float(online))
+		return
+	create_tween().tween_method(func(amount: float) -> void:
+		_chart_material.set_shader_parameter("radar_sweep", amount), 0.0, 1.0, RADAR_POWER_UP_SECONDS)
+
+
 # Hand the chart its frontier, patches and K9-DA's ping.
 func _update_chart() -> void:
 	var patches := PackedVector4Array()
@@ -513,8 +533,8 @@ func _update_chart() -> void:
 	_chart_material.set_shader_parameter("ping", _signal_ping())
 
 
-# K9-DA's signal, the one island the chart gives away: once Set Sail charts the dog's ring it pings
-# over the island until the robot discovers it. x, y = centre, z = radius (0 for none).
+# K9-DA's signal, the one island the chart gives away: its island lies in the home waters, so it pings
+# from the start over the island until the robot discovers it. x, y = centre, z = radius (0 for none).
 func _signal_ping() -> Vector3:
 	var coord := world.dog_coord
 	if not world.is_dog_stranded_on(coord) or not world.is_revealed(coord) or not world.has_island(coord) \
@@ -606,11 +626,11 @@ func _style_labels() -> void:
 	_apply_label_fade()
 
 
-func locked_island_hint(coord: Vector2i) -> String:
-	# Set Sail reveals the first ring.
-	if WorldData.rings_out(coord) <= 1.5:
-		return "Build a Dock to complete Set Sail"
-	return "Beyond your sailing range"
+# Why the boat can't sail past the frontier: the repaired radar charts the first ring.
+func locked_frontier_hint() -> String:
+	if world.revealed_rings <= 0:
+		return "repair the ship's radar to chart further out"
+	return "beyond your sailing range"
 
 
 # Labels only appear once the camera has pulled well back.

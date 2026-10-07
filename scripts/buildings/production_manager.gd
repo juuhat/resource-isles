@@ -49,7 +49,8 @@ func update(island: IslandData, current_time_seconds: float) -> void:
 
 		# A processor pays for one batch of input up front. If stock is short it
 		# stalls without advancing its timer, paying out the instant input arrives.
-		var inputs := definition.get_production_inputs()
+		var recipe := building_manager.get_recipe(anchor_cell, island)
+		var inputs: Dictionary = recipe.inputs
 		if amount > 0 and not inputs.is_empty():
 			if not island.inventory.spend(inputs):
 				continue
@@ -57,8 +58,8 @@ func update(island: IslandData, current_time_seconds: float) -> void:
 				input_consumed.emit(island, anchor_cell, resource, inputs[resource])
 
 		if amount > 0:
-			island.inventory.add_amount(definition.production_resource_type, amount)
-			produced.emit(island, anchor_cell, definition.production_resource_type, amount)
+			island.inventory.add_amount(recipe.output, amount)
+			produced.emit(island, anchor_cell, recipe.output, amount)
 
 		island.set_next_production_time(
 			anchor_cell,

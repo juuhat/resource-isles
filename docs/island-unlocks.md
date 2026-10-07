@@ -266,7 +266,7 @@ Start tiny; do not build a sprawling tech UI up front.
    has a slot. Everything uncharted lies under the robot's unscanned chart: hex tiles on the
    world lattice in two layers, both carrying the navigator's ring grid. **Beyond the radar** (outside the sailing
    frontier, where no boat can go) the tiles are near-black behind a dim red limit line.
-   **Exploration fog** (slate tiles with a glowing cyan rim and the radar sweep) covers every cell
+   **Exploration fog** (slate tiles with a glowing cyan rim and, once the ship's radar is repaired, its sweep) covers every cell
    inside the frontier the robot has not seen yet, as units explore in Civilization: the robot
    clears everything within `SIGHT_RANGE` cells of where it stands, on foot or aboard, and the
    explored cells are saved (`WorldData.exploration`, an
@@ -275,7 +275,7 @@ Start tiny; do not build a sprawling tech UI up front.
    discovers them by sailing: each reachable island keeps a patch of fog over its land until the
    robot's sight reaches any of its cells, which discovers it and opens the patch from the
    island's centre to show its resources, buildings, shoreline water, plot lines and name. The
-   one exception is **K9-DA's signal**: once Set Sail charts the first ring, a tutorial-style ping
+   one exception is **K9-DA's signal**: its island lies in the home waters, so from the start a tutorial-style ping
    (ripples spreading from a pulsing amber beacon inside a turning dashed ring, never smaller than
    a few dozen pixels so it reads from the overview) marks the dog's hidden island, labelled
    "K9-DA's signal". The ping ends once the island is discovered.

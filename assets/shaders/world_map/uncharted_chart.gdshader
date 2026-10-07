@@ -8,7 +8,7 @@ render_mode unshaded, cull_disabled, depth_draw_always, fog_disabled;
  * - Exploration fog: slate tiles over every cell inside the radar frontier the robot has not seen
  *   yet (explored_map), and over each reachable island until discovery opens its patch. A cyan rim
  *   runs along its edge and glows onto the water, with a few loose outline tiles flickering just
- *   off it, and the radar's sweep circles across it.
+ *   off it, and, once the ship's radar is repaired, its sweep circles across it.
  * - Beyond the radar: near-black tiles over every cell outside the frontier, where no boat can
  *   sail (exactly WorldNavigation.inside_frontier). A dim red limit line runs along its edge.
  *
@@ -31,6 +31,9 @@ uniform vec4 patches[64];
 uniform int patch_count = 0;
 // K9-DA's signal: x, y = centre; z = radius (at least PING_MIN_PIXELS on screen); z <= 0 hides it.
 uniform vec3 ping = vec3(0.0);
+// How strongly the radar's sweep shows, 0..1: off until the ship's radar is repaired, then fading in
+// (WorldView, WorldData.is_radar_online).
+uniform float radar_sweep = 0.0;
 uniform float ring_spacing = 6400.0;
 uniform float meridian_count = 12.0;
 uniform sampler2D scan_noise : repeat_enable, filter_linear;
@@ -298,10 +301,10 @@ void fragment() {
 		color = mix(color, line_color, line);
 		color = mix(color, signal_color, signal);
 
-		if (fog) {
+		if (fog && radar_sweep > 0.0) {
 			// The radar's sweep circling the disc, brightest at its leading edge.
 			float behind = fract(TIME / SWEEP_SECONDS - atan(p.y, p.x) / TAU);
-			color += line_color * pow(1.0 - behind, 16.0) * smoothstep(0.0, 0.01, behind) * 0.025;
+			color += line_color * pow(1.0 - behind, 16.0) * smoothstep(0.0, 0.01, behind) * 0.025 * radar_sweep;
 		}
 
 		color = mix(color, rim_color, rim);

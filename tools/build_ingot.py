@@ -1,4 +1,7 @@
-"""Render a transparent iron-ingot inventory icon from the workshop model palette."""
+"""Render a transparent ingot inventory icon from the workshop model palette.
+
+blender --background --python tools/build_ingot.py -- [iron|copper]
+"""
 import sys
 from pathlib import Path
 import bpy
@@ -6,12 +9,22 @@ from mathutils import Vector
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from lowpoly_kit import PALETTE, ROOT, reset_scene, material, prism_y, export
+from lowpoly_kit import PALETTE, ROOT, reset_scene, material, mix, prism_y, export
+
+args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
+METAL = args[0] if args else 'iron'
+# Copper matches the copper deposit's seams (tools/build_deposit.py) and ore icon.
+COLORS = {
+    'iron': PALETTE['steel'],
+    'copper': mix(PALETTE['terracotta'], PALETTE['amber'], .48),
+}
+NAME = METAL + '_ingot'
+LABEL = METAL.capitalize() + ' ingot'
 
 reset_scene()
-iron = material('Iron ingot', PALETTE['steel'])
-prism_y('Iron ingot', [(-.32, 0), (.32, 0), (.24, .24), (-.24, .24)], -.65, .65, iron)
-export('iron_ingot', folder='assets/models/resources', join_label='Iron ingot')
+metal = material(LABEL, COLORS[METAL])
+prism_y(LABEL, [(-.32, 0), (.32, 0), (.24, .24), (-.24, .24)], -.65, .65, metal)
+export(NAME, folder='assets/models/resources', join_label=LABEL)
 scene = bpy.context.scene
 scene.render.engine = 'CYCLES'
 scene.cycles.samples = 32
@@ -39,6 +52,6 @@ camera.rotation_euler = (Vector((0, 0, .12)) - camera.location).to_track_quat('-
 camera.data.type = 'ORTHO'
 camera.data.ortho_scale = 1.75
 scene.camera = camera
-bpy.ops.wm.save_as_mainfile(filepath=str(ROOT / 'art/blender/iron_ingot.blend'))
-scene.render.filepath = str(ROOT / 'assets/icons/iron_ingot.png')
+bpy.ops.wm.save_as_mainfile(filepath=str(ROOT / 'art/blender' / (NAME + '.blend')))
+scene.render.filepath = str(ROOT / 'assets/icons' / (NAME + '.png'))
 bpy.ops.render.render(write_still=True)

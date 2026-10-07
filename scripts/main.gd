@@ -63,6 +63,7 @@ var moving_from_cell := GameTypes.NO_CELL
 var moving_building_type := NO_BUILDING
 var moving_rotation := 0
 var moving_boat_launched := false
+var moving_recipe := -1
 var world: WorldData
 var world_navigation := WorldNavigationScript.new()
 var current_island: IslandData
@@ -139,8 +140,8 @@ func _ready() -> void:
 	player_unit.entered_cell.connect(_on_unit_entered_cell)
 	add_child(player_unit)
 
-	# K9-DA, the dog the MAIN quest rescues: stranded on a ring-1 island until the robot picks
-	# it up, then it follows the robot between islands (RobotController.sync_dog).
+	# K9-DA, the dog the MAIN quest rescues: stranded on its island in the home waters until the
+	# robot picks it up, then it follows the robot between islands (RobotController.sync_dog).
 	dog = DogScript.new()
 	dog.name = "Dog"
 	dog.setup(world_view)
@@ -220,6 +221,7 @@ func _try_load_game() -> bool:
 	world = WorldData.from_dict(payload.get("world", {}), reference_time)
 	for island in world.islands.values():
 		building_manager.migrate_footprints(island)
+		building_manager.migrate_recipes(island)
 	stat_tracker.restore(payload.get("stats", {}))
 	quest_manager.restore_completed(payload.get("completed_quests", {}))
 	print("Loaded save: %d island(s)" % world.island_count())
@@ -243,6 +245,7 @@ func save_game() -> bool:
 	if restore_for_save:
 		building_manager.try_place(moving_from_cell, moving_building_type, current_island, moving_rotation)
 		current_island.buildings[moving_from_cell].boat_launched = moving_boat_launched
+		_restore_recipe(moving_from_cell)
 
 	var reference_time := Time.get_ticks_msec() / 1000.0
 	var payload := SaveManager.build_payload(
@@ -448,7 +451,8 @@ func _apply_reward(reward: QuestReward) -> void:
 	match reward.kind:
 		GameTypes.RewardKind.ROBOT_UPGRADE:
 			match reward.robot_upgrade:
-				GameTypes.RobotUpgrade.HARVESTING, GameTypes.RobotUpgrade.OPERATING:
+				GameTypes.RobotUpgrade.HARVESTING, GameTypes.RobotUpgrade.OPERATING, \
+				GameTypes.RobotUpgrade.CARGO_HOLD, GameTypes.RobotUpgrade.REPAIRING:
 					pass # Capability gate read via quest_manager.is_upgrade_active(); no imperative change.
 		GameTypes.RewardKind.REVEAL_WORLD_RINGS:
 			_reveal_rings(reward.ring_count)
@@ -966,6 +970,7 @@ func _on_building_move_requested(building_type: int, anchor_cell: Vector2i, isla
 	moving_building_type = building_type
 	moving_rotation = island.get_building_rotation(anchor_cell)
 	moving_boat_launched = bool(island.buildings[anchor_cell].get("boat_launched", false))
+	moving_recipe = island.get_recipe(anchor_cell)
 	# Pick it up as it stands: the preview starts at its current turn.
 	renderer.placement_rotation = moving_rotation
 	# Take it off the map now so its old footprint stops drawing and stops feeding adjacency
@@ -982,6 +987,7 @@ func _try_finish_move() -> void:
 	if not renderer.try_place_hovered_building(moving_building_type):
 		return
 	current_island.buildings[renderer.hovered_cell].boat_launched = moving_boat_launched
+	_restore_recipe(renderer.hovered_cell)
 	renderer.refresh()
 	robot.reroute()
 
@@ -1011,7 +1017,14 @@ func _cancel_building_move() -> void:
 	if current_island != null and from != GameTypes.NO_CELL:
 		renderer.place_building_at(from, building_type, moving_rotation)
 		current_island.buildings[from].boat_launched = moving_boat_launched
+		_restore_recipe(from)
 		renderer.refresh()
+
+
+# A moved building keeps the recipe it was set to (placing it again starts it on the first).
+func _restore_recipe(anchor_cell: Vector2i) -> void:
+	if moving_recipe != -1:
+		current_island.set_recipe(anchor_cell, moving_recipe)
 
 
 # Panel "Delete": scrap the building outright, or cancel a blueprint and get its materials back.
@@ -1064,6 +1077,7 @@ func _add_ui() -> void:
 	building_info_panel.setup(building_manager, trade_manager, world)
 	building_info_panel.move_requested.connect(_on_building_move_requested)
 	building_info_panel.delete_requested.connect(_on_building_delete_requested)
+	building_info_panel.recipe_changed.connect(save_game)
 	add_child(building_info_panel)
 
 	building_menu = BuildingMenuScript.new()

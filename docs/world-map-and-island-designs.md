@@ -217,10 +217,12 @@ involved and where, e.g. `[iron_isle] and [too_close] overlap at <cell>`. The ru
 - **Nothing is walled in:** the robot can reach every item, and a tile beside every deposit,
   without climbing over deposits: on the start island from where it wakes beside the wreck,
   elsewhere from any shore it can step onto from a boat.
-- **The start island** is revealed from the start (within 0.5 rings of the centre) and has the
-  crashed spaceship and the axe, pickaxe and wrench.
-- **K9-DA's island** isn't the start island, lies within 1.5 rings (what Set Sail reveals), and
-  has a `k9da` marker reachable from the shore.
+- **The start island** is revealed from the start (within the home waters, 0.75 rings of the
+  centre) and has the crashed spaceship and the axe, pickaxe and wrench.
+- **K9-DA's island** isn't the start island, lies wholly in the home waters (sailable from the
+  start, see [Copper and the radar](copper-and-the-radar.md)), and has a `k9da` marker reachable
+  from the shore.
+- **No other island** has its centre in the home waters: the rest wait for the radar.
 
 The check also breaks a copy of the map one way at a time, to make sure each rule catches its
 mistake.
@@ -228,7 +230,7 @@ mistake.
 `tools/world_map_preview.gd` (done) draws the map to an image so islands can be placed without
 sailing around in the game: every island cell coloured by its ground, with dots for deposits,
 tools, the wreck and K9-DA's spot; each island's id and centre; a grid of world cells numbered as
-`world_map.cfg` writes them; the ring frontiers (what the start, Set Sail and each later ring
+`world_map.cfg` writes them; the ring frontiers (the home waters, then what the radar and each later ring
 reveal); the edge of the sea; and, circled in red and listed, any island that breaks a rule. It
 draws the whole map by default ([`art/previews/world_map/world_map.png`](../art/previews/world_map/world_map.png)),
 or a close-up for placing islets next to others:
@@ -258,8 +260,10 @@ Done in step 3, except the export filter.
   `WorldNavigation.island_at` (formerly `slot_at`) finds the island a cell belongs to.
 - **Loops.** Drawing, picking and labels in [`world_view.gd`](../scripts/world/world_view.gd)
   loop over the islands that exist, not over `all_slots()`.
-- **Reveal by distance.** `WorldData.is_revealed` and `WorldView.locked_island_hint` measure the
-  centre's distance from the middle of the world in rings (`WorldData.rings_out`).
+- **Reveal by distance.** `WorldData.is_revealed` measures the centre's distance from the middle
+  of the world in rings (`WorldData.rings_out`) against the frontier
+  (`WorldData.frontier_rings`): the home waters at first, then half a ring past the last revealed
+  ring.
 - **Sizes from the island.** Each island's water plane reaches past its land by the shore
   shading's reach and the fade (`IslandRenderer._water_radius`), never more than the old 3150
   units; deep toon water looks the same as the open sea, so a ring island looks as it did. The

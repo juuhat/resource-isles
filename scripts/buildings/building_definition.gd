@@ -75,6 +75,12 @@ var input_amount: int = 0
 # Additional processors can declare a whole batch here (e.g. ore + coal). The legacy
 # single input remains supported for the sawmill; get_production_inputs combines them.
 var production_inputs: Dictionary = {}
+# A processor that can make more than one thing (the furnace smelts copper or iron): each entry is
+# {output, inputs}, inputs as in production_inputs. A newly placed building runs the first; the
+# player switches from its info panel and the choice is kept on the building (IslandData.get_recipe,
+# BuildingManager.get_recipe). Set production_resource_type to the first output, so code that only
+# asks whether the building produces anything still sees it does.
+var recipes: Array[Dictionary] = []
 
 # Power (MW): a constant rate, not a stockpile. Generators add power_generated
 # while running; producers draw power_consumed while powered.

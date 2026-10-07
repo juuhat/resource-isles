@@ -5,6 +5,9 @@ const FURNACE := GameTypes.BuildingType.FURNACE
 const ORE := GameTypes.ResourceType.IRON_ORE
 const COAL := GameTypes.ResourceType.COAL
 const INGOT := GameTypes.ResourceType.IRON_INGOT
+const COPPER_ORE := GameTypes.ResourceType.COPPER_ORE
+const COPPER_INGOT := GameTypes.ResourceType.COPPER_INGOT
+const WOOD := GameTypes.ResourceType.WOOD
 const GameScene := preload("res://game.tscn")
 var failures := 0
 
@@ -19,6 +22,7 @@ func expect(condition: bool, message: String) -> void:
 
 func _run() -> void:
 	_check_production()
+	_check_recipes()
 	_check_quests()
 	_check_model()
 	await _check_scene()
@@ -37,6 +41,8 @@ func _check_production() -> void:
 			island.set_terrain(Vector2i(x, y), GameTypes.Terrain.GRASS)
 	var cell := Vector2i(1, 1)
 	expect(manager.try_place(cell, FURNACE, island, 0, true), "Furnace blueprint fits land without a deposit")
+	expect(island.get_recipe(cell) == COPPER_INGOT, "A new Furnace starts on its copper recipe")
+	island.set_recipe(cell, INGOT)
 	island.inventory.add_amount(ORE, 6)
 	island.inventory.add_amount(COAL, 3)
 	production.update(island, 0)
@@ -69,6 +75,7 @@ func _check_production() -> void:
 	production.update(island, 19.1)
 	var restored := IslandData.from_dict(island.to_dict(19.1), 100)
 	expect(restored.inventory.get_amount(INGOT) == 3 and restored.get_building_type(cell) == FURNACE, "Ingot inventory and Furnace survive save round trip")
+	expect(restored.get_recipe(cell) == INGOT, "The Furnace's recipe survives a save round trip")
 	production.update(restored, 105)
 	expect(restored.inventory.get_amount(INGOT) == 3, "Save preserves remaining batch time")
 	power.update(island, 20)
@@ -92,6 +99,41 @@ func _check_production() -> void:
 	production.update(island, 23)
 	expect(island.inventory.get_amount(GameTypes.ResourceType.PLANKS) == 1 and island.inventory.get_amount(GameTypes.ResourceType.WOOD) == 0, "Single-input sawmill recipe still works")
 
+
+# The Furnace smelts copper over wood, or iron with coal, as set on each one.
+func _check_recipes() -> void:
+	var manager := BuildingManager.new()
+	var production := ProductionManager.new()
+	production.setup(manager)
+	var island := IslandData.new(2, 1)
+	island.set_terrain(Vector2i(0, 0), GameTypes.Terrain.GRASS)
+	island.set_terrain(Vector2i(1, 0), GameTypes.Terrain.GRASS)
+	var cell := Vector2i(0, 0)
+	expect(manager.try_place(cell, FURNACE, island), "Place a Furnace")
+	island.set_consumer_powered(cell, true)
+	island.inventory.add_amount(COPPER_ORE, 2)
+	island.inventory.add_amount(WOOD, 1)
+	island.inventory.add_amount(ORE, 2)
+	island.inventory.add_amount(COAL, 1)
+	production.update(island, 0)
+	production.update(island, 6)
+	expect(island.inventory.get_amount(COPPER_INGOT) == 1 and island.inventory.get_amount(COPPER_ORE) == 0 and island.inventory.get_amount(WOOD) == 0,
+		"The copper recipe smelts 2 copper ore with 1 wood into a copper ingot")
+	expect(island.inventory.get_amount(ORE) == 2 and island.inventory.get_amount(COAL) == 1, "The copper recipe leaves iron ore and coal alone")
+	island.set_recipe(cell, INGOT)
+	production.update(island, 12)
+	expect(island.inventory.get_amount(INGOT) == 1 and island.inventory.get_amount(ORE) == 0, "Switching to the iron recipe smelts iron")
+	# A Furnace saved before recipes existed only smelted iron.
+	var legacy := island.to_dict(12)
+	(legacy.buildings[cell] as Dictionary).erase("recipe")
+	var loaded := IslandData.from_dict(legacy, 0)
+	expect(loaded.get_recipe(cell) == -1, "An old save's Furnace has no recipe")
+	manager.migrate_recipes(loaded)
+	expect(loaded.get_recipe(cell) == INGOT, "Loading keeps an old Furnace on iron")
+	var definition := manager.get_definition(FURNACE)
+	expect(definition.recipes.size() == 2 and definition.recipes[0].output == COPPER_INGOT, "The Furnace lists copper, then iron")
+
+
 func _check_quests() -> void:
 	var stats := StatTracker.new()
 	var quests := QuestManager.new()
@@ -103,14 +145,25 @@ func _check_quests() -> void:
 		[GameTypes.Stat.STONE_GATHERED, 100], [GameTypes.Stat.LOGGER_CAMPS_BUILT, 1],
 		[GameTypes.Stat.QUARRIES_BUILT, 1], [GameTypes.Stat.BUILDINGS_OPERATED, 1],
 		[GameTypes.Stat.SAWMILLS_BUILT, 1], [GameTypes.Stat.PLANKS_GATHERED, 12],
-		[GameTypes.Stat.DOCKS_BUILT, 1], [GameTypes.Stat.DOG_ISLAND_DISCOVERED, 1],
-		[GameTypes.Stat.IRON_ORE_GATHERED, 5]]:
+		[GameTypes.Stat.DOCKS_BUILT, 1], [GameTypes.Stat.DOG_ISLAND_DISCOVERED, 1]]:
 		stats.add(entry[0], entry[1])
+	expect(quests.get_current_milestone().id == GameTypes.QuestId.COPPER_GLINT, "Copper follows finding K9-DA's island")
+	expect(not quests.is_upgrade_active(GameTypes.RobotUpgrade.CARGO_HOLD), "The cargo hold waits for copper")
+	stats.add(GameTypes.Stat.COPPER_ORE_GATHERED, 6)
+	expect(quests.get_current_milestone().id == GameTypes.QuestId.COPPER_GLINT, "Copper Glint waits for the rescue")
+	stats.add(GameTypes.Stat.DOG_RESCUED, 1)
+	expect(quests.is_upgrade_active(GameTypes.RobotUpgrade.CARGO_HOLD), "Rescue and copper open the cargo hold")
+	expect(quests.get_current_milestone().id == GameTypes.QuestId.HAUL_IT_HOME and not quests.is_building_unlocked(FURNACE), "Copper is hauled home before the Furnace")
+	stats.add(GameTypes.Stat.COPPER_ORE_SHIPPED_HOME, 6)
+	expect(quests.is_building_unlocked(FURNACE) and quests.get_current_milestone().id == GameTypes.QuestId.FIRST_MELT, "Copper shipped home unlocks the Furnace")
+	stats.record_building_built(FURNACE)
+	stats.record_resource_gained(COPPER_INGOT, 3)
+	expect(quests.is_upgrade_active(GameTypes.RobotUpgrade.REPAIRING) and quests.get_current_milestone().id == GameTypes.QuestId.EYES_ON_THE_HORIZON, "Three copper ingots unlock repairing the ship")
+	stats.add(GameTypes.Stat.SHIP_PARTS_REPAIRED, 1)
+	expect(quests.is_completed(GameTypes.QuestId.EYES_ON_THE_HORIZON) and quests.get_current_milestone().id == GameTypes.QuestId.STRIKE_IRON, "The radar repair leads to iron")
+	stats.add(GameTypes.Stat.IRON_ORE_GATHERED, 5)
 	expect(quests.get_current_milestone().id == GameTypes.QuestId.LIGHT_THE_FORGE, "Smelting lesson precedes automatic trade")
 	expect(not quests.is_building_unlocked(GameTypes.BuildingType.BURNER_GENERATOR), "Early milestones no longer grant electricity")
-	stats.add(GameTypes.Stat.DOG_RESCUED, 1)
-	expect(quests.is_building_unlocked(FURNACE) and not quests.is_building_unlocked(GameTypes.BuildingType.BURNER_GENERATOR), "Rescue unlocks Furnace before generator")
-	stats.record_building_built(FURNACE)
 	stats.record_resource_gained(INGOT, 5)
 	expect(not quests.is_building_unlocked(GameTypes.BuildingType.BURNER_GENERATOR), "Five ingots do not unlock generator")
 	stats.record_resource_gained(INGOT, 1)
@@ -175,6 +228,13 @@ func _check_model() -> void:
 	root.remove_child(model)
 	model.free()
 
+func _panel_text(game: Node) -> String:
+	var text := ""
+	for label in game.building_info_panel.detail_box.find_children("*", "Label", true, false):
+		text += label.text + " "
+	return text
+
+
 func _check_scene() -> void:
 	var had_save := FileAccess.file_exists(SaveManager.SAVE_PATH)
 	var saved := FileAccess.get_file_as_bytes(SaveManager.SAVE_PATH) if had_save else PackedByteArray()
@@ -182,8 +242,8 @@ func _check_scene() -> void:
 	var game := GameScene.instantiate()
 	root.add_child(game)
 	await process_frame
-	game.quest_manager.restore_completed({GameTypes.QuestId.FOUNDATIONS: true})
-	game.stat_tracker.add(GameTypes.Stat.DOG_RESCUED, 1)
+	# Haul It Home unlocks the Furnace (and, completing every milestone before it, Operate).
+	game.quest_manager.restore_completed({GameTypes.QuestId.HAUL_IT_HOME: true})
 	var cell := GameTypes.NO_CELL
 	for candidate in game.current_island.terrain:
 		if game.building_manager.can_place(candidate, FURNACE, game.current_island) and not game.robot.is_unit_cell(candidate):
@@ -213,22 +273,34 @@ func _check_scene() -> void:
 		expect(furnace_spinner != null, "Renderer attaches powered Furnace animation")
 		if furnace_spinner != null:
 			expect(furnace_spinner._bellows.size() == 1 and furnace_spinner._targets.size() == 3, "Bellows, cam, flywheel and drive socket are wired")
-		game.current_island.inventory.set_amount(ORE, 12)
-		game.current_island.inventory.set_amount(COAL, 6)
+		game.current_island.inventory.set_amount(COPPER_ORE, 4)
+		game.current_island.inventory.set_amount(WOOD, 2)
 		game.current_island.set_next_production_time(cell, 0)
 		game.power_manager.update(game.current_island, 1)
 		game.production_manager.update(game.current_island, 1)
-		expect(game.current_island.inventory.get_amount(INGOT) == 0, "Real Furnace waits for power")
+		expect(game.current_island.inventory.get_amount(COPPER_INGOT) == 0, "Real Furnace waits for power")
 		game.robot._on_operate_pressed()
 		expect(game.robot.is_operating and game.robot.operate_cell == cell, "Furnace offers robot Operate")
 		game.power_manager.update(game.current_island, 1, game.robot.operate_cell)
 		game.production_manager.update(game.current_island, 1)
-		expect(game.stat_tracker.get_value(GameTypes.Stat.IRON_INGOTS_GATHERED) == 1, "Real production records ingot stat")
+		expect(game.stat_tracker.get_value(GameTypes.Stat.COPPER_INGOTS_GATHERED) == 1, "Real production records the copper ingot stat")
 		game.building_info_panel.show_building(FURNACE, cell, game.current_island)
-		var labels := ""
-		for label in game.building_info_panel.detail_box.find_children("*", "Label", true, false):
-			labels += label.text + " "
-		expect(labels.contains("Iron Ore") and labels.contains("Coal"), "Building panel displays both batch ingredients")
+		expect(_panel_text(game).contains("Copper Ore") and _panel_text(game).contains("Wood"), "Building panel shows the copper recipe's ingredients")
+		# Switch to iron with the panel's recipe button.
+		var iron_button: Button = null
+		for button: Button in game.building_info_panel.detail_box.find_children("*", "Button", true, false):
+			if button.text == "Iron Ingot":
+				iron_button = button
+		expect(iron_button != null, "The Furnace panel offers the iron recipe")
+		if iron_button != null:
+			iron_button.pressed.emit()
+		expect(game.current_island.get_recipe(cell) == INGOT, "The recipe button switches the Furnace to iron")
+		expect(_panel_text(game).contains("Iron Ore") and _panel_text(game).contains("Coal"), "Building panel displays both iron batch ingredients")
+		game.current_island.inventory.set_amount(ORE, 12)
+		game.current_island.inventory.set_amount(COAL, 6)
+		game.power_manager.update(game.current_island, 8, game.robot.operate_cell)
+		game.production_manager.update(game.current_island, 8)
+		expect(game.stat_tracker.get_value(GameTypes.Stat.IRON_INGOTS_GATHERED) == 1, "Real production records the iron ingot stat")
 		if OS.get_cmdline_user_args().has("--screenshot"):
 			root.size = Vector2i(1400, 900)
 			game.building_menu.clear_selection()

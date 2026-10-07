@@ -44,7 +44,7 @@ A short, mostly-non-interactive sequence before control is handed over:
    which in this universe is **not a sphere but a flat disc** (flat-earth style). This is the
    worldbuilding that justifies discrete, edged islands and a map that expands in rings.
 3. **The disintegration.** As the ship nears the planet's center, it starts breaking apart. The
-   **dog is flung out** and lands on a different island (a ring-1 island — "island 2").
+   **dog is flung out** and lands on a neighbouring island, in the home waters ("island 2").
 4. **The crash.** The ship slams into the exact center of the starter island — which is also
    the center of the whole disc. The wreck becomes the **`CRASHED_SPACESHIP`** landmark
    (placed by worldgen, never by the player — see
@@ -83,9 +83,9 @@ each milestone is a concrete step toward the boat that reaches the dog. A milest
 
 So the entire island-1 chain *is* the rescue mission. The player isn't doing chores; every
 milestone is a step toward the boat, with `RESCUE_THE_DOG` floating above as the reason why.
-`SET_SAIL` unlocking the `DOCK` lets the robot sail out. K9-DA waits on one ring-1 island (picked
-from the world seed, `WorldData.dog_coord`), which the map labels "K9-DA's signal" once Set Sail
-reveals the ring. Landing there shows the dog; walking the robot beside him and pressing **Rescue**
+`REFINE` unlocking the `DOCK` lets the robot sail out. K9-DA waits on an island in the home waters
+(the world map's `k9da` island, `WorldData.dog_coord`), which the map labels "K9-DA's signal" from
+the start. Landing there shows the dog; walking the robot beside him and pressing **Rescue**
 completes the main objective — the narrative climax of act one. The rescue state is saved with the
 world (`dog_coord`, `dog_cell`, `dog_rescued`).
 

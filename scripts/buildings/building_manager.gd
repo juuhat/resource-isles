@@ -68,7 +68,7 @@ func try_place(
 
 	var definition := get_definition(building_type)
 	var footprint := get_footprint_cells(anchor_cell, building_type, rotation)
-	return island.place_building(
+	var placed := island.place_building(
 		anchor_cell,
 		building_type,
 		footprint,
@@ -77,6 +77,9 @@ func try_place(
 		definition.footprint_terrains,
 		under_construction
 	)
+	if placed and not definition.recipes.is_empty():
+		island.set_recipe(anchor_cell, definition.recipes[0].output)
+	return placed
 
 
 # The rotation placement will use at anchor_cell: the player's choice, or for an auto_rotate
@@ -113,6 +116,30 @@ func migrate_footprints(island: IslandData) -> void:
 				break
 		if not placed:
 			island.set_building_record(anchor_cell, old)
+
+
+# Furnaces saved before they had recipes only ever smelted iron; keep them on it. Every furnace
+# placed since carries its recipe (try_place).
+func migrate_recipes(island: IslandData) -> void:
+	for anchor_cell in island.buildings:
+		var definition := get_definition(island.buildings[anchor_cell].type)
+		if definition != null and not definition.recipes.is_empty() and island.get_recipe(anchor_cell) == -1:
+			island.set_recipe(anchor_cell, GameTypes.ResourceType.IRON_INGOT)
+
+
+# What a producer makes and pays for each batch: {output, inputs}. A building with recipes runs the
+# one chosen on it, or its first.
+func get_recipe(anchor_cell: Vector2i, island: IslandData) -> Dictionary:
+	var definition := get_definition(island.get_building_type(anchor_cell))
+	if definition == null:
+		return {output = -1, inputs = {}}
+	if definition.recipes.is_empty():
+		return {output = definition.production_resource_type, inputs = definition.get_production_inputs()}
+	var chosen := island.get_recipe(anchor_cell)
+	for recipe in definition.recipes:
+		if recipe.output == chosen:
+			return recipe
+	return definition.recipes[0]
 
 
 func remove(anchor_cell: Vector2i, island: IslandData) -> bool:

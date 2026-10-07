@@ -39,11 +39,14 @@ map); managers hold the generic logic and never per-item numbers.
 - `scripts/world/world_builder.gd` builds every island on the map up front, so the whole
   archipelago is one persistent world. A saved game also gains islands added to the map later.
 - `scripts/world/world_data.gd` holds every island keyed by its centre cell, the start and
-  current islands, how many rings are revealed, and K9-DA's rescue state. An island counts as
-  discovered once the robot's sight reaches it (`IslandData.visited`).
+  current islands, how many rings are revealed (the frontier starts at the home waters), K9-DA's
+  rescue state and the crashed ship's repairs. An island counts as discovered once the robot's
+  sight reaches it (`IslandData.visited`).
 - `scripts/world/world_navigation.gd` defines the world lattice: one hex grid shared by every
   island and the sea between them. Island data, units and boats all use its cells. It finds
   water routes and enforces the quest-controlled radar frontier.
+- `scripts/world/ship_repairs.gd` lists the crashed ship's parts in repair order, with what
+  each takes (see [Copper and the radar](copper-and-the-radar.md)).
 - `scripts/world/exploration_map.gd` records which cells the robot has seen; everything else
   inside the frontier is drawn as exploration fog.
 - `scripts/world/world_view.gd` is the playable world: the flat-disc planet at full game scale
@@ -86,8 +89,9 @@ map); managers hold the generic logic and never per-item numbers.
   tools and animations.
 - `scripts/player/robot_controller.gd`: the robot at work: walking to where it can work a
   target (a building's `WorkSpot`, or a neighbouring tile), harvesting, operating
-  (hand-powering a building), building blueprints, rescuing K9-DA, and the work actions on the
-  command bar. See [Player Unit and Manual Gathering](player-unit-and-manual-gathering.md).
+  (hand-powering a building), building blueprints, repairing the crashed ship, rescuing K9-DA,
+  and the work actions on the command bar. See
+  [Player Unit and Manual Gathering](player-unit-and-manual-gathering.md).
 - `scripts/player/boat_controller.gd`: launching a Dock's skiff and boarding it, sailing,
   choosing where to land, disembarking, the boat's cargo hold and the boat actions on the
   command bar.
@@ -188,9 +192,9 @@ it.
 
 Producers declare `production_resource_type`, `production_base_amount` and
 `production_interval_seconds`, and optionally inputs (`input_resource_type`/`input_amount`,
-`production_inputs`). Each interval a building pays out `base + adjacency total` (clamped to
-zero) into its island's inventory. A new building waits one full interval before its first
-payout.
+`production_inputs`), or a list of `recipes` to choose from (the Furnace). Each interval a
+building pays out `base + adjacency total` (clamped to zero) into its island's inventory. A new
+building waits one full interval before its first payout.
 
 Generators declare `power_generated` and, if they burn fuel, `fuel_resource_type`,
 `fuel_amount` and `fuel_interval_seconds`; consumers declare `power_consumed`. An unpowered

@@ -12,9 +12,13 @@ extends RefCounted
 const CENTER := Vector2i(0, 0)
 # Returned by coord_of for an island that is not in this world.
 const NO_COORD := Vector2i(-99999, -99999)
-# How many rings out the world map reveals at the start. 0 = only the start island's ring, 1 =
-# the first ring of islands as well, etc. Quests grow this via reveal_additional_rings().
+# How many rings out the world map reveals at the start. 0 = only the home waters, 1 = the first
+# ring of islands as well, etc. Quests grow this via reveal_additional_rings().
 const STARTING_REVEALED_RINGS := 0
+# How far the home waters reach, in rings: the sailing frontier before any ring is revealed. Wide
+# enough for K9-DA's island beside the crash site, short of the first ring's islands (1 ring out).
+# Each revealed ring then reaches half a ring past itself. See frontier_rings.
+const HOME_WATERS_RINGS := 0.75
 # The disc is always at least this many rings wide, so the clouded frontier reads as a big
 # world still to explore; it grows if more rings than this are ever revealed.
 const MIN_WORLD_RINGS := 4
@@ -28,7 +32,7 @@ var boats: Dictionary = {}
 var piloted_boat := -1
 # Standing boat links between islands, run by TradeManager. Saved with the world.
 var trade_routes: Array[TradeRoute] = []
-# The K9-DA rescue (the MAIN quest): the ring-1 island the dog is stranded on, the cell it waits
+# The K9-DA rescue (the MAIN quest): the island the dog is stranded on, the cell it waits
 # at there, and whether the robot has picked it up. Until rescued it stays put on dog_coord; once
 # rescued it follows the robot between islands. NO_COORD / (-1, -1) until main assigns them.
 var dog_coord := NO_COORD
@@ -36,6 +40,9 @@ var dog_cell := GameTypes.NO_CELL
 var dog_rescued := false
 # The cells the robot has seen inside the radar frontier; the rest lies under exploration fog.
 var exploration := ExplorationMap.new()
+# Repairs to the crashed ship: GameTypes.ShipPart -> progress (0..1). A part is listed once its
+# repair has started (its materials are paid) and repaired at 1. See ShipRepairs.
+var ship_repairs: Dictionary = {}
 
 
 func next_boat_id() -> int:
@@ -104,7 +111,35 @@ func reveal_additional_rings(count: int = 1) -> void:
 # Whether the island centred on coord is out of the clouds: inside the sailing frontier, the same
 # reach as WorldNavigation.sailing_radius.
 func is_revealed(coord: Vector2i) -> bool:
-	return rings_out(coord) <= revealed_rings + 0.5
+	return rings_out(coord) <= frontier_rings()
+
+
+# How far out the sailing frontier reaches, in rings: the home waters until the radar charts the
+# first ring, then half a ring past the last revealed ring.
+func frontier_rings() -> float:
+	return frontier_rings_for(revealed_rings)
+
+
+static func frontier_rings_for(rings: int) -> float:
+	return HOME_WATERS_RINGS if rings <= 0 else rings + 0.5
+
+
+# The next part of the crashed ship to repair (GameTypes.ShipPart), or -1 once all are.
+func next_ship_part() -> int:
+	for part in GameTypes.ShipPart.values():
+		if not is_ship_part_repaired(part):
+			return part
+	return -1
+
+
+func is_ship_part_repaired(part: int) -> bool:
+	return float(ship_repairs.get(part, 0.0)) >= 1.0
+
+
+# Whether the ship's radar is working: repaired, or (in a save from before it could be) the first
+# ring was charted without it.
+func is_radar_online() -> bool:
+	return is_ship_part_repaired(GameTypes.ShipPart.RADAR) or revealed_rings > 0
 
 
 # How many rings the disc holds: the revealed rings plus a clouded frontier, never fewer than
@@ -151,6 +186,7 @@ func to_dict(reference_time: float) -> Dictionary:
 		dog_cell = dog_cell,
 		dog_rescued = dog_rescued,
 		exploration = exploration.to_dict(),
+		ship_repairs = ship_repairs.duplicate(),
 	}
 
 
@@ -175,4 +211,7 @@ static func from_dict(data: Dictionary, reference_time: float) -> WorldData:
 	world.dog_rescued = bool(data.get("dog_rescued", false))
 	# Older saves start with everything unexplored; main charts their discovered islands again.
 	world.exploration = ExplorationMap.from_dict(data.get("exploration", {}))
+	var saved_repairs: Dictionary = data.get("ship_repairs", {})
+	for part in saved_repairs:
+		world.ship_repairs[int(part)] = float(saved_repairs[part])
 	return world

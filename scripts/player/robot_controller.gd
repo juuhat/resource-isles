@@ -2,9 +2,10 @@ class_name RobotController
 extends RefCounted
 
 # The player's robot at work: walking where it's sent and to what it can work there (planning the
-# approach), harvesting, operating (hand-powering a building) and building blueprints, rescuing
-# K9-DA and keeping the dog at its side, and the work actions on the command bar. Sailing is the
-# BoatController's; the Game says which island the robot is on (current_island, renderer).
+# approach), harvesting, operating (hand-powering a building), building blueprints, repairing the
+# crashed ship, rescuing K9-DA and keeping the dog at its side, and the work actions on the command
+# bar. Sailing is the BoatController's; the Game says which island the robot is on (current_island,
+# renderer).
 
 # Seconds per harvest cycle, and what one cycle yields.
 const HARVEST_INTERVAL := 3.0
@@ -66,6 +67,12 @@ var operate_cell := GameTypes.NO_CELL
 var is_constructing := false
 var construct_cell := GameTypes.NO_CELL
 
+# Repairing the crashed ship: parked beside the wreck (repairable_cell), the robot works on the
+# next part (WorldData.next_ship_part) while is_repairing, adding to its progress in
+# WorldData.ship_repairs. The part's materials are paid when its repair starts. See ShipRepairs.
+var repairable_cell := GameTypes.NO_CELL
+var is_repairing := false
+
 
 # Built once the game has its world and units (Game._ready).
 func setup(new_game: Game) -> void:
@@ -89,6 +96,9 @@ func update(delta: float) -> void:
 
 	if is_constructing:
 		_update_construction(delta)
+
+	if is_repairing:
+		_update_repair(delta)
 
 
 # Walk to `cell`. Open ground is walked onto. The robot doesn't park on a building or resource
@@ -118,15 +128,16 @@ func command_to(cell: Vector2i) -> bool:
 			stop_operating()
 		if current_island.get_building_anchor_cell(cell) != construct_cell:
 			stop_constructing()
+		if not _is_wreck(cell):
+			stop_repairing()
 		on_arrived()
 		return true
 
-	_stop_harvesting()
-	stop_operating()
-	stop_constructing()
+	stop_work()
 	harvestable_cell = GameTypes.NO_CELL
 	operable_cell = GameTypes.NO_CELL
 	buildable_cell = GameTypes.NO_CELL
+	repairable_cell = GameTypes.NO_CELL
 	if player_unit.is_moving():
 		# An empty route ends the walk at the cell it's stepping into, where on_arrived starts the work.
 		player_unit.reroute(plan.path, plan.spot_cell, plan.spot_position)
@@ -165,6 +176,7 @@ func on_arrived() -> void:
 		harvestable_cell = target if current_island.get_resource_node_type(target) != -1 else GameTypes.NO_CELL
 		operable_cell = target if _building_consumes_power(target) else GameTypes.NO_CELL
 		buildable_cell = target if current_island.is_under_construction(target) else GameTypes.NO_CELL
+		repairable_cell = target if _is_wreck(target) else GameTypes.NO_CELL
 		if player_unit.is_at_spot():
 			player_unit.face_toward(renderer.get_cell_center(target))
 		elif target != player_unit.current_cell:
@@ -175,7 +187,8 @@ func on_arrived() -> void:
 
 # True for a cell the selected robot would start working on if right-clicked: a blueprint, a
 # resource node once harvesting is unlocked, a building that draws power once operating is
-# unlocked, or the stranded K9-DA; aboard, a shore it can land on. The hover tints it green
+# unlocked, the wreck while a part is left to repair once repairing is unlocked, or the stranded
+# K9-DA; aboard, a shore it can land on. The hover tints it green
 # (IslandRenderer.is_cell_actionable, see Game._is_actionable_cell).
 func is_actionable_cell(cell: Vector2i) -> bool:
 	if player_unit == null or not player_unit.selected or current_island == null:
@@ -190,13 +203,15 @@ func is_actionable_cell(cell: Vector2i) -> bool:
 		return quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.HARVESTING)
 	if _building_consumes_power(cell):
 		return _can_operate()
+	if _is_wreck(cell):
+		return _can_repair()
 	return world.is_dog_stranded_on(world.current_coord) and cell == world.dog_cell
 
 
 # The work the robot can do where it stands, as command-bar descriptors (Game.refresh_action_bar).
 func actions() -> Array:
 	var actions: Array = []
-	for action in [_build_action(), _harvest_action(), _operate_action(), _rescue_action()]:
+	for action in [_build_action(), _harvest_action(), _operate_action(), _repair_action(), _rescue_action()]:
 		if not action.is_empty():
 			actions.append(action)
 	return actions
@@ -213,6 +228,8 @@ func press(action_id: int) -> void:
 			_on_rescue_pressed()
 		GameTypes.UnitAction.BUILD:
 			_on_build_pressed()
+		GameTypes.UnitAction.REPAIR:
+			_on_repair_pressed()
 
 
 # Stop whatever the robot is working at.
@@ -220,6 +237,7 @@ func stop_work() -> void:
 	_stop_harvesting()
 	stop_operating()
 	stop_constructing()
+	stop_repairing()
 
 
 # Forget where the robot was sent and what it could work where it stood.
@@ -228,6 +246,7 @@ func clear_targets() -> void:
 	harvestable_cell = GameTypes.NO_CELL
 	operable_cell = GameTypes.NO_CELL
 	buildable_cell = GameTypes.NO_CELL
+	repairable_cell = GameTypes.NO_CELL
 
 
 # The building the robot hand-powers (PowerManager gives it power for free), or NO_CELL.
@@ -386,6 +405,8 @@ func _start_action_at(target: Vector2i) -> void:
 		_on_harvest_pressed()
 	elif operable_cell == target and not is_operating and _can_operate():
 		_on_operate_pressed()
+	elif repairable_cell == target and not is_repairing and _can_repair():
+		_on_repair_pressed()
 	elif _can_rescue_dog() and target == world.dog_cell:
 		_on_rescue_pressed()
 
@@ -456,6 +477,25 @@ func _build_action() -> Dictionary:
 	return {id = GameTypes.UnitAction.BUILD, icon = HAMMER_ICON, label = label, active = is_constructing}
 
 
+# Offered while the robot is parked beside the wreck with a ship part left to repair: start the
+# next part (paying for it), resume it, or pause.
+func _repair_action() -> Dictionary:
+	if not _can_repair() or repairable_cell == GameTypes.NO_CELL or not _is_working_position(repairable_cell):
+		return {}
+
+	var part := world.next_ship_part()
+	var part_name := ShipRepairs.display_name(part)
+	var label := ""
+	if is_repairing:
+		label = "Pause repair"
+	elif world.ship_repairs.has(part):
+		label = "Resume %s repair (%d%%)" % [part_name, int(float(world.ship_repairs[part]) * 100.0)]
+	else:
+		label = "Repair %s (%s)" % [part_name, building_manager.format_cost(ShipRepairs.cost(part))]
+
+	return {id = GameTypes.UnitAction.REPAIR, icon = HAMMER_ICON, label = label, active = is_repairing}
+
+
 # Offered while the robot is parked on or right beside the stranded K9-DA.
 func _rescue_action() -> Dictionary:
 	if not _can_rescue_dog():
@@ -485,6 +525,15 @@ func _building_consumes_power(cell: Vector2i) -> bool:
 
 func _can_operate() -> bool:
 	return quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.OPERATING)
+
+
+# Repairing is unlocked by the first copper smelting (First Melt), while a ship part is left.
+func _can_repair() -> bool:
+	return quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.REPAIRING) and world.next_ship_part() != -1
+
+
+func _is_wreck(cell: Vector2i) -> bool:
+	return current_island.get_building_type(cell) == GameTypes.BuildingType.CRASHED_SPACESHIP
 
 
 func _on_harvest_pressed() -> void:
@@ -655,6 +704,77 @@ func _finish_construction(anchor_cell: Vector2i) -> void:
 	stat_tracker.record_building_built(building_type)
 	if not _build_next_blueprint():
 		game.refresh_action_bar()
+	game.save_game()
+
+
+func _on_repair_pressed() -> void:
+	if is_repairing:
+		stop_repairing()
+		game.refresh_action_bar()
+		return
+
+	if repairable_cell == GameTypes.NO_CELL or not _can_repair():
+		return
+
+	# The materials go in when the part's repair starts; a paused repair resumes for free.
+	var part := world.next_ship_part()
+	if not world.ship_repairs.has(part):
+		var cost := ShipRepairs.cost(part)
+		if not resource_manager.can_afford(cost):
+			game.toast.show_message("Repairing the %s takes %s from this island's stock." % [
+				ShipRepairs.display_name(part), building_manager.format_cost(cost)])
+			return
+		resource_manager.spend(cost)
+		world.ship_repairs[part] = 0.0
+
+	is_repairing = true
+	player_unit.set_work("build")
+	game.refresh_action_bar()
+	game.save_game()
+
+
+# Leave the part as it stands; its progress stays in WorldData.ship_repairs (and the save) to resume.
+func stop_repairing() -> void:
+	if not is_repairing:
+		return
+
+	is_repairing = false
+	if player_unit != null:
+		player_unit.set_work("")
+
+
+func _update_repair(delta: float) -> void:
+	var part := world.next_ship_part()
+	# Stop if the robot walked off, or the part isn't under repair.
+	if (
+		player_unit == null
+		or player_unit.is_moving()
+		or current_island == null
+		or part == -1
+		or not world.ship_repairs.has(part)
+		or not _is_working_position(repairable_cell)
+	):
+		stop_repairing()
+		game.refresh_action_bar()
+		return
+
+	var progress := float(world.ship_repairs[part]) + delta / maxf(ShipRepairs.work_seconds(part), 0.1)
+	if progress < 1.0:
+		world.ship_repairs[part] = progress
+		game.mark_dirty()
+		return
+
+	world.ship_repairs[part] = 1.0
+	stop_repairing()
+	game.play_placement_sound()
+	FloatingText.spawn(
+		game,
+		renderer.get_cell_center(repairable_cell),
+		"%s repaired!" % ShipRepairs.display_name(part),
+		Color(0.55, 1.0, 0.85)
+	)
+	stat_tracker.add(GameTypes.Stat.SHIP_PARTS_REPAIRED, 1)
+	game.refresh_action_bar()
 	game.save_game()
 
 

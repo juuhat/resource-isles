@@ -3,7 +3,7 @@ extends Node3D
 
 # The dog companion (Companion Unit K9-DA), a 3D model that walks the hex grid on its own.
 # It has two modes, driven by main.gd from the rescue state in WorldData:
-#   STRANDED  — waiting at one cell on its ring-1 island until the robot walks up and rescues
+#   STRANDED  — waiting at one cell on its island until the robot walks up and rescues
 #               it (the MAIN quest). It stays put so the player can always find it.
 #   FOLLOWING — rescued: it trails the robot (the `leader`), walking to a cell beside it
 #               whenever it falls behind and pottering about nearby otherwise. main.gd moves

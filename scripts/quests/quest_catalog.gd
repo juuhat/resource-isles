@@ -20,8 +20,9 @@ static func build_all() -> Array[Quest]:
 	var quests: Array[Quest] = []
 
 	# The persistent main objective. Not part of the linear chain — always shown as the
-	# headline goal until the robot finds K9-DA on his ring-1 island (WorldData.dog_coord) and
-	# picks him up with the Rescue action.
+	# headline goal until the robot finds K9-DA on his island in the home waters
+	# (WorldData.dog_coord) and picks him up with the Rescue action. The copper milestones that
+	# follow the rescue (Copper Glint) ask for it too, so the chain waits for it there.
 	quests.append(QuestScript.new(
 		GameTypes.QuestId.RESCUE_THE_DOG,
 		GameTypes.QuestKind.MAIN,
@@ -30,7 +31,7 @@ static func build_all() -> Array[Quest]:
 			+ "neighbouring island. Build a Dock, sail to the island where his signal is coming "
 			+ "from, then walk up to him and bring him aboard.",
 		[_objective("Rescue K9-DA", GameTypes.Stat.DOG_RESCUED, 1)],
-		[QuestReward.unlock_building(GameTypes.BuildingType.FURNACE, "Unlocks the Furnace")]
+		([] as Array[QuestReward])
 	))
 
 	# --- The linear milestone chain (one active at a time, in this order) ---
@@ -110,14 +111,15 @@ static func build_all() -> Array[Quest]:
 		GameTypes.QuestId.SET_SAIL,
 		GameTypes.QuestKind.MILESTONE,
 		"Set Sail",
-		"Build the dock at the water's edge — your way off this island and out across "
-			+ "the open sea.",
+		"Build the dock at the water's edge — your way off this island. K9-DA's signal is "
+			+ "coming from an island close by.",
 		[
 			_objective("Build a Dock", GameTypes.Stat.DOCKS_BUILT, 1),
 		],
-		[QuestReward.reveal_world_rings(1, "Reveals the first ring of islands")]
+		([] as Array[QuestReward])
 	))
 
+	# K9-DA's island lies in the home waters, sailable from the start (WorldData.HOME_WATERS_RINGS).
 	quests.append(QuestScript.new(
 		GameTypes.QuestId.FOLLOW_THE_SIGNAL,
 		GameTypes.QuestKind.MILESTONE,
@@ -129,15 +131,66 @@ static func build_all() -> Array[Quest]:
 		([] as Array[QuestReward])
 	))
 
+	# The copper chain (docs/copper-and-the-radar.md): K9-DA's island is copper and stone. Copper
+	# hand-mined there is shipped home, smelted at the crash site and wired into the ship's radar,
+	# which charts the first ring of islands. Each step unlocks the next one's tool.
+	quests.append(QuestScript.new(
+		GameTypes.QuestId.COPPER_GLINT,
+		GameTypes.QuestKind.MILESTONE,
+		"Copper Glint",
+		"Rescue K9-DA. While he sniffs around, the robot's scanner catches a glint in the "
+			+ "rock: copper. That's just what the ship's burnt-out wiring needs. Chip some ore out "
+			+ "of a deposit by hand.",
+		[
+			_objective("Rescue K9-DA", GameTypes.Stat.DOG_RESCUED, 1),
+			_objective("Gather copper ore", GameTypes.Stat.COPPER_ORE_GATHERED, 6),
+		],
+		[QuestReward.robot_upgrade_reward(GameTypes.RobotUpgrade.CARGO_HOLD, "Unlocks the boat's cargo hold")]
+	))
+
+	quests.append(QuestScript.new(
+		GameTypes.QuestId.HAUL_IT_HOME,
+		GameTypes.QuestKind.MILESTONE,
+		"Haul It Home",
+		"The ship is back at the crash site. Load the copper ore into the boat's cargo hold, "
+			+ "sail home, and unload it at the shore.",
+		[_objective("Ship copper ore home", GameTypes.Stat.COPPER_ORE_SHIPPED_HOME, 6)],
+		[QuestReward.unlock_building(GameTypes.BuildingType.FURNACE, "Unlocks the Furnace")]
+	))
+
+	quests.append(QuestScript.new(
+		GameTypes.QuestId.FIRST_MELT,
+		GameTypes.QuestKind.MILESTONE,
+		"First Melt",
+		"Build a Furnace at the crash site. A wood fire is hot enough for copper: feed it the "
+			+ "ore and some wood, and Operate its bellows by hand until three ingots are cast.",
+		[
+			_objective("Build a Furnace", GameTypes.Stat.FURNACES_BUILT, 1),
+			_objective("Smelt copper ingots", GameTypes.Stat.COPPER_INGOTS_GATHERED, 3),
+		],
+		[QuestReward.robot_upgrade_reward(GameTypes.RobotUpgrade.REPAIRING, "Unlocks repairing the ship")]
+	))
+
+	quests.append(QuestScript.new(
+		GameTypes.QuestId.EYES_ON_THE_HORIZON,
+		GameTypes.QuestKind.MILESTONE,
+		"Eyes on the Horizon",
+		"Walk up to the wreck and Repair its radar with three copper ingots. With the radar "
+			+ "working again, the robot can chart the islands beyond the home waters.",
+		[_objective("Repair the radar", GameTypes.Stat.SHIP_PARTS_REPAIRED, 1)],
+		[QuestReward.reveal_world_rings(1, "Reveals the first ring of islands")]
+	))
+
 	# The frontier's discovery beat (docs/second-island-progression.md): hand-mine a little iron,
 	# mirroring the island-1 wood/stone intro, then unlock the buildings that automate it. Iron
-	# only spawns on frontier islands, so this is geographically self-gating.
+	# only lies on the first ring's other islands, so this is geographically self-gating.
 	quests.append(QuestScript.new(
 		GameTypes.QuestId.STRIKE_IRON,
 		GameTypes.QuestKind.MILESTONE,
 		"Strike Iron",
-		"This rocky island is threaded with iron. Chip some ore out of a deposit by hand. "
-			+ "Ship-grade metal could be the key to getting off these islands for good.",
+		"The radar shows rocky islands further out, threaded with iron. Sail to one and chip "
+			+ "some ore out of a deposit by hand. Ship-grade metal could be the key to getting "
+			+ "off these islands for good.",
 		[_objective("Gather iron ore", GameTypes.Stat.IRON_ORE_GATHERED, 5)],
 		[
 			QuestReward.unlock_building(GameTypes.BuildingType.IRON_MINE, "Unlocks the Iron Mine"),
@@ -149,12 +202,10 @@ static func build_all() -> Array[Quest]:
 		GameTypes.QuestId.LIGHT_THE_FORGE,
 		GameTypes.QuestKind.MILESTONE,
 		"Light the Forge",
-		"Rescue K9-DA to unlock the Furnace. Bring wood by boat, build the stone kiln, "
-			+ "and feed it iron ore and coal. Operate its bellows by hand to smelt six ingots "
-			+ "for your first Burner Generator.",
+		"Iron needs a hotter fire than copper: coal. Set a Furnace to its iron recipe, feed it "
+			+ "iron ore and coal, and Operate its bellows by hand to smelt six ingots for your "
+			+ "first Burner Generator.",
 		[
-			_objective("Rescue K9-DA", GameTypes.Stat.DOG_RESCUED, 1),
-			_objective("Build a Furnace", GameTypes.Stat.FURNACES_BUILT, 1),
 			_objective("Smelt iron ingots", GameTypes.Stat.IRON_INGOTS_GATHERED, 6),
 		],
 		[

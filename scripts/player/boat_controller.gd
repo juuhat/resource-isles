@@ -79,13 +79,20 @@ func show_hover(cell: Vector2i) -> void:
 func actions() -> Array:
 	var actions: Array = []
 	if player_unit.boat_id != -1:
-		actions.append({id = GameTypes.UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = "Boat cargo — load or unload at the shore", active = false})
+		if has_cargo_hold():
+			actions.append({id = GameTypes.UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = "Boat cargo — load or unload at the shore", active = false})
 		if landing_tile() != GameTypes.NO_CELL:
 			actions.append({id = GameTypes.UnitAction.DISEMBARK, icon = BOAT_ICON, label = "Disembark (right-click shore to choose landing)", active = false})
 	elif not nearby_boat().is_empty():
 		actions.append({id = GameTypes.UnitAction.PILOT_BOAT, icon = POWER_ICON, label = "Pilot boat — board and power the helm", active = false})
-		actions.append({id = GameTypes.UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = "Boat cargo — load or unload supplies", active = false})
+		if has_cargo_hold():
+			actions.append({id = GameTypes.UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = "Boat cargo — load or unload supplies", active = false})
 	return actions
+
+
+# The cargo hold opens once the robot finds something worth carrying (the Copper Glint quest).
+func has_cargo_hold() -> bool:
+	return game.quest_manager.is_upgrade_active(GameTypes.RobotUpgrade.CARGO_HOLD)
 
 
 # A boat action pressed on the command bar.
@@ -108,7 +115,7 @@ func command_to(cell: Vector2i) -> bool:
 		game.refresh_action_bar()
 		return true
 	if not world_navigation.inside_frontier(cell):
-		toast.show_message("The fog blocks passage — " + world_view.locked_island_hint(Vector2i(world.revealed_rings + 1, 0)))
+		toast.show_message("The fog blocks passage — " + world_view.locked_frontier_hint())
 		return false
 	var plan: Dictionary = robot.plan_route(cell, player_unit.next_cell())
 	if plan.is_empty():
@@ -227,6 +234,8 @@ func open_cargo() -> void:
 	if boat_cargo_panel.is_open():
 		boat_cargo_panel.close()
 		return
+	if not has_cargo_hold():
+		return
 	cargo_boat_id = player_unit.boat_id
 	if cargo_boat_id == -1:
 		var boat := nearby_boat()
@@ -268,7 +277,12 @@ func transfer(resource: int, amount: int, loading: bool) -> void:
 	if island == null:
 		return
 	var hold := BoatCargo.inventory(world.boats[cargo_boat_id])
+	var before := island.inventory.get_amount(resource)
 	if BoatCargo.transfer(hold, island.inventory, resource, amount, loading):
+		# Copper brought home to the crash site, for the furnace and the ship (Haul It Home).
+		var unloaded := island.inventory.get_amount(resource) - before
+		if resource == GameTypes.ResourceType.COPPER_ORE and unloaded > 0 and island == world.get_island(world.start_coord):
+			game.stat_tracker.add(GameTypes.Stat.COPPER_ORE_SHIPPED_HOME, unloaded)
 		refresh_cargo()
 		game.save_game()
 
