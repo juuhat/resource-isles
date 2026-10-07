@@ -23,6 +23,9 @@ static var _spark_material: StandardMaterial3D
 
 var island: IslandData
 var anchor_cell := GameTypes.NO_CELL
+# Where the progress (0..1) comes from when it isn't the blueprint's build progress (a ship part under
+# repair, see ShipWreck).
+var progress_source := Callable()
 var _solid: Array[GeometryInstance3D] = []
 var _ghost: Array[GeometryInstance3D] = []
 var _bounds := AABB()
@@ -62,7 +65,7 @@ func _process(delta: float) -> void:
 		return
 	if not _measured:
 		_measure()
-	var progress := island.get_build_progress(anchor_cell)
+	var progress: float = progress_source.call() if progress_source.is_valid() else island.get_build_progress(anchor_cell)
 	if _shown < 0.0:
 		_shown = progress
 	_shown = lerpf(_shown, progress, 1.0 - exp(-CATCH_UP_RATE * delta))

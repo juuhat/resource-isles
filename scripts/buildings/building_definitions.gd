@@ -54,8 +54,12 @@ static func build_all() -> Array[BuildingDefinition]:
 	crashed_spaceship.visual_size_tiles = Vector2(1.6, 1.6)
 	crashed_spaceship.player_buildable = false
 	crashed_spaceship.solid = true
+	# Built by tools/build_spaceship.py; its repairable parts are shown by ShipWreck.
 	crashed_spaceship.model = CRASHED_SPACESHIP_MODEL
-	crashed_spaceship.visual_rotation_y = 35.0
+	crashed_spaceship.true_tile_model = true
+	# Nose east, toward where the robot wakes: the starter island's stone deposits lie west and
+	# south-west of the wreck, where the tail and the scattered debris would sink into them.
+	crashed_spaceship.visual_rotation_y = -12.0
 	definitions.append(crashed_spaceship)
 
 	var logger_camp := BuildingDefinitionScript.new()

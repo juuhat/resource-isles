@@ -23,6 +23,7 @@ const BladeSpinnerScript := preload("res://scripts/island/blade_spinner.gd")
 const PowerIndicatorScript := preload("res://scripts/island/power_indicator.gd")
 const PoweredSpinnerScript := preload("res://scripts/island/powered_spinner.gd")
 const ConstructionSiteScript := preload("res://scripts/island/construction_site.gd")
+const ShipWreckScript := preload("res://scripts/island/ship_wreck.gd")
 const TERRAIN_SHADER := preload("res://assets/shaders/terrain.gdshader")
 const TERRAIN_NOISE := preload("res://assets/shaders/terrain_noise.tres")
 # Toon water (see assets/shaders/water_toon.gdshader): a transparent animated plane whose
@@ -956,6 +957,8 @@ func _spawn_building(anchor_cell: Vector2i, building_type: int) -> void:
 				var moored := model.find_child(MOORED_BOAT_NAME, true, false)
 				if moored != null:
 					moored.free()
+			if building_type == GameTypes.BuildingType.CRASHED_SPACESHIP:
+				_dress_ship_wreck(anchor_cell, model)
 		if model != null and under_construction:
 			_dress_construction_site(anchor_cell, model, _spawn_building_model(definition, footprint, rotation))
 			return
@@ -991,6 +994,15 @@ func _dress_construction_site(anchor_cell: Vector2i, model: Node3D, ghost_model:
 	site.name = "ConstructionSite"
 	_objects_root.add_child(site)
 	site.setup(island, anchor_cell, model, ghost_model)
+
+
+# The crashed ship shows each part broken or repaired, and a part under repair being printed
+# (ShipWreck). It sits beside the model, unscaled, as ConstructionSite does.
+func _dress_ship_wreck(anchor_cell: Vector2i, model: Node3D) -> void:
+	var wreck := ShipWreckScript.new()
+	wreck.name = "ShipWreck"
+	_objects_root.add_child(wreck)
+	wreck.setup(world_data, island, anchor_cell, model)
 
 
 # A building's model sized, placed and turned on its footprint, under _objects_root. Shared by

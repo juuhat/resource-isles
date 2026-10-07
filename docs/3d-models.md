@@ -95,9 +95,9 @@ Because the lift is derived from the measured AABB, models with different origin
      (see `crashed_spaceship.model = CRASHED_SPACESHIP_MODEL`).
 3. Tune the visuals on the definition:
    - `visual_size_tiles` — bump above `1.0` for landmarks that should spill past their tile
-     (the spaceship uses `1.6`).
+     (a `true_tile_model` ignores it and keeps the kit's scale).
    - `visual_rotation_y` — set a heading so the model isn't grid-aligned (the spaceship uses
-     `35°` for a crashed look).
+     `-12°`, see [Spaceship model](spaceship-model.md)).
    - `visual_offset_tiles` — only if it needs to sit off-center.
 4. The renderer's existing `model != null` branch in `_spawn_resource` / `_spawn_building` picks
    it up automatically — no renderer changes needed. Keep the `texture` too: it stays as the
@@ -108,7 +108,8 @@ Because the lift is derived from the measured AABB, models with different origin
 - **Models:** the robot (`player_model.glb`), the forest (`pine_forest.glb`), the stone, iron
   coal and copper deposits (`resources/<stone|iron|coal|copper>_deposit.glb`, built by
   `tools/build_deposit.py -- <variant>`; `true_tile_model`s with their heading varied per cell by
-  `visual_yaw_variation`), the crashed-spaceship building (`crashed_spaceship.glb`), and the dock
+  `visual_yaw_variation`), the crashed-spaceship building (`crashed_spaceship.glb`, built by
+  `tools/build_spaceship.py`; see [Spaceship model](spaceship-model.md)), and the dock
   (`dock.glb`, built by `tools/build_dock.py`), and the burner generator (`burner_generator.glb`,
   built by `tools/build_burner_generator.py`). The dock covers three tiles and is a
   `true_tile_model`: fixed scale, origin placed directly on the ground, turned with its footprint.

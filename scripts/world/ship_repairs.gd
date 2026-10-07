@@ -12,8 +12,14 @@ const PARTS := {
 		name = "Radar",
 		cost = {GameTypes.ResourceType.COPPER_INGOT: 3},
 		seconds = 8.0,
+		model_node = "Radar",
 	},
 }
+
+# Repairable parts on the wreck model (tools/build_spaceship.py PARTS), each a '<Name>Broken' and a
+# '<Name>Repaired' node. A part's model_node above names its own; the rest have no ShipPart yet
+# and stay broken. See ShipWreck.
+const MODEL_NODES: Array[String] = ["Radar", "Windshield", "Hull", "Wing", "Engine"]
 
 
 static func display_name(part: int) -> String:
@@ -26,3 +32,12 @@ static func cost(part: int) -> Dictionary:
 
 static func work_seconds(part: int) -> float:
 	return float(PARTS[part].seconds) if PARTS.has(part) else 1.0
+
+
+# The ShipPart shown by the wreck model's node pair model_node (one of MODEL_NODES), or -1 if that
+# part can't be repaired yet.
+static func part_for_model_node(model_node: String) -> int:
+	for part in PARTS:
+		if PARTS[part].get("model_node", "") == model_node:
+			return part
+	return -1

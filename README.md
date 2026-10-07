@@ -188,6 +188,7 @@ Some older design docs open with a note pointing to the newer direction that rep
 - [Low Poly Workshop art direction](docs/building-style-palette.md),
   [Icons and 2D Art](docs/icons-and-2d-art.md), [3D Models](docs/3d-models.md)
 - [Player Model](docs/player-model.md), [K9-DA Model](docs/k9-da-model.md),
+  [Spaceship Model](docs/spaceship-model.md),
   [Shared Generator Model](docs/shared-generator-model.md)
 - [Meshy Guide](docs/meshy-guide.md)
 - [Terrain Visual Pass 1](docs/terrain-visual-pass-1.md) and

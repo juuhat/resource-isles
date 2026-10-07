@@ -55,6 +55,7 @@ func _check_repair(game: Node) -> void:
 	CheckWatchdog.require(beside != GameTypes.NO_CELL, "The wreck can be worked from beside it")
 	expect(world.revealed_rings == 0 and world.next_ship_part() == RADAR, "A new game starts with the radar broken and only the home waters open")
 	expect(_sweep(game) == 0.0, "The chart shows no radar sweep while the radar is broken")
+	expect(_wreck_part(game, "Radar") == "broken" and _wreck_part(game, "Windshield") == "broken", "The wreck model starts with its radar and windshield broken")
 
 	game.player_unit.place_at(beside)
 	game.player_unit.set_selected(true)
@@ -76,6 +77,8 @@ func _check_repair(game: Node) -> void:
 	expect(is_equal_approx(float(world.ship_repairs[RADAR]), 0.5), "The repair makes progress while the robot works")
 	game._on_action_pressed(GameTypes.UnitAction.REPAIR)
 	expect(not robot.is_repairing, "The repair can be paused")
+	await process_frame
+	expect(_wreck_part(game, "Radar") == "printing", "A part-repaired radar shows printed onto the wreck")
 
 	game.save_game()
 	var reloaded := WorldData.from_dict(SaveManager.read().get("world", {}), 0.0)
@@ -85,6 +88,9 @@ func _check_repair(game: Node) -> void:
 	expect(robot.is_repairing and island.inventory.get_amount(INGOT) == 1, "Resuming doesn't pay again")
 	robot._update_repair(ShipRepairs.work_seconds(RADAR))
 	expect(world.is_ship_part_repaired(RADAR) and not robot.is_repairing, "Working on finishes the radar")
+	await process_frame
+	expect(_wreck_part(game, "Radar") == "repaired", "The wreck model shows the repaired radar")
+	expect(_wreck_part(game, "Windshield") == "broken", "Parts not yet repairable stay broken")
 	expect(game.stat_tracker.get_value(GameTypes.Stat.SHIP_PARTS_REPAIRED) == 1, "The repair counts toward quests")
 	expect(game.quest_manager.is_completed(GameTypes.QuestId.EYES_ON_THE_HORIZON), "Repairing the radar completes Eyes on the Horizon")
 	expect(world.revealed_rings == 1, "The radar reveals the first ring of islands")
@@ -93,6 +99,23 @@ func _check_repair(game: Node) -> void:
 	# Let the chart roll back to the new frontier, and the sweep fade in, before the scene goes.
 	await create_timer(maxf(WorldView.FRONTIER_UNROLL_SECONDS, WorldView.RADAR_POWER_UP_SECONDS) + 0.1).timeout
 	expect(is_equal_approx(_sweep(game), 1.0), "The repaired radar's sweep circles the chart")
+
+
+# Which of the wreck model's '<model_node>Broken' and '<model_node>Repaired' nodes shows (ShipWreck):
+# "broken", "printing" (repaired, under repair) or "repaired".
+func _wreck_part(game: Node, model_node: String) -> String:
+	var wreck := game.renderer.find_child("ShipWreck", true, false) as ShipWreck
+	if wreck == null:
+		return "no wreck"
+	var broken := wreck._model.find_child(model_node + "Broken", true, false) as Node3D
+	var repaired := wreck._model.find_child(model_node + "Repaired", true, false) as Node3D
+	if broken == null or repaired == null:
+		return "missing"
+	if broken.visible == repaired.visible:
+		return "both" if broken.visible else "neither"
+	if repaired.visible:
+		return "printing" if wreck._sites.has(model_node) else "repaired"
+	return "broken"
 
 
 # How strongly the chart shows the radar's sweep.

@@ -89,6 +89,10 @@ the radar works (`WorldData.is_radar_online`). It fades in over 2 s when the rep
 the frontier rolls back to ring 1. Saves that charted ring 1 before the radar existed count as
 online.
 
+The wreck model shows the radar too. The mast is snapped and the dish lies on the ground until the
+repair starts. While the repair runs, or is paused part way, the new radar is printed up inside a
+hologram. Once repaired, the dish turns. See [Spaceship model](spaceship-model.md).
+
 Checked by `tools/radar_repair_check.gd`. The chain is checked in `tools/furnace_check.gd`,
 `tools/dog_rescue_check.gd` and `tools/boat_cargo_check.gd`.
 
@@ -103,7 +107,6 @@ Checked by `tools/radar_repair_check.gd`. The chain is checked in `tools/furnace
 
 ## Still open
 
-- A visible radar on the wreck model, broken and then working.
 - Later ship parts and what they unlock (see [Intro Story](intro-story.md)).
 - Playtest the amounts: 6 copper ore is a short stretch of hand mining, and the boat's 20-unit
   slots carry it in one trip.
