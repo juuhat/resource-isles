@@ -1,289 +1,199 @@
 # Resource Isles
 
-Resource Isles is a 2D resource management and building game made with the Godot game engine. It uses a 3/4 top-down perspective, aiming for the readable building layouts of Factorio with the cozy spatial feel of games like Stardew Valley.
-Also Civilization VI style hex grid, with building adjanciencies.
+Resource Isles is a cozy resource management and building game made with Godot. It is played on
+a Civilization VI style hex grid with building adjacencies, seen from a three-quarter top-down
+camera in a low-poly 3D style. The aim is Factorio's readable building layouts and Anno's
+inter-island supply lines, in the calm, small-scale feel of Stardew Valley.
 
-The project is currently in early development. The core idea is to start on one small island, build a compact production base, unlock new technologies, and expand to nearby islands with new or larger resource deposits.
+A small salvage robot crash-lands on a flat-disc planet. Its robot dog, Companion Unit K9-DA, is
+thrown onto a neighbouring island. The robot bootstraps industry from island materials, builds a
+boat and rescues the dog. Then it finds out the planet is rich enough to rebuild the ship (see
+[Intro Story](docs/intro-story.md)).
+
+## Status
+
+Early prototype. The opening is playable from the crash through the K9-DA rescue, the first
+smelting and the first generators. Copper processing, autonomous cargo drones and the
+ship-repair goal are still to come. See the [To-do list](TODO.md) for outstanding work and
+playtest feedback.
+
+## Gameplay Loop
+
+1. **Gather by hand.** The robot wakes beside its crashed ship, recovers its scattered tools,
+   and harvests wood and stone.
+2. **Build.** Place a blueprint from the build menu; the robot walks over and prints the
+   building. Buildings have terrain and neighbour rules, and earn Civ VI style adjacency
+   bonuses.
+3. **Power.** At first the robot powers buildings by hand with **Operate**; later Burner
+   Generators and Windmills supply MW.
+4. **Process.** A Sawmill turns logs into planks; a Furnace smelts iron ore and coal into
+   ingots.
+5. **Sail.** A Dock launches the robot's personal boat, with a small cargo hold. The robot
+   sails out through the fog of exploration to new islands, each with its own inventory, and
+   rescues K9-DA.
+6. **Connect.** Trade routes between Docks move goods between islands; every island keeps
+   producing while the robot is elsewhere.
+
+Quests drive the progression. They complete by playing (no spending) and unlock buildings,
+robot abilities and more of the map.
 
 ## Core Design
 
-- Islands are relatively small and should generally fit within one view.
-- The player starts on a single island with limited resources and building space.
-- Technology unlocks access to new buildings, recipes, logistics tools, and additional islands.
-- New islands introduce new resources, larger deposits, or better production opportunities.
-- Building space is intentionally limited, especially toward the end game.
-- Inter-island logistics become a major challenge, inspired by Anno-style trade and supply routes.
-- Resources can move between islands using systems such as ships, pipes, power cables, and other transport infrastructure.
-- Power management is simple and capacity-based, using generated MW to support production and logistics.
+- Islands are small and should generally fit within one view; building space is
+  intentionally limited.
+- The player starts on a single island with limited resources.
+- Quests and technology unlock new buildings, recipes, logistics tools and islands.
+- New islands bring new resources, larger deposits, or better production opportunities.
+- Inter-island logistics become a major challenge: ships, pipes, power cables and other
+  transport.
+- Power is simple and capacity-based: generators supply MW and consumers draw it.
+- Every player sails the same hand-made world map (see
+  [World Map and Island Designs](docs/world-map-and-island-designs.md)).
 
 ## Art Direction
 
-Resource Isles should feel like a relaxing little evening game: calm, readable, cozy, and a little darker than a bright tropical island game.
+A relaxing little evening game: calm, readable, cozy, and a little darker than a bright
+tropical island game. Muted blue-green water, darker grass and sand, soft shorelines, and
+effects that support the quiet mood.
 
-- Use muted, blue-green water with a big soft depth gradient.
-- Keep water motion sparse and gentle, with subtle shimmer rather than busy waves.
-- Favor darker, calmer grass and sand colors over saturated or sunny colors.
-- Terrain should stay readable at a glance, but avoid harsh tile boundaries where possible.
-- Shorelines should feel soft and peaceful, with restrained foam and gradual water color changes.
-- Visual effects should support the quiet mood instead of calling attention to themselves.
+Models follow the **Low Poly Workshop** style: chunky angular silhouettes, flat faces, solid
+matte colours, no outlines or painted texture. Buildings are robot-built salvage: local wood,
+stone and canvas, with fat, readable robot tech bolted on and teal as the recurring tech accent.
 
-### Asset Style
-
-Resource and building sprites should lean simple, cartoony, and board-game-like rather than painterly or realistic.
-
-- Use chunky, readable silhouettes that still work at normal zoom.
-- Favor flat colors, bold simple shapes, and thick dark outlines.
-- Keep detail broad and symbolic; avoid tiny leaves, noisy texture, gradients, soft rendering, or dense concept-art detail.
-- Use olive greens, yellow-greens, blue water, warm browns, muted oranges, and calm earthy accents.
-- Sprites should feel like compact, iconic map tokens placed on the hex map. They should read clearly by silhouette before small details matter.
-- Single-tile resources and buildings should fit within one tile of visual width. Tall sprites may extend upward, but should not spill sideways into neighboring hexes.
-- A resource tile can represent a larger concept than one object. For example, a forest tile should show a small cluster of trees, while still occupying one gameplay tile.
-- Generated assets should use transparent PNG output or a clean chroma-key background that can be removed.
-
-### Building Style: Robot-Built Salvage
-
-The fiction is a cute maintenance robot, crash-landed, bootstrapping industry from island
-materials (see `docs/island-unlocks.md`). Buildings should reflect that: **not fantasy
-settler huts, and not sleek sci-fi either, but a deliberate mix** — improvised machines the
-robot builds from local fantasy/medieval materials (wood, stone, canvas, rope) and then
-visibly modifies with the bits of tech it carries. A logger camp is a wooden harvester
-station with a little saw arm and a teal battery box; a quarry is a chunky stone-and-timber
-drilling rig. Local craft is the body; robot tech is the upgrade bolted onto it. Lean toward
-the handcrafted, scrappy, cozy end — warm and earthy first, with one or two clear "a robot
-made this" signals, never a clean futuristic city.
-
-Building sprites should read as iconic map tokens first and machines second. Their job is to
-communicate function, category, and mood instantly at normal gameplay zoom.
-
-- Favor big, rounded, iconic silhouettes with thick black or very dark outlines.
-- Use the same thick outline language for important internal details such as doors, hatches, log ends, hoppers, saw arms, panels, and trim.
-- Use a readable top-down map perspective that sits naturally on hex tiles: show enough top surface to anchor the building to the tile, while keeping the front face and signature feature visible. Avoid realistic perspective, deep vanishing lines, or side-heavy angles that make the sprite feel detached from the hex grid.
-- Use flat fills with one-step shadow and highlight shapes. Avoid gradients, painterly texture, tiny material noise, or realistic lighting.
-- Let the silhouette plus **one signature mechanical feature** carry most of the identity: a saw arm, a drill, a furnace mouth, a hopper, a conveyor, a repair pad.
-- Keep doors, hatches, and openings oversized, simple, rounded, and readable at normal gameplay zoom.
-- Use warm creams, muted browns, olive greens, roof reds, soft grays, and earthy accents for the local-materials base; reserve **teal** as the recurring robot-tech accent (it ties back to the crashed ship).
-- Color variants should mostly recolor panels, tarps, trim, or accent parts while preserving the same silhouette.
-- Avoid dense shingles, small bricks, realistic wood grain, narrow outlines, **thin antennas or wires**, and decorative details that disappear at map scale. Robot signals must be *fat and readable* — if a detail can't survive being a small token, drop it.
-- When building sprites are tall, leave visual height above the tile but keep their footprint compact so they do not spill sideways into neighboring hexes.
-- Final gameplay building sprites should usually be around 256 px wide for single-tile buildings. Use 128 px wide for very small/simple props, and reserve 384-512 px wide only for large landmarks or multi-tile buildings. Generated source images may be larger, but final imported assets should be cropped, transparent, and downscaled to the smallest size that stays crisp in-game.
-
-#### The robot kit (shared visual vocabulary)
-
-Every building borrows from a small, consistent set of "a robot built this" motifs so the
-whole base reads as the work of one stranded robot. The crashed ship
-(`assets/buildings/crashed_spaceship.png`) is the style anchor — pull the tech palette and
-materials from it. Use one or two of these per building, not all of them:
-
-- **Teal panels / battery boxes / power cells** — the signature robot-tech color.
-- **Big bolt dots** — oversized rivets/bolts as bold readable dots, not tiny detail.
-- **Rounded metal modules and brackets** — chunky housings clamped onto the wooden body.
-- **Simple mechanical arms** — a saw arm, a drill, a grabber; one thick moving part.
-- **Muted hazard accent** — a sparingly used stripe, kept calm to fit the cozy mood.
-
-#### Style by category
-
-Each building category inherits a silhouette family, all built in the same salvage idiom:
-
-- **Resources** — rugged extractors: saw arms, drills, hoppers, log racks. (logger camp, quarry)
-- **Power** — generators, panels, turbines, batteries: furnace mouths, pipes, wood-fed hoppers. (burner generator)
-- **Processing** — little machine sheds: exposed circular saws, conveyors, tanks. (sawmill)
-- **Logistics** — engineered, modular: docks as repair piers/floating platforms, carts, drone pads. (dock)
-- **Utility** — scanners, repair pads, storage, beacons.
-
-Current visual references:
-
-- `assets/buildings/crashed_spaceship.png`: the style anchor — the robot's home tech, source of the teal palette and salvage-tech language everything else borrows from.
-- `assets/resources/forest.png`: flat symbolic tree cluster with thick dark outlines.
-- `assets/resources/stone.png`: flat symbolic stone cluster with thick dark outlines.
-- `assets/references/Houses/`: use only for the chunky outline / flat-color / strong-token-silhouette *language*, not for the fantasy-house subject matter.
-- Reference screenshot style: simple board-game hex tiles with flat fills, heavy outlines, and icon-like terrain objects.
-
-## Project Status
-
-See [To-do list](TODO.md) for outstanding work and playtest feedback.
-
-Early prototype setup:
-
-- Godot project created
-- Main scene scaffolded in `game.tscn`
-- Mobile-friendly Godot renderer settings enabled
-- Procedural hex island generation, terrain rendering, and camera controls in place
-- Resource gathering, building placement with cost checks, adjacency rules/bonuses, and timed production implemented
-- Tech progression, inter-island logistics, power, art, and balancing are still to be built
+- [Low Poly Workshop art direction](docs/building-style-palette.md): palette, materials and
+  reference boards
+- [Icons and 2D art](docs/icons-and-2d-art.md): how the style carries into UI icons
+- [3D Models](docs/3d-models.md): how models are integrated in the game
 
 ## Requirements
 
-- Godot 4.6 or newer (developed and tested with **Godot 4.6.3-stable**)
-
-The project is configured as a Godot 4 project and currently uses the mobile rendering method.
-
-### Blender (3D models)
-
-Blender 5.0 is installed on the development machine at
-`C:\Program Files\Blender Foundation\Blender 5.0` (executable: `blender.exe`), so it can be used
-to generate 3D models from scripts. The `tools/build_*.py` scripts build a model headlessly and
-write the `.glb` to `assets/models/buildings/` (or `resources/`, `items/`, `boats/`), the `.blend` source to `art/blender/`, and a
-preview render to `art/previews/`:
-
-```bash
-"C:\Program Files\Blender Foundation\Blender 5.0\blender.exe" --background --python tools/build_quarry.py
-```
-
-The builders share their primitives (box, beam, cylinder, log, boulder, rock, saw blade), export and
-preview studio through `tools/lowpoly_kit.py`, which also holds the art-direction palette from
-[docs/building-style-palette.md](docs/building-style-palette.md) as linear RGB.
-
-See [3D Models](docs/3d-models.md) for the model style and pipeline.
+- Godot 4.6 or newer (developed and tested with **Godot 4.6.3-stable**), at
+  `C:\Users\rasek\godot\Godot_v4_6_3_stable_win64\`. The project uses the Mobile renderer
+  and Jolt Physics.
+- Blender 5.0, at `C:\Program Files\Blender Foundation\Blender 5.0`, only for rebuilding 3D
+  models.
 
 ## Running the Game
 
-1. Open Godot.
-2. Click **Import**.
-3. Select this repository's `project.godot` file.
-4. Open the project.
-5. Run the current scene or set `game.tscn` as the main scene once gameplay begins.
-
-### PowerShell launch commands (Windows)
-
-Run these from the repository root. This is the console executable used successfully on the
-development machine; adjust its path if Godot is installed elsewhere:
+From the repository root in PowerShell:
 
 ```powershell
 $godotExe = 'C:\Users\rasek\godot\Godot_v4_6_3_stable_win64\Godot_v4.6.3-stable_win64_console.exe'
 & $godotExe --path .
 ```
 
-To open the project in the editor instead:
+Add `--editor` to open the project in the editor instead. The main scene is `game.tscn`.
 
-```powershell
-& $godotExe --path . --editor
-```
+The game saves to `user://savegame_v3.sav`. Older save versions aren't loaded. See
+[Controls](docs/controls.md) for keys and mouse controls, including debug-build cheats.
 
 ## Running the Checks
 
-`tools/*_check.gd` are headless check scripts. Run them all (or `-Filter boat,furnace` for some):
+`tools/*_check.gd` are headless check scripts. Run them all, or some with `-Filter`:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/run_checks.ps1
+powershell -ExecutionPolicy Bypass -File tools/run_checks.ps1 -Filter boat,furnace
 ```
 
-It uses Godot from `-Godot <path>`, `$env:GODOT`, or the console build on `PATH`. Each check also gets
-its own empty `user://` folder, so checks never see each other's saves and your real save is never
-touched.
+The runner uses Godot from `-Godot <path>`, `$env:GODOT`, or the console build on `PATH`. Each
+check gets its own empty `user://` folder, so checks never see each other's saves and your
+real save is never touched. **Use the runner** rather than running a check directly with
+`--script`.
 
-Every check installs `tools/check_watchdog.gd`. A failed `CheckWatchdog.require()` (used instead of
-`assert()`, which only stops the current function and leaves headless Godot idling) exits
-with code 1 straight away, and a check still running after 30 s is stopped. When you run a single
-check directly with `--script`, the watchdog also backs up your save first and restores it
-however the check ends; a backup left by a killed run is restored by the next check.
+Every check installs `tools/check_watchdog.gd`. A failed `CheckWatchdog.require()` (used
+instead of `assert()`, which only stops the current function and leaves headless Godot idling)
+exits with code 1 straight away, and a check still running after 30 s is stopped. When a
+single check is run directly, the watchdog backs up the save first and restores it however the
+check ends.
 
-## Repository Structure
+## Tools
+
+- **Model builders.** The `tools/build_*.py` scripts build a model headlessly in Blender. Each
+  writes the `.glb` to `assets/models/<kind>/`, the `.blend` source to `art/blender/`, and a
+  preview render to `art/previews/`. They share primitives, export and the preview studio
+  through `tools/lowpoly_kit.py`, which also holds the workshop palette as linear RGB.
+
+  ```powershell
+  & 'C:\Program Files\Blender Foundation\Blender 5.0\blender.exe' --background --python tools/build_quarry.py
+  ```
+
+- **World map preview.** `tools/world_map_preview.gd` draws the world map
+  (`assets/world/world_map.cfg`) as one image, with every island, the ring frontiers, and any
+  island that breaks a map rule circled. It needs a window, so leave out `--headless`:
+
+  ```powershell
+  & $godotExe --path . --script res://tools/world_map_preview.gd -- [output.png] [--around 25,-29] [--cells 40]
+  ```
+
+- **Captures.** `tools/*_capture.gd` and `tools/*_screenshot.gd` render comparison images
+  for visual passes. They never touch the save.
+
+## Repository Layout
 
 ```text
 .
-+-- project.godot      # Godot project configuration
-+-- game.tscn          # Current scene scaffold
-+-- scripts/           # Procedural island prototype code
-+-- icon.svg           # Project icon
-`-- README.md          # Project documentation
++-- project.godot   # Godot project configuration
++-- game.tscn       # Main scene
++-- scripts/        # Game code (see docs/architecture.md)
++-- assets/         # Models, icons, shaders, audio, island designs and the world map
++-- art/            # Blender sources, concepts, style boards and previews (not loaded by the game)
++-- tools/          # Checks, the check runner, Blender model builders, previews and captures
++-- docs/           # Design and technical notes
+`-- TODO.md         # Outstanding work and playtest feedback
 ```
 
-## Current Prototype
+## Docs
 
-The project now includes a code-driven hex-tile starter island scaffold:
+Some older design docs open with a note pointing to the newer direction that replaces them.
 
-- `assets/tiles/tile.png` provides a shared white hex mask that terrain draws and tints in code, leaving decorative PNGs free to layer on top.
-- `assets/resources/tree.png`, `assets/resources/forest.png`, and `assets/resources/stone.png` provide the first harvestable map resources.
-- `assets/buildings/crashed_spaceship.png`, `assets/buildings/logger_camp.png`, `assets/buildings/quarry.png`, `assets/buildings/burner_generator.png`, `assets/buildings/sawmill.png`, and `assets/buildings/dock.png` provide the first placeable buildings.
-- `scripts/island/hex_grid.gd` provides pointy-top hex coordinates, neighbors, polygon points, and picking helpers.
-- `scripts/island/island_data.gd` stores island size, terrain cells, resources, and buildings.
-- `scripts/island/island_design.gd` reads a hand-made island from an `.island` text file in `assets/world/islands/` (a hex grid drawn one character per cell, plus landmarks and markers) and stamps it onto the world at any centre, turned and mirrored, with a coast ring around its land. `scripts/world/world_map.gd` reads `assets/world/world_map.cfg`, which says where every island in the world goes, so every player sails the same map (see `docs/world-map-and-island-designs.md`).
-- `scripts/island/island_generator.gd` generates an island from a biome profile and a seed: a way to make island designs, not part of the running game.
-- `scripts/island/island_renderer.gd` draws generated terrain, Y-sorted resources/buildings, hover highlighting, and placement preview.
-- `scripts/game_types.gd` centralizes the shared gameplay enums (`Terrain`, `BuildingType`, `ResourceNodeType`, `ResourceType`, `AdjacencyKind`) so data and manager classes stay decoupled.
-- `scripts/resources/inventory.gd` is a per-owner resource stock (amounts plus a `changed` signal); each island owns one, so inventory is per-island with no global pool.
-- `scripts/resources/resource_manager.gd` is a thin facade over the *current* island's `Inventory`, giving the UI and placement logic a stable signal/API while the active island swaps underneath (`set_inventory`). Every island begins with no resources: the player scavenges the first wood by hand, and brings the materials for a new island's first buildings by boat.
-- `scripts/resources/resource_node_definition.gd` defines resource node properties such as footprint, visual bounds, extracted resource type, and one-time scavenge amount.
-- `scripts/ui/floating_text.gd` is a world-space popup that rises and fades, used for scavenge feedback such as `+3 Wood`.
-- `scripts/resources/resource_node_database.gd` registers resource node definitions such as trees.
-- `scripts/buildings/building_definition.gd` defines building properties such as display name, category, texture, cost, footprint, placement rules, adjacency yields, and production output.
-- `scripts/buildings/building_manager.gd` registers building definitions and owns placement validation (`can_place`/`try_place`), adjacency yield calculation, and per-tick production amounts.
-- `scripts/buildings/production_manager.gd` runs the production tick, paying out each producing building's resource on its interval into that island's own inventory. `main` runs it (and the power manager) for every island each frame, so islands keep producing while the robot is elsewhere.
-- `scripts/ui/resource_bar.gd` owns the always-visible top resource bar.
-- `scripts/ui/action_bar.gd` owns the player robot's command bar (Civ 6 unit-command style): a persistent robot portrait button in the bottom-right corner (mirroring the building-menu button in the bottom-left) that selects the robot when clicked, with the actions the selected robot can take on its current tile (harvest, operate a manual generator) shown as icon buttons to its left. It is a pure view fed by `main._refresh_action_bar()`; it emits the pressed action's id (or a select request) back to `main`.
-- `scripts/ui/building_menu.gd` owns the construction menu (BUILD launcher, category tabs, building cards, details column) and the placement bar shown while a building is selected, and emits building selection events.
-- `scripts/ui/building_info_panel.gd` owns the building info UI shown when a placed building is clicked: live adjacency and production breakdown (with resource/power icons on the produced/consumed/fuel/power lines), plus Move and Delete buttons (hidden for worldgen-only buildings). It sizes itself to its content from the top-right corner, and emits `move_requested` / `delete_requested` back to `main`. Move lifts the building off the map (removed from the island data so the placement preview's adjacency reflects only the new surroundings, and it stops drawing at the old spot) and enters a free placement preview; the next valid click re-places it, while cancelling (right-click / picking another tool / switching islands) restores it to its original cell. A save landing mid-move writes the building back at its original cell just for that save, so quitting/crashing mid-move never loses it. Delete scraps the building (power/production recompute on the next `_process` tick).
-- `scripts/world/world_data.gd` holds every island keyed by its centre cell, plus the start and current islands and how many rings are revealed. `scripts/world/world_builder.gd` builds every island on the world map up front, so the whole archipelago is one persistent world (a saved game also gains islands added to the map later); an island counts as discovered once the robot's sight reaches it (`IslandData.visited`). Landing activates its inventory and building controls.
-- `scripts/world/world_view.gd` is the playable world itself: the flat-disc planet from the fiction (see `docs/intro-story.md`) at full game scale — one open sea inside a frozen mountain range of sharp peaks, flat summits, ridges, and low passes over a rocky underside, water spilling off the edge into a starfield — with every revealed island's own `IslandRenderer` standing where the world map puts it. Everything uncharted lies under the robot's chart in two layers of hex tiles: near-black tiles beyond the radar frontier (no boat can sail there), and slate exploration fog over every cell inside it the robot has not seen yet, cleared by its sight as it walks and sails (`scripts/world/exploration_map.gd`). Islands nobody has found are not shown; only K9-DA's signal pings where its island lies. Trade routes are dashed lanes across the open sea with their boats; zoomed out, the charted rings show a navigator's grid with a gold frontier line and each island's name floats over it. Its shaders live in `assets/shaders/world_map/` (the open sea's colours and noise match `water_toon.gdshader`'s deep water, so each island's water fades into it seamlessly).
-- `scripts/camera_rig.gd` is one continuous zoom from the play view out to the whole disc: past the play range the pivot drifts to the disc centre, the view flattens into a three-quarter shot against the stars and the distance haze clears (`overview_amount()` drives the chart and labels).
-- `scripts/world/trade_route.gd` and `scripts/world/trade_manager.gd` are the inter-island trade routes: a route is a boat based at a Dock that shuttles one resource out and optionally another back between two islands' inventories. Routes are opened and removed from a Dock's info panel (see [Island Unlocks](docs/island-unlocks.md)).
-- `scripts/main.gd` builds the world from the world map, owns the `WorldData` and active island, drives production for every island, and handles boarding, continuous sailing and landing. `scripts/world/world_navigation.gd` defines the world lattice, one hex grid of cells shared by every island and the sea between them (island data, units and boats all use its cells), finds water routes and enforces the quest-controlled chart frontier. Landing activates the destination island's inventory.
+**Code**
 
-Naming note: resource nodes are permanent map objects such as forests and stones, while resources are stored inventory items such as wood and stone. For example, scavenging a `GameTypes.ResourceNodeType.TREE` yields `GameTypes.ResourceType.WOOD`.
-Building footprints can be larger than one tile, though the current prototype buildings occupy one hex. `BuildingManager` computes footprint cells and stores them with each placed building.
-The starter island (World 1) starts with a required central crashed spaceship — the win-condition wreck the robot begins beside; later discovered islands do not. Buildings require resources to place. Logger's camps and quarries cost 6 Wood, manual generators cost 4 Wood, burner generators cost 4 Wood plus 2 Stone, sawmills cost 8 Wood plus 4 Stone, docks cost 10 Wood plus 5 Stone, and additional crashed spaceships cost 8 Wood plus 4 Stone. The manual generator is the first `Power` source: a hand-cranked wheel with no fuel that only produces power while the robot stands on it and operates it (the pre-fuel bootstrap that the self-running burner generator later replaces — see `docs/power-sources.md`). The dock is the first `Logistics` building and the first to cover two tiles: a shoreline sand tile and the coast tile beside it (see `docs/building-footprints.md`), the future launch point for inter-island travel (see `docs/island-unlocks.md`).
+- [Architecture](docs/architecture.md): what each script does, and how buildings,
+  placement and production work
+- [Controls](docs/controls.md)
+- [Building Footprints](docs/building-footprints.md): multi-tile buildings, rotation and
+  construction
 
-### Placement Rules And Adjacency
+**Story and progression**
 
-Buildings declare data-driven placement and adjacency behavior on their `BuildingDefinition`:
+- [Intro Story](docs/intro-story.md)
+- [Quest Design Review](docs/quest-design.md)
+- [Rescue, First Metals, and Boat Cargo](docs/rescue-metals-and-cargo.md): latest progression direction
+- [First Island Progression](docs/first-island-progression.md) and
+  [Second Island Progression](docs/second-island-progression.md)
+- [Island Unlocks, the Dock, and the World Map](docs/island-unlocks.md)
+- [Progression, Build Restrictions, and Power](docs/progression-and-power.md) and
+  [Power Sources](docs/power-sources.md)
+- [Furnace](docs/furnace.md)
+- [Postgame Leaderboards](docs/postgame-leaderboards.md)
 
-- `category`: the menu grouping for the building (`Resources`, `Power`, `Processing`, `Logistics`, or `Utility`).
-- `required_terrain`: the terrain every footprint cell must sit on. For example, a logger's camp is built on grass, while a quarry is built on stone.
-- `required_adjacent`: each entry must have at least one matching neighbor, or placement is blocked. For example, a logger's camp must be built next to a forest, and a quarry must be built next to a stone deposit.
-- `forbidden_adjacent`: placement is blocked if any neighbor matches.
-- `adjacency_yields`: Civilization VI style bonuses, where each neighbor matching a `{ kind, type, amount }` rule contributes `amount`. A logger's camp earns +1 per adjacent forest but -1 per adjacent logger's camp, while a quarry earns +1 per adjacent stone deposit but -1 per adjacent quarry.
+**World and islands**
 
-The placement preview tints red when a rule is unmet, and the building info panel shows the live adjacency breakdown for a placed building.
+- [World Map and Island Designs](docs/world-map-and-island-designs.md)
+- [Island Generation, Biomes, and Resources](docs/island-generation.md)
+- [Island Visual Variety](docs/island-visual-variety.md)
 
-### Production
+**Robot and boats**
 
-Producing buildings declare a `production_resource_type`, `production_base_amount`, and `production_interval_seconds`. Each interval the building pays out `base + adjacency total` (clamped to zero) of its resource into the inventory. A logger's camp produces Wood every 3 seconds, scaling with the number of adjacent forests; a quarry produces Stone every 3 seconds, scaling with adjacent stone deposits. Newly placed buildings wait one full interval before their first payout.
+- [Player Unit and Manual Gathering](docs/player-unit-and-manual-gathering.md)
+- [Robot-Built Boats](docs/robot-built-boats.md)
 
-Prototype controls:
+**Art and models**
 
-- **MENU** button (top-left, below the resource bar): open the game menu. **New Game** replaces the current save after confirmation; **Save Game** saves immediately; **Load Game** reloads the latest save. Manual saves and autosaves share one slot. The game pauses while the menu is open; **Resume** or **Esc** closes it.
-
-- **Left click**: place the selected building
-- **Left click on a building**: show building info. On a Dock this includes its trade routes (live status) and a form to open a new route to another island with a Dock.
-- **Left click on a forest or stone**: scavenge it once for a one-time resource burst (shows a floating `+N` popup)
-- **B** or the **BUILD** button: open or close the building menu. While it is open, **1-9** pick a card in the current tab. Cards show cost against current stock (red when short); locked buildings appear as silhouettes naming the quest that unlocks them.
-- **Esc** or **right click**: stop placing the selected building (also the placement bar's **Cancel**)
-- **Pilot boat**: walk beside a dock's skiff or parked boat, then press its power action to board. Right-click coast or ocean tiles to sail; the camera stays where you position it. Click the bottom-right player portrait to select the player and center the camera on them. Beside shore or a finished dock, use **Disembark** to land, leaving the boat afloat.
-- **Left click on another island while aboard**: sail continuously to a reachable shore. The dark tiles beyond the radar cover locked sea and islands until quest progress expands the frontier; exploration fog inside it lifts as the robot sees the sea. Every island persists and keeps producing.
-- **M**: pull back to the whole disc (or zoom back to play). While aboard, click a revealed island to set a sailing destination and zoom in; drag to orbit around the disc. **Esc** also zooms back in.
-- **[** and **]**: inspect the previous or next visited island with the camera; the robot stays in place.
-- **=**: (debug builds, temporary) reveal one more ring of islands — a stand-in for a boat-tier unlock until that system exists
-- **Space**: toggle the hex grid overlay
-- **Mouse wheel**: zoom camera — keep zooming out to see the neighbouring islands and, eventually, the whole disc
-- **Right or middle mouse drag**: pan camera
-
-## Planned Direction
-
-Potential systems for the game:
-
-- 3/4 top-down island maps with clear tile and building readability
-- Small island map generation or authored island layouts
-- Resource nodes such as wood, stone, food, ore, or energy
-- Buildings for gathering, storage, crafting, transport, and population needs
-- Construction costs and build placement rules
-- Production chains and resource logistics
-- Tech tree progression that unlocks new buildings, recipes, and island capabilities
-- Power generation and management with simple MW capacity
-- Power progression through windmills, solar, coal or oil generators, and possible late-game nuclear power
-- Inter-island transport with ships, pipes, power cables, or other logistics networks
-- Simple economy, upgrades, or progression goals
-- Postgame "one more turn" optimization and leaderboard-style records (see `docs/postgame-leaderboards.md`)
-- UI for inventory, building selection, and island management
+- [Low Poly Workshop art direction](docs/building-style-palette.md),
+  [Icons and 2D Art](docs/icons-and-2d-art.md), [3D Models](docs/3d-models.md)
+- [Player Model](docs/player-model.md), [K9-DA Model](docs/k9-da-model.md),
+  [Shared Generator Model](docs/shared-generator-model.md)
+- [Meshy Guide](docs/meshy-guide.md)
+- [Terrain Visual Pass 1](docs/terrain-visual-pass-1.md) and
+  [Visual Improvements TODO](docs/visual-improvements-todo.md)
 
 ## Development Notes
 
-Keep Godot-generated local files out of version control. The `.gitignore` already excludes `.godot/` and Android export output.
-
-As the project grows, consider documenting:
-
-- Controls
-- Core gameplay loop
-- Scene organization
-- Autoloads and global managers
-- Resource and building data formats
-- Build/export steps
+- Godot's local `.godot/` folder, Android export output and Blender `.blend1` backups are
+  ignored by git.
+- Gameplay data lives in static catalogs: add buildings in
+  `scripts/buildings/building_definitions.gd`, quests in `scripts/quests/quest_catalog.gd`,
+  resources in `scripts/resources/resource_database.gd`, and islands in
+  `assets/world/islands/` plus `assets/world/world_map.cfg`.

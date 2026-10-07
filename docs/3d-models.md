@@ -18,7 +18,7 @@ of the flat texture. Nothing in the simulation layer is involved — adding a mo
 presentation change.
 
 See also: [Player Unit and Manual Gathering](player-unit-and-manual-gathering.md) for the
-robot, and the [README](../README.md) for overall structure.
+robot, and [Architecture](architecture.md) for overall structure.
 
 ## How the scene is built
 
