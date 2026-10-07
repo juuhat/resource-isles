@@ -225,9 +225,19 @@ involved and where, e.g. `[iron_isle] and [too_close] overlap at <cell>`. The ru
 The check also breaks a copy of the map one way at a time, to make sure each rule catches its
 mistake.
 
-`tools/world_map_preview.gd` draws the whole map to an image (hexes coloured by ground, island
-ids, a coordinate grid, the ring frontiers) so islands can be placed without sailing around in
-the game.
+`tools/world_map_preview.gd` (done) draws the map to an image so islands can be placed without
+sailing around in the game: every island cell coloured by its ground, with dots for deposits,
+tools, the wreck and K9-DA's spot; each island's id and centre; a grid of world cells numbered as
+`world_map.cfg` writes them; the ring frontiers (what the start, Set Sail and each later ring
+reveal); the edge of the sea; and, circled in red and listed, any island that breaks a rule. It
+draws the whole map by default ([`art/previews/world_map/world_map.png`](../art/previews/world_map/world_map.png)),
+or a close-up for placing islets next to others:
+
+```text
+Godot_v4.6.3-stable_win64_console.exe --path . --script res://tools/world_map_preview.gd -- [output.png] [--around 25,-29] [--cells 40]
+```
+
+It writes text, so it needs a window (no `--headless`); it loads no scene and touches no save.
 
 ## Code changes
 
@@ -289,7 +299,7 @@ Done in step 3, except the export filter.
 3. **Switch the game to the map** (done): see Code changes. `island_design_check` also covers
    building a world from the map, and the checks that swept seeds (`dog_rescue_check`,
    `robot_access_check`, `copper_deposit_check`) now check the islands on the map.
-4. **`world_map_check`** (done) **and `world_map_preview`.**
+4. **`world_map_check` and `world_map_preview`** (done).
 5. **The design tool:** a size-aware land blob and `.island` output.
 6. **Content:** new islands and islets across the map.
 7. **Later:** the island painter.
