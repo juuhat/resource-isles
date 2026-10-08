@@ -15,7 +15,7 @@ listed under [Generator work](#generator-work-tracked-separately) and needs its 
 | --- | --- |
 | Ground | One `MeshInstance3D` per cell, sharing a code-generated hex prism scaled to the terrain height |
 | Terrain appearance | Flat-colour `StandardMaterial3D` per terrain type; no ground texture images |
-| Elevation | One fixed height per terrain type (`SAND_TOP_Y`, `GRASS_TOP_Y`, `STONE_TOP_Y`) |
+| Elevation | One fixed height per terrain type (`SAND_TOP_Y`, `GRASS_TOP_Y`, `STONE_TOP_Y`); per-cell levels came later |
 | Hover and discovery | Swap the tile's `material_override` to a per-terrain highlight material or a shared silhouette material |
 | Grid | Single translucent unshaded mesh, toggled by `show_grid` |
 | Water | Shader using existing noise images plus programmatically generated land masks and shoreline-distance textures |
@@ -131,8 +131,13 @@ These change layout, walkability, or saves, so they belong with
 - Varied island silhouettes: crescents, elongated headlands, uneven beach widths. Must preserve
   connected walking routes, dock sites, required resources, and construction space.
 - Decorative back-edge ridges and shelves.
-- Per-cell elevation. `get_step_height`, `cell_from_ray`, building placement, resource positioning,
-  and save data all assume one height per terrain type today.
+- [x] Per-cell elevation: each land cell has a level (`IslandData.get_elevation`), saved with the
+  island and set by an island design's `[heights]`; it defaults to its ground's old height. Tiles,
+  picking, unit steps and the grid follow it, a footprint must stand level, and tall walls show
+  rock under a turf lip (terrain shader). A step of more than `HexPathfinder.MAX_CLIMB` levels is
+  a cliff: units don't walk it, work across it, or land on top of it from a boat, and the world
+  map check reports anything it walls in. The starter island is the first with a raised plateau,
+  cliffs, and ramps down to its beaches.
 
 ## Asset requirements
 

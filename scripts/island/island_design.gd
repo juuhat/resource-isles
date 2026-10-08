@@ -11,6 +11,11 @@ extends RefCounted
 #    s g T g s                so the text looks like the island. Draw land only; the coast is
 #   . s S s .                 added around it. A short row ends in water.
 #
+#   [heights]                 optional, laid out like the grid: a land cell's elevation level,
+#   . 0 . 3 .                 0 (a beach) to IslandData.MAX_ELEVATION, or '.' for its ground's
+#    0 1 3 3 3                usual level (sand 0, grass 1, rock 2). A short grid leaves the
+#                             rest at their usual levels.
+#
 #   [landmarks]               a building placed with the island: type, anchor cell, rotation
 #   crashed_spaceship 3,1 0
 #
@@ -25,7 +30,7 @@ const IslandDataScript := preload("res://scripts/island/island_data.gd")
 
 const DIRECTORY := "res://assets/world/islands"
 const EXTENSION := "island"
-const SECTIONS: Array[String] = ["grid", "landmarks", "markers"]
+const SECTIONS: Array[String] = ["grid", "heights", "landmarks", "markers"]
 const MARKERS: Array[String] = ["k9da"]
 # Water up to this many steps from land is shallow Coast and belongs to the island; past it lies
 # the open sea. Matches a generated island's coast (IslandProfile.coast_rings).
@@ -53,6 +58,8 @@ var design_name := ""
 var size := Vector2i.ZERO
 # Design cell -> terrain, for every land cell; water isn't kept.
 var land: Dictionary = {}
+# Design cell -> elevation level, for the land cells [heights] gives one.
+var heights: Dictionary = {}
 # Design cell -> ResourceNodeType / ItemType.
 var resources: Dictionary = {}
 var items: Dictionary = {}
@@ -94,7 +101,7 @@ static func load_named(name: String) -> IslandDesign:
 static func parse(text: String, name := "") -> IslandDesign:
 	var design := IslandDesign.new()
 	design.design_name = name
-	var lines := {grid = [], landmarks = [], markers = []}
+	var lines := {grid = [], heights = [], landmarks = [], markers = []}
 	var section := ""
 	var line_number := 0
 	for raw_line in text.replace("\r", "").split("\n"):
@@ -106,7 +113,7 @@ static func parse(text: String, name := "") -> IslandDesign:
 		if stripped.begins_with("[") and stripped.ends_with("]"):
 			var header := stripped.substr(1, stripped.length() - 2).strip_edges()
 			if not SECTIONS.has(header):
-				design._error(line_number, "unknown section [%s]; the sections are [grid], [landmarks] and [markers]" % header)
+				design._error(line_number, "unknown section [%s]; the sections are [grid], [heights], [landmarks] and [markers]" % header)
 			elif not (lines[header] as Array).is_empty():
 				design._error(line_number, "a second [%s] section" % header)
 			section = header
@@ -117,6 +124,7 @@ static func parse(text: String, name := "") -> IslandDesign:
 			(lines[section] as Array).append([line_number, line])
 
 	design._read_grid(lines.grid)
+	design._read_heights(lines.heights)
 	design._read_landmarks(lines.landmarks)
 	design._read_markers(lines.markers)
 	return design
@@ -164,6 +172,8 @@ func build(
 	cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.y < b.y or (a.y == b.y and a.x < b.x))
 	for cell in cells:
 		island.terrain[cell] = ground[cell]
+	for cell in heights:
+		island.set_elevation(world_cell(cell, center, rotation, mirror), heights[cell])
 
 	for cell in resources:
 		if not island.place_resource(world_cell(cell, center, rotation, mirror), resources[cell]):
@@ -218,6 +228,32 @@ func _read_grid(lines: Array) -> void:
 	if lines.is_empty():
 		errors.append("%s: there is no grid; draw the island under [grid]" % _file_name())
 		return
+	_read_cells(lines, func(cell: Vector2i, character: String, line_number: int) -> void:
+		size.x = maxi(size.x, cell.x + 1)
+		if not LEGEND.has(character):
+			_error(line_number, "'%s' isn't in the legend (IslandDesign.LEGEND)" % character)
+		else:
+			_add_cell(cell, LEGEND[character]))
+	size.y = lines.size()
+
+
+# The [heights] grid, laid out like [grid]: a digit for a land cell's level, '.' for its usual one.
+func _read_heights(lines: Array) -> void:
+	_read_cells(lines, func(cell: Vector2i, character: String, line_number: int) -> void:
+		if character == ".":
+			return
+		if not character.is_valid_int() or int(character) > IslandDataScript.MAX_ELEVATION:
+			_error(line_number, "'%s' isn't a height; use a level from 0 to %d, or '.' for the ground's usual one"
+				% [character, IslandDataScript.MAX_ELEVATION])
+		elif not land.has(cell):
+			_error(line_number, "%d,%d is water in the grid; only land has a height" % [cell.x, cell.y])
+		else:
+			heights[cell] = int(character))
+
+
+# Reads a grid of one character per hex, one space between them, every odd row indented one space
+# more than the first, calling read_cell(cell, character, line_number) for each cell.
+func _read_cells(lines: Array, read_cell: Callable) -> void:
 	var base_indent := 0
 	for row in lines.size():
 		var line_number: int = lines[row][0]
@@ -233,7 +269,6 @@ func _read_grid(lines: Array) -> void:
 			_error(line_number, "row %d should be indented %d space(s), not %d: every odd row sits half a hex to the right"
 				% [row, base_indent + row % 2, indent])
 			continue
-		size.x = maxi(size.x, (content.length() + 1) / 2)
 		for index in content.length():
 			var character := content[index]
 			if index % 2 == 1:
@@ -243,11 +278,8 @@ func _read_grid(lines: Array) -> void:
 			elif character == " ":
 				_error(line_number, "two spaces between cells; use one, and '.' for water")
 				break
-			elif not LEGEND.has(character):
-				_error(line_number, "'%s' isn't in the legend (IslandDesign.LEGEND)" % character)
 			else:
-				_add_cell(Vector2i(index / 2, row), LEGEND[character])
-	size.y = lines.size()
+				read_cell.call(Vector2i(index / 2, row), character, line_number)
 
 
 func _add_cell(cell: Vector2i, entry: Dictionary) -> void:

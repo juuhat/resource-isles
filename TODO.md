@@ -112,6 +112,8 @@ See [World map and island designs](docs/world-map-and-island-designs.md). Replac
 - [x] Add `tools/world_map_check.gd`: islands don't overlap and stay within the sea, every island has a dock shore, nothing is walled in by deposits, the start island has the wreck and tools, and K9-DA waits on an island in the home waters at a spot reachable from the shore. The rules are in `tools/world_map_rules.gd`.
 - [x] Add `tools/world_map_preview.gd`: the whole map as an image (`art/previews/world_map/world_map.png`), or a close-up with `--around column,row --cells n`, with ground colours, deposits, island ids and centres, a coordinate grid, the ring frontiers, and rule problems circled in red.
 - [ ] Before placing islets close to other islands, handle overlapping water planes: each island draws its own toon-water plane, reaching about 12 cells past its land, and a neighbour's plane draws over its shore.
+- [x] Per-cell heights: a design's `[heights]` raises plateaus and cliffy shores; a step of more than two levels is a cliff the robot can't walk, work across or land on, and the map check reports anything it walls in. The starter island is the first with cliffs and ramps.
+- [ ] Play-test the starter island's plateau: whether the ramps are easy to find, and whether the cliffs read at the normal camera angle (it looks down steeply, so walls mostly show as edges). The world map preview doesn't show heights yet.
 - [ ] Turn the generator into a design tool (`tools/design_island.gd`) whose land blob scales with the profile's size.
 - [ ] Design and place new islands and islets across the map.
 - [ ] Later: an island painter that reads and writes `.island` files.

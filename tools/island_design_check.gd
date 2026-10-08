@@ -5,7 +5,7 @@ extends SceneTree
 #   - a grid reads as drawn: an odd row's cells sit half a hex to the right, as on the game's grid;
 #   - a placed design keeps its shape at any centre and in every orientation, its middle lands on
 #     the centre, and it owns its land plus the coast ring around it, lagoons included;
-#   - landmarks and markers move and turn with the island;
+#   - landmarks and markers move and turn with the island, and so do [heights];
 #   - mistakes in a design or the world map are reported, a design's with its file line;
 #   - every design in assets/world/islands loads and builds in all twelve orientations, and once
 #     there is a world map, so does every island on it.
@@ -77,6 +77,7 @@ func _initialize() -> void:
 	_check_atoll()
 	_check_placement()
 	_check_landmarks_and_markers()
+	_check_heights()
 	_check_design_mistakes()
 	_check_world_map()
 	_check_design_files()
@@ -207,6 +208,28 @@ func _check_landmarks_and_markers() -> void:
 	expect(_has_error(covered.build_errors, "under a landmark"), "K9-DA's spot can't be under the wreck")
 
 
+# [heights] gives land cells their own elevation, laid out like the grid; the rest keep their
+# ground's usual level, and the heights move and turn with the island.
+func _check_heights() -> void:
+	var design := IslandDesignScript.parse("[grid]\n. g g r\n s s g\n[heights]\n. 4 . 5\n 0\n", "cliffs")
+	expect(design.errors.is_empty(), "A grid with heights reads: %s" % "; ".join(design.errors))
+	expect(design.heights == {Vector2i(1, 0): 4, Vector2i(3, 0): 5, Vector2i(0, 1): 0},
+		"Only the cells given a height have one: %s" % design.heights)
+	for mirror in [false, true]:
+		for rotation in 6:
+			var label := "at rotation %d%s" % [rotation, ", mirrored" if mirror else ""]
+			var island := design.build(Vector2i(-3, -11), rotation, mirror)
+			var at := func(cell: Vector2i) -> int: return island.get_elevation(design.world_cell(cell, Vector2i(-3, -11), rotation, mirror))
+			expect(at.call(Vector2i(1, 0)) == 4 and at.call(Vector2i(3, 0)) == 5, "The cliffs move with the island " + label)
+			expect(at.call(Vector2i(2, 0)) == 1 and at.call(Vector2i(1, 1)) == 0 and at.call(Vector2i(2, 1)) == 1,
+				"Cells without a height keep their ground's usual level " + label)
+
+	var manager := BuildingManager.new()
+	var ledge := IslandDesignScript.parse("[grid]\ng g g\n[heights]\n3 3 3\n[landmarks]\ncrashed_spaceship 1,0", "ledge")
+	ledge.build(Vector2i.ZERO, 0, false, manager)
+	expect(ledge.build_errors.is_empty(), "A wreck fits on a raised plateau: %s" % "; ".join(ledge.build_errors))
+
+
 func _check_design_mistakes() -> void:
 	var mistakes := [
 		["[grid]\n. x .\n", "isn't in the legend"],
@@ -225,6 +248,10 @@ func _check_design_mistakes() -> void:
 		["[grid]\n. g g\n[markers]\ndog 1,0\n", "isn't a marker"],
 		["[grid]\n. g T\n[markers]\nk9da 2,0\n", "needs open ground"],
 		["[grid]\n. g g\n[markers]\nk9da 1,0\nk9da 2,0\n", "a second k9da marker"],
+		["[grid]\n. g g\n[heights]\n. 9 .\n", "isn't a height"],
+		["[grid]\n. g g\n[heights]\n. x .\n", "isn't a height"],
+		["[grid]\n. g g\n[heights]\n2 . .\n", "only land has a height"],
+		["[grid]\n. g g\n[heights]\n. 2 .\n. 2\n", "should be indented 1"],
 	]
 	for mistake in mistakes:
 		var design := IslandDesignScript.parse(mistake[0], "mistake")

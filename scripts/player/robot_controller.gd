@@ -270,8 +270,9 @@ func plan_route(target: Vector2i, start: Vector2i) -> Dictionary:
 #     through buildings is fine), the last step going onto the parking spot instead of the
 #     tile's centre. The robot then turns to face the building (see on_arrived).
 #   - Anything else (a resource node, or a building whose model fills its tile): the cheapest
-#     open neighbour, interacting across the edge. Neighbours behind the target (away from the
-#     camera) cost BEHIND_PENALTY extra, so the robot isn't hidden by it.
+#     open neighbour, interacting across the edge, but not across a cliff (see
+#     HexPathfinder.MAX_CLIMB). Neighbours behind the target (away from the camera) cost
+#     BEHIND_PENALTY extra, so the robot isn't hidden by it.
 #   - No open neighbour at all (fully enclosed): stand on the target itself, as a last resort.
 func plan_approach(target: Vector2i, start: Vector2i) -> Dictionary:
 	var island := current_island
@@ -315,7 +316,8 @@ func plan_approach(target: Vector2i, start: Vector2i) -> Dictionary:
 	var best := GameTypes.NO_CELL
 	var best_score := INF
 	for neighbor in HexGrid.neighbors(target):
-		if not HexPathfinder.is_open(island, neighbor) or not costs.has(neighbor):
+		if not HexPathfinder.is_open(island, neighbor) or not costs.has(neighbor) \
+				or not HexPathfinder.within_climb(island, neighbor, target):
 			continue
 		var neighbor_z := renderer.get_cell_center(neighbor).z
 		var score: float = costs[neighbor] + (BEHIND_PENALTY if neighbor_z < center.z else 0)
@@ -336,7 +338,7 @@ func _approach(path: Array[Vector2i], spot_cell := GameTypes.NO_CELL, spot_posit
 
 
 # True when the robot can work `target` from where it stands: on it (open ground, a work spot,
-# or the enclosed-target fallback) or on a neighbouring tile.
+# or the enclosed-target fallback) or on a neighbouring tile, not across a cliff.
 func _is_working_position(target: Vector2i) -> bool:
 	if player_unit == null or target == GameTypes.NO_CELL:
 		return false
@@ -348,7 +350,7 @@ func _is_working_position(target: Vector2i) -> bool:
 	if current_island.has_building(target):
 		target_cells = current_island.get_building_footprint_cells(current_island.get_building_anchor_cell(target))
 	for target_cell in target_cells:
-		if cell == target_cell or HexGrid.neighbors(target_cell).has(cell):
+		if cell == target_cell or (HexGrid.neighbors(target_cell).has(cell) and HexPathfinder.within_climb(current_island, cell, target_cell)):
 			return true
 	return false
 
@@ -509,7 +511,8 @@ func _can_rescue_dog() -> bool:
 		return false
 
 	var robot_cell := player_unit.current_cell
-	return robot_cell == world.dog_cell or HexGrid.neighbors(world.dog_cell).has(robot_cell)
+	return robot_cell == world.dog_cell or (HexGrid.neighbors(world.dog_cell).has(robot_cell)
+		and HexPathfinder.within_climb(current_island, robot_cell, world.dog_cell))
 
 
 # True when the cell holds a building that draws power, so the robot can hand-power it
@@ -843,10 +846,12 @@ func sync_dog() -> void:
 	dog.strand(dog_island, world.dog_cell)
 
 
-# Where the rescued dog appears when the robot lands: an open cell beside the robot.
+# Where the rescued dog appears when the robot lands: an open cell beside the robot, one step
+# away (not up or down a cliff).
 func _find_dog_follow_cell() -> Vector2i:
 	for neighbor in HexGrid.neighbors(player_unit.current_cell):
-		if WorldBuilder.is_open_ground(current_island, neighbor):
+		if WorldBuilder.is_open_ground(current_island, neighbor) \
+				and HexPathfinder.can_step(current_island, player_unit.current_cell, neighbor):
 			return neighbor
 	return player_unit.current_cell
 

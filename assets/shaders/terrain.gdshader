@@ -16,6 +16,14 @@ uniform float patch_scale = 0.00065;
 // 0 leaves a flat base colour (the submerged seabed); soil patches only where soil_strength > 0.
 uniform float detail_strength = 1.0;
 uniform float soil_strength = 0.0;
+// Walls by depth below their tile's top: a turf lip over the top lip_depth units, then the side
+// colour, turning to cliff_color rock past rock_depth. The usual one-level steps stay above
+// rock_depth, so only tall walls (cliffs, raised plateaus) show bare rock.
+uniform vec4 lip_color : source_color = vec4(0.4, 0.45, 0.25, 1.0);
+uniform float lip_depth = 0.0;
+uniform vec4 cliff_color : source_color = vec4(0.45, 0.42, 0.38, 1.0);
+uniform float rock_depth = 9.0;
+uniform float rock_strength = 0.0;
 
 // Shared materials retain independent interaction/discovery state on every tile.
 instance uniform int hover_state = 0; // 0 normal, 1 ordinary hover, 2 actionable hover
@@ -23,10 +31,13 @@ instance uniform bool explored = true;
 
 varying vec3 ground_position;
 varying vec3 ground_normal;
+// The world height of this tile's top: the unit prism's top (y = 1) scaled and placed.
+varying float tile_top;
 
 void vertex() {
 	ground_position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	ground_normal = normalize(MODEL_NORMAL_MATRIX * NORMAL);
+	tile_top = (MODEL_MATRIX * vec4(0.0, 1.0, 0.0, 1.0)).y;
 }
 
 void fragment() {
@@ -44,6 +55,14 @@ void fragment() {
 		float top = smoothstep(0.5, 0.9, normalize(ground_normal).y);
 		float strata = smoothstep(0.35, 0.65, fract((ground_position.y + broad * 3.0) / 7.0));
 		vec3 side = side_color.rgb * mix(0.92, 1.05, strata);
+		float depth = tile_top - ground_position.y;
+		float rock = smoothstep(rock_depth, rock_depth + 5.0, depth + (broad - 0.5) * 8.0) * rock_strength;
+		// Rock faces in tall, flat-toned blocks, stretched down the wall, rather than even bands.
+		float block = texture(ground_noise, vec2((ground_position.x - ground_position.z) * 0.011, ground_position.y * 0.024)).r;
+		block = floor(block * 5.0) / 4.0;
+		side = mix(side, cliff_color.rgb * mix(0.8, 1.12, block) * mix(0.95, 1.03, strata), rock);
+		float lip = 1.0 - smoothstep(lip_depth - 0.4, lip_depth + 0.4, depth + (small - 0.5) * 1.2);
+		side = mix(side, lip_color.rgb, lip * step(0.01, lip_depth));
 		float wet = 1.0 - smoothstep(water_level + 0.5, water_level + 4.0, ground_position.y);
 		side *= mix(1.0, 0.73, wet);
 		color = mix(base_color.rgb, mix(side, color, top), detail_strength);

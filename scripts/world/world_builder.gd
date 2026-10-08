@@ -61,7 +61,8 @@ static func find_spawn_cell(island: IslandData) -> Vector2i:
 	var crashed_spaceship_cell := find_crashed_spaceship_cell(island)
 	if crashed_spaceship_cell != GameTypes.NO_CELL:
 		for neighbor in HexGrid.neighbors(crashed_spaceship_cell):
-			if HexPathfinder.is_open(island, neighbor) and not island.has_item(neighbor):
+			if HexPathfinder.is_open(island, neighbor) and not island.has_item(neighbor) \
+					and HexPathfinder.within_climb(island, neighbor, crashed_spaceship_cell):
 				return neighbor
 
 	for cell in island.terrain:

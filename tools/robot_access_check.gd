@@ -10,7 +10,9 @@ extends SceneTree
 #     of its model;
 #   - a building with a WorkSpot (the logger camp, the sawmill) is worked from its own yard,
 #     reached by the shortest route straight onto its tile, then turned to face it;
-#   - buildings can't be placed on the robot, and one placed on its route doesn't stop it.
+#   - buildings can't be placed on the robot, and one placed on its route doesn't stop it;
+#   - a cliff (HexPathfinder.MAX_CLIMB) is never walked up or down, only round by a ramp; the robot
+#     doesn't land on top of one from a boat, or work a tile across one.
 #
 # The game saves to SaveManager.SAVE_PATH as it plays, so any existing save is backed up first and
 # restored at the end.
@@ -55,6 +57,7 @@ func _run() -> void:
 		_check_work_spot(game, robot, building_type)
 	_check_placement_veto(game, robot)
 	_check_walk_through_buildings(game, robot)
+	_check_cliffs(game, robot)
 
 	root.remove_child(game)
 	game.free()
@@ -94,6 +97,77 @@ func _check_pathfinder() -> void:
 	_expect(not path.is_empty(), "A sealed cell is still reachable as a last resort")
 	var crossed := path.filter(func(cell: Vector2i) -> bool: return not HexPathfinderScript.is_open(sealed, cell))
 	_expect(crossed.size() == 1, "Reaching a sealed cell crosses exactly one obstacle")
+
+	# A plateau (level 4) east of grass (level 1): a cliff, climbed only by the ramp (level 2).
+	var plateau := _grass_island()
+	for y in 7:
+		for x in range(3, 7):
+			plateau.set_elevation(Vector2i(x, y), 4)
+	var ramp := Vector2i(3, 3)
+	plateau.set_elevation(ramp, 2)
+	_expect(not HexPathfinderScript.can_step(plateau, Vector2i(2, 0), Vector2i(3, 0)), "A cliff can't be walked up")
+	_expect(not HexPathfinderScript.can_step(plateau, Vector2i(3, 0), Vector2i(2, 0)), "Nor down")
+	_expect(HexPathfinderScript.can_step(plateau, Vector2i(2, 3), ramp) and HexPathfinderScript.can_step(plateau, ramp, Vector2i(4, 3)),
+		"A ramp halfway up is a step from either side")
+	path = HexPathfinderScript.find_path(plateau, Vector2i(0, 0), Vector2i(6, 0))
+	_expect(path.has(ramp), "The way up the plateau goes by the ramp")
+	var from := Vector2i(0, 0)
+	for cell in path:
+		_expect(HexPathfinderScript.can_step(plateau, from, cell), "Every step on the way up is climbable")
+		from = cell
+	plateau.set_elevation(ramp, 4)
+	_expect(HexPathfinderScript.find_path(plateau, Vector2i(0, 0), Vector2i(6, 0)).is_empty(),
+		"Without a ramp the plateau can't be reached, not even as a last resort")
+	var rock := _grass_island()
+	rock.set_terrain(Vector2i(2, 2), GameTypes.Terrain.SAND)
+	rock.set_terrain(Vector2i(3, 2), GameTypes.Terrain.STONE)
+	_expect(HexPathfinderScript.can_step(rock, Vector2i(2, 2), Vector2i(3, 2)), "Sand beside rock, at their usual levels, is a step")
+
+
+# The starter island's cliffs: the robot can't step ashore onto a cliff top from a boat, and can't
+# work a tile at the top of a cliff from the beach below; it goes round by a ramp instead.
+func _check_cliffs(game: Node, robot: PlayerUnit) -> void:
+	var island: IslandData = game.current_island
+	var cliff_top := GameTypes.NO_CELL
+	var below := GameTypes.NO_CELL
+	var beach := GameTypes.NO_CELL
+	var beach_water := GameTypes.NO_CELL
+	for cell: Vector2i in island.terrain:
+		if not HexPathfinderScript.is_open(island, cell) or island.has_item(cell):
+			continue
+		for neighbor in HexGridScript.neighbors(cell):
+			if GameTypes.is_water(island.get_terrain(neighbor)):
+				if island.has_cell(neighbor) and island.get_terrain(cell) == GameTypes.Terrain.SAND:
+					beach = cell
+					beach_water = neighbor
+			elif island.get_terrain(cell) == GameTypes.Terrain.GRASS and HexPathfinderScript.is_open(island, neighbor) \
+					and not island.has_item(neighbor) \
+					and island.get_elevation(cell) - island.get_elevation(neighbor) > HexPathfinderScript.MAX_CLIMB:
+				cliff_top = cell
+				below = neighbor
+	_expect(cliff_top != GameTypes.NO_CELL and beach != GameTypes.NO_CELL, "The starter island has a cliff and a beach")
+	if cliff_top == GameTypes.NO_CELL or beach == GameTypes.NO_CELL:
+		return
+
+	_expect(game.world_navigation.can_land(beach_water, beach), "A boat lands the robot on a beach")
+	for cell: Vector2i in island.terrain:
+		if GameTypes.is_water(island.get_terrain(cell)) or island.get_elevation(cell) <= HexPathfinderScript.MAX_CLIMB:
+			continue
+		for neighbor in HexGridScript.neighbors(cell):
+			if GameTypes.is_water(island.get_terrain(neighbor)):
+				_expect(not game.world_navigation.can_land(neighbor, cell), "No landing on the cliff top at %s" % cell)
+
+	robot.place_at(below)
+	island.place_resource(cliff_top, GameTypes.ResourceNodeType.TREE)
+	_expect(not game.robot._is_working_position(cliff_top), "The tree at the top of the cliff can't be worked from below")
+	var plan: Dictionary = game.robot.plan_approach(cliff_top, below)
+	_expect(not plan.is_empty() and not plan.path.is_empty(), "To work it, the robot walks round")
+	if not plan.is_empty() and not plan.path.is_empty():
+		var stand: Vector2i = plan.path.back()
+		_expect(HexGridScript.neighbors(cliff_top).has(stand) and HexPathfinderScript.within_climb(island, stand, cliff_top),
+			"It works the tree from beside it, on top of the cliff")
+	island.resources.erase(cliff_top)
+	robot.place_at(WorldBuilder.find_spawn_cell(island))
 
 
 # Command the robot onto a tree: it stops beside it without crossing anything solid, can harvest

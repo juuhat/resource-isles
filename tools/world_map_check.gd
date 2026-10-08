@@ -2,7 +2,7 @@ extends SceneTree
 
 # Headless check that the world map (assets/world/world_map.cfg) keeps the rules the game relies on
 # (tools/world_map_rules.gd): islands that don't overlap and stay within the sea, a dock shore on
-# every island, nothing walled in by deposits, a start island with the wreck and the robot's tools,
+# every island, nothing walled in by deposits or cliffs, a start island with the wreck and the robot's tools,
 # and K9-DA on an island in the home waters at a spot reachable from the shore. Fails with every
 # problem found.
 #
@@ -48,6 +48,39 @@ g g g
  g g g
 g g g
 """
+# The axe on a plateau with cliffs all round: no ramp up from the beaches, and no landing on top.
+const CLIFF_ITEM := """
+[grid]
+. s s s s .
+ s g g g g s
+s g g a g g
+ s g g g g s
+. s s s s .
+
+[heights]
+. . . . . .
+ . 4 4 4 4 .
+. 4 4 4 4 4
+ . 4 4 4 4 .
+"""
+# A start island whose wreck stands on a plateau with no way down to the beaches, and so to a dock.
+const CLIFF_START := """
+[grid]
+. s s s s .
+ s g g g g s
+s g a p w g
+ s g g g g s
+. s s s s .
+
+[heights]
+. . . . . .
+ . 4 4 4 4 .
+. 4 4 4 4 4
+ . 4 4 4 4 .
+
+[landmarks]
+crashed_spaceship 2,1 0
+"""
 
 var failures := 0
 var _manager := BuildingManager.new()
@@ -87,6 +120,10 @@ func _check_rules_catch_mistakes() -> void:
 		"[iron_isle] lies", ["iron_isle"])
 	_expect_problem(map.replace("k9da = true", "").replace("start = true", "start = true\nk9da = true"),
 		"[crash_site] K9-DA must wait on another island", ["crash_site"])
+	var cliff_start := {cliff_start = IslandDesign.parse(CLIFF_START, "cliff_start")}
+	expect(cliff_start.cliff_start.errors.is_empty(), "The cliff_start design reads")
+	var stuck := WorldMapRules.problems(WorldMap.parse(map.replace("design = \"starter\"", "design = \"cliff_start\"")), _manager, cliff_start)
+	_expect_in(stuck, "[crash_site] has nowhere to build a dock the robot can walk to", ["crash_site"])
 
 	# Islands that break the rules of their own, K9-DA moved onto one of them (and copper_isle,
 	# no longer K9-DA's, out of the home waters).
@@ -95,11 +132,13 @@ func _check_rules_catch_mistakes() -> void:
 	extra += "\n[walled_deposit]\ndesign = \"walled_deposit\"\ncenter = Vector2i(-40, 35)\n"
 	extra += "\n[no_shore]\ndesign = \"no_shore\"\ncenter = Vector2i(35, 30)\n"
 	extra += "\n[walled_k9da]\ndesign = \"walled_k9da\"\ncenter = Vector2i(14, 22)\nk9da = true\n"
+	extra += "\n[cliff_item]\ndesign = \"cliff_item\"\ncenter = Vector2i(-45, -10)\n"
 	var designs := {
 		walled_item = IslandDesign.parse(WALLED_ITEM, "walled_item"),
 		walled_deposit = IslandDesign.parse(WALLED_DEPOSIT, "walled_deposit"),
 		no_shore = IslandDesign.parse(NO_SHORE, "no_shore"),
 		walled_k9da = IslandDesign.parse(WALLED_K9DA, "walled_k9da"),
+		cliff_item = IslandDesign.parse(CLIFF_ITEM, "cliff_item"),
 	}
 	for design_name in designs:
 		expect((designs[design_name] as IslandDesign).errors.is_empty(), "The %s design reads" % design_name)
@@ -108,13 +147,14 @@ func _check_rules_catch_mistakes() -> void:
 	_expect_in(problems, "[walled_deposit] the stone deposit at", ["walled_deposit"])
 	_expect_in(problems, "[no_shore] has nowhere to build a dock", ["no_shore"])
 	_expect_in(problems, "[walled_k9da] K9-DA's spot at", ["walled_k9da"])
+	_expect_in(problems, "[cliff_item] the axe at", ["cliff_item"])
 	# The made-up designs aren't files, which the map itself reports; everything else is on the islands.
 	var map_problems := problems.filter(func(p: Dictionary) -> bool: return p.islands.is_empty())
 	var island_problems := problems.filter(func(p: Dictionary) -> bool: return not p.islands.is_empty())
 	expect(map_problems.size() == designs.size()
 		and map_problems.all(func(p: Dictionary) -> bool: return (p.message as String).contains("there is no design")),
 		"The map only misses the made-up design files")
-	expect(island_problems.size() == 4, "Only the broken islands have problems: %s"
+	expect(island_problems.size() == 5, "Only the broken islands have problems: %s"
 		% "; ".join(PackedStringArray(island_problems.map(func(p): return p.message))))
 
 

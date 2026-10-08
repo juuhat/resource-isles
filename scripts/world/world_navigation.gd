@@ -57,7 +57,8 @@ func can_sail(cell: Vector2i, own_id := -1) -> bool:
 	return true
 
 # Whether the robot can step ashore from a boat on boat_cell onto the neighbouring shore: a deck
-# or unobstructed land on a revealed island. The boat stays afloat.
+# or unobstructed land on a revealed island, low enough to climb from the water (not a cliff,
+# HexPathfinder.MAX_CLIMB). The boat stays afloat.
 func can_land(boat_cell: Vector2i, shore: Vector2i) -> bool:
 	var coord := island_at(shore)
 	if coord == WorldData.NO_COORD or not world.is_revealed(coord):
@@ -65,7 +66,8 @@ func can_land(boat_cell: Vector2i, shore: Vector2i) -> bool:
 	var island: IslandData = world.islands[coord]
 	return Grid.neighbors(boat_cell).has(shore) and Ground.is_open(island, shore) \
 		and not island.has_resource(shore) \
-		and (Ground.is_deck(island, shore) or not GameTypes.is_water(island.get_terrain(shore)))
+		and (Ground.is_deck(island, shore) or (not GameTypes.is_water(island.get_terrain(shore))
+			and Ground.within_climb(island, boat_cell, shore)))
 
 # The boat at the cell: a boat afloat there {id, cell}, or the skiff still moored at the end of a
 # finished dock {id = -1, cell, anchor} (it becomes a world boat once launched); {} for none.

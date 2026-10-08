@@ -7,6 +7,8 @@ extends RefCounted
 # included; see has_cell.
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
+# The highest elevation level a land cell can have (see get_elevation).
+const MAX_ELEVATION := 6
 
 var island_name: String = ""
 # The island's id on the world map (WorldMap), which ties a saved island to its entry there.
@@ -17,6 +19,8 @@ var visited := false
 var sighted := false
 var inventory := Inventory.new()
 var terrain: Dictionary = {}
+# Land cell -> elevation level, where it isn't its ground's usual one (see get_elevation).
+var elevation: Dictionary = {}
 var resources: Dictionary = {}
 var items: Dictionary = {}
 var scavenged_cells: Dictionary = {}
@@ -61,14 +65,39 @@ func get_terrain(cell: Vector2i) -> int:
 	return terrain.get(cell, GameTypes.Terrain.WATER)
 
 
+# How high a land cell stands, in levels from 0 (a beach) to MAX_ELEVATION: its own level if it
+# has one (an island design's [heights]), otherwise its ground's usual level. The renderer turns
+# levels into heights (IslandRenderer.elevation_top_y). Water has no level.
+func get_elevation(cell: Vector2i) -> int:
+	return elevation.get(cell, default_elevation(get_terrain(cell)))
+
+
+func set_elevation(cell: Vector2i, level: int) -> void:
+	if has_cell(cell) and not GameTypes.is_water(get_terrain(cell)):
+		elevation[cell] = clampi(level, 0, MAX_ELEVATION)
+
+
+# Each ground's usual level: the heights every island had before cells got their own.
+static func default_elevation(terrain_type: int) -> int:
+	match terrain_type:
+		GameTypes.Terrain.GRASS:
+			return 1
+		GameTypes.Terrain.STONE:
+			return 2
+		_:
+			return 0
+
+
 # cell_terrains optionally overrides required_terrains per footprint cell (same order); an
-# empty entry, or none, falls back to required_terrains.
+# empty entry, or none, falls back to required_terrains. A building stands level: every land cell
+# of its footprint is at one elevation (water cells, like a dock's pier, have none).
 func can_place_building(
 	cell: Vector2i,
 	footprint_cells: Array[Vector2i],
 	required_terrains: Array[int],
 	cell_terrains: Array = []
 ) -> bool:
+	var level := -1
 	for index in footprint_cells.size():
 		var footprint_cell := footprint_cells[index]
 		var allowed: Array = required_terrains
@@ -81,6 +110,11 @@ func can_place_building(
 			or _has_building_on_cell(footprint_cell)
 		):
 			return false
+		if not GameTypes.is_water(get_terrain(footprint_cell)):
+			if level == -1:
+				level = get_elevation(footprint_cell)
+			elif get_elevation(footprint_cell) != level:
+				return false
 
 	return true
 
@@ -352,6 +386,7 @@ func take_item(cell: Vector2i) -> int:
 # island (built on cells from (0, 0)) at its place in the world.
 func shift(axial_offset: Vector2i) -> void:
 	terrain = _shifted_keys(terrain, axial_offset)
+	elevation = _shifted_keys(elevation, axial_offset)
 	resources = _shifted_keys(resources, axial_offset)
 	items = _shifted_keys(items, axial_offset)
 	scavenged_cells = _shifted_keys(scavenged_cells, axial_offset)
@@ -395,6 +430,7 @@ func to_dict(reference_time: float) -> Dictionary:
 		visited = visited,
 		sighted = sighted,
 		terrain = terrain.duplicate(),
+		elevation = elevation.duplicate(),
 		resources = resources.duplicate(),
 		items = items.duplicate(),
 		scavenged_cells = scavenged_cells.duplicate(),
@@ -415,6 +451,8 @@ static func from_dict(data: Dictionary, reference_time: float) -> IslandData:
 	island.visited = bool(data.get("visited", true))
 	island.sighted = bool(data.get("sighted", island.visited))
 	island.terrain = (data.get("terrain", {}) as Dictionary).duplicate()
+	# Saves from before cells had their own elevation stand at their grounds' usual levels.
+	island.elevation = (data.get("elevation", {}) as Dictionary).duplicate()
 	island.resources = (data.get("resources", {}) as Dictionary).duplicate()
 	island.items = (data.get("items", {}) as Dictionary).duplicate()
 	island.scavenged_cells = (data.get("scavenged_cells", {}) as Dictionary).duplicate()

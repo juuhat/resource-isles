@@ -57,8 +57,8 @@ const WATERFALL_COUNT := 7
 # A ground point belongs to an island when it is within this much of the island's land reach
 # (_land_reach) from its centre: about 2700 units for a ring island, less for a small one.
 const ISLAND_PICK_MARGIN := 2000.0
-# The uncharted chart lies flat just above the tallest silhouette tiles (STONE_TOP_Y).
-const CHART_Y := 30.0
+# The uncharted chart lies flat just above the tallest silhouette tiles can be (MAX_TOP_Y).
+const CHART_Y := IslandRendererScript.MAX_TOP_Y + 4.0
 # K9-DA's signal pings on the chart this far around its island until the island is discovered.
 const SIGNAL_RADIUS := 760.0
 # An island's patch reaches this far past its land (its coast runs two cells past it).

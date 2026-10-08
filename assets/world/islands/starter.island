@@ -1,15 +1,31 @@
-# World 1, ring 0: the crash site, where the robot starts. Baked from the seed-1 world.
+# World 1, ring 0: the crash site, where the robot starts. Baked from the seed-1 world, then
+# raised into a grass plateau with a rocky rise: it meets the sea in cliffs to the east and
+# south-east, and steps down to beaches on the other sides, where a dock can go. The plateau
+# is too high to climb straight onto (HexPathfinder.MAX_CLIMB), so a terrace halfway down (the
+# 2s) leads to the beaches on the north, west and south-west.
 [grid]
 . . . s s s s . . . .
  . . s g g g s s s . .
 . s s g g g g g g s .
- s g g g g g g a g s s
-s g g r r g g T T g s
- s g r S S g g T g g s
-s s g r r g g w g g s
- . s g g p g g g s s .
-. . s s s s g s s . .
- . . . . . s s . . . .
+ s g g g g g g a g g g
+s g g r r g g T T g g
+ s g r S S g g T g g g
+s s g r r g g w g g g
+ . s g g p g g g g g .
+. . s s s s g g g . .
+ . . . . . s g . . . .
+
+[heights]
+. . . . . . . . . . .
+ . . . 4 2 4 . . . . .
+. . . 4 4 4 4 4 4 . .
+ . 4 4 4 4 4 4 4 4 4 4
+. 2 4 5 5 4 4 4 4 4 4
+ . 4 5 5 5 4 4 4 4 4 4
+. . 4 5 5 4 4 4 4 4 4
+ . . 4 2 4 4 4 4 4 4 .
+. . . . . . 4 4 4 . .
+ . . . . . . 4 . . . .
 
 [landmarks]
 crashed_spaceship 5,4 0

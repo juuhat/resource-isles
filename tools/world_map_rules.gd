@@ -7,9 +7,9 @@ extends RefCounted
 #   - no two islands share a cell (each island's coast reaches 2 cells past its land), or the game
 #     leaves the later one out;
 #   - every island lies within the sea: SEA_RINGS rings of the centre, inside the mountains;
-#   - every island has a shore a dock can be built on;
-#   - the robot can reach every item, and a tile beside every deposit, without climbing over
-#     deposits: on the start island from where it wakes, elsewhere from the shore;
+#   - the robot can reach every item, a tile beside every deposit, and a shore a dock can be built
+#     on, without climbing over deposits or cliffs (HexPathfinder.MAX_CLIMB): on the start island
+#     from where it wakes, elsewhere from the shores it can land on;
 #   - the start island is revealed from the start and has the crashed spaceship and the robot's
 #     three tools;
 #   - K9-DA waits on another island, at a marked spot reachable from the shore, and all of that
@@ -55,11 +55,11 @@ static func problems(map: WorldMap, building_manager: BuildingManager, designs :
 		var island: IslandData = islands[id]
 		var placement: WorldMap.Placement = placements[id]
 		_check_sea_edge(id, island, found)
-		_check_dock_shore(id, island, building_manager, found)
 		var sources := _landing_cells(island)
 		if placement.start:
 			sources = [WorldBuilder.find_spawn_cell(island)]
 		var reached := _reached(island, sources)
+		_check_dock_shore(id, island, building_manager, reached, found)
 		_check_items(id, island, reached, found)
 		_check_deposits(id, island, reached, found)
 		if placement.start:
@@ -106,31 +106,37 @@ static func _check_sea_edge(id: StringName, island: IslandData, found: Array[Dic
 			return
 
 
-static func _check_dock_shore(id: StringName, island: IslandData, building_manager: BuildingManager, found: Array[Dictionary]) -> void:
+# A dock goes on sand the robot can walk to: it builds it standing there.
+static func _check_dock_shore(
+	id: StringName, island: IslandData, building_manager: BuildingManager, reached: Dictionary, found: Array[Dictionary]
+) -> void:
 	for cell: Vector2i in island.terrain:
-		if island.get_terrain(cell) != GameTypes.Terrain.SAND:
+		if island.get_terrain(cell) != GameTypes.Terrain.SAND or not reached.has(cell):
 			continue
 		for rotation in 6:
 			if building_manager.can_place(cell, GameTypes.BuildingType.DOCK, island, rotation):
 				return
-	found.append(_problem([id], "[%s] has nowhere to build a dock: it needs sand beside the coast, with room for the pier" % id))
+	found.append(_problem([id], "[%s] has nowhere to build a dock the robot can walk to: it needs sand beside the coast, with room for the pier, and no cliff in the way"
+		% id))
 
 
-# Open land the robot can step onto from a boat: next to the island's own water.
+# Open land the robot can step onto from a boat: next to the island's own water, and not on top
+# of a cliff.
 static func _landing_cells(island: IslandData) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
 	for cell: Vector2i in island.terrain:
 		if not HexPathfinder.is_open(island, cell) or GameTypes.is_water(island.get_terrain(cell)):
 			continue
 		for neighbor in HexGrid.neighbors(cell):
-			if island.has_cell(neighbor) and GameTypes.is_water(island.get_terrain(neighbor)):
+			if island.has_cell(neighbor) and GameTypes.is_water(island.get_terrain(neighbor)) \
+					and HexPathfinder.within_climb(island, neighbor, cell):
 				cells.append(cell)
 				break
 	return cells
 
 
 # The cells the robot can walk to from `sources` without stepping onto a deposit or a solid
-# landmark (HexPathfinder.step_cost 1), as a set.
+# landmark (HexPathfinder.step_cost 1), or up or down a cliff (HexPathfinder.can_step), as a set.
 static func _reached(island: IslandData, sources: Array[Vector2i]) -> Dictionary:
 	var reached := {}
 	var frontier: Array[Vector2i] = []
@@ -151,15 +157,16 @@ static func _reached(island: IslandData, sources: Array[Vector2i]) -> Dictionary
 static func _check_items(id: StringName, island: IslandData, reached: Dictionary, found: Array[Dictionary]) -> void:
 	for cell: Vector2i in island.items:
 		if not reached.has(cell):
-			found.append(_problem([id], "[%s] the %s at %d,%d is walled in by deposits"
+			found.append(_problem([id], "[%s] the %s at %d,%d is walled in by deposits or cliffs"
 				% [id, _item_name(island.items[cell]), cell.x, cell.y]))
 
 
-# A deposit is worked from a tile beside it.
+# A deposit is worked from a tile beside it, not across a cliff.
 static func _check_deposits(id: StringName, island: IslandData, reached: Dictionary, found: Array[Dictionary]) -> void:
 	for cell: Vector2i in island.resources:
-		if not HexGrid.neighbors(cell).any(func(neighbor: Vector2i) -> bool: return reached.has(neighbor)):
-			found.append(_problem([id], "[%s] the %s deposit at %d,%d is walled in by other deposits, so the robot can't work it"
+		if not HexGrid.neighbors(cell).any(func(neighbor: Vector2i) -> bool:
+				return reached.has(neighbor) and HexPathfinder.within_climb(island, neighbor, cell)):
+			found.append(_problem([id], "[%s] the %s deposit at %d,%d is walled in by other deposits or cliffs, so the robot can't work it"
 				% [id, _deposit_name(island.resources[cell]), cell.x, cell.y]))
 
 
@@ -199,7 +206,7 @@ static func _check_k9da(
 	if spot == GameTypes.NO_CELL:
 		found.append(_problem([id], "[%s] is K9-DA's island but its design %s has no k9da marker" % [id, placement.design]))
 	elif not placement.start and not reached.has(spot):
-		found.append(_problem([id], "[%s] K9-DA's spot at %d,%d can't be reached from the shore without climbing over deposits"
+		found.append(_problem([id], "[%s] K9-DA's spot at %d,%d can't be reached from the shore without climbing over deposits or cliffs"
 			% [id, spot.x, spot.y]))
 
 

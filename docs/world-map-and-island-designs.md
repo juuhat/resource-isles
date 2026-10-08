@@ -94,6 +94,28 @@ terrain or objects (a salvage crate, say) get a new letter there.
 | `U` | rock | copper ore |
 | `a` / `p` / `w` | grass | the robot's axe / pickaxe / wrench |
 
+**Heights** (optional). A `[heights]` grid, laid out like `[grid]`, gives land cells their own
+elevation level, from `0` (a beach just above the water) to `6`: each level is 6 units higher, and
+a tile is 128 across. `.` leaves a cell at its ground's usual level: sand 0, grass 1, rock 2, the
+heights every island had before. Raise a grass plateau above its beaches, or bring grass or rock
+straight to the water at level 4 or so instead of a sand border, for a cliffy shore. A building's
+footprint has to stand on one level.
+
+**Cliffs.** A unit climbs or drops at most 2 levels in a step (`HexPathfinder.MAX_CLIMB`), so sand
+beside rock is still a step. A bigger drop is a cliff: no unit walks up or down it, the robot
+doesn't work a tile across it, and it can't step ashore from a boat onto land above level 2 (the
+water counts as level 0). Give a plateau a ramp halfway down, like the `2` below, wherever the
+robot should get on or off it; the map check reports anything walled in.
+
+```text
+[grid]
+. s g g .
+ s g r g
+[heights]
+. . 4 4 .
+ . 2 5 4
+```
+
 **Optional sections** for things that don't fit one character per cell. Positions are
 `column,row` in the grid, counted from the top-left cell starting at 0.
 
@@ -213,9 +235,10 @@ involved and where, e.g. `[iron_isle] and [too_close] overlap at <cell>`. The ru
   game would leave the later island out.
 - **Every island lies within the sea:** 4.5 rings of the centre, the sailing frontier with every
   ring revealed, inside the mountains.
-- **Every island has a dock shore:** sand beside the coast with room for the pier.
+- **Every island has a dock shore:** sand beside the coast with room for the pier, that the robot
+  can walk to (see the next rule).
 - **Nothing is walled in:** the robot can reach every item, and a tile beside every deposit,
-  without climbing over deposits: on the start island from where it wakes beside the wreck,
+  without climbing over deposits or cliffs: on the start island from where it wakes beside the wreck,
   elsewhere from any shore it can step onto from a boat.
 - **The start island** is revealed from the start (within the home waters, 0.75 rings of the
   centre) and has the crashed spaceship and the axe, pickaxe and wrench.

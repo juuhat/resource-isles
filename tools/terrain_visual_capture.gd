@@ -164,3 +164,23 @@ func _capture_interactions(game: Node) -> void:
 				shore = cell
 	rig.center_on(renderer.get_cell_center(shore), true)
 	await _capture("shore_side")
+	# The tallest drop to the sea facing the camera (south), if the island has a cliff.
+	var cliff := GameTypes.NO_CELL
+	var cliff_score := -INF
+	for cell in game.current_island.terrain:
+		# Directions 4 and 5 are south-west and south-east.
+		var island: IslandData = game.current_island
+		if GameTypes.is_water(island.get_terrain(cell)) or not (GameTypes.is_water(island.get_terrain(HexGrid.neighbor(cell, 4)))
+				or GameTypes.is_water(island.get_terrain(HexGrid.neighbor(cell, 5)))):
+			continue
+		var center := renderer.get_cell_center(cell)
+		var score := center.y * 100.0 + center.z
+		if score > cliff_score:
+			cliff_score = score
+			cliff = cell
+	if cliff != GameTypes.NO_CELL:
+		rig._debug_pitch = -30.0
+		rig._distance = 320.0
+		rig._target_distance = rig._distance
+		rig.center_on(renderer.get_cell_center(cliff), true)
+		await _capture("cliff_side")

@@ -89,12 +89,21 @@ const ACTION_HOVER_WEIGHT := 0.8
 const SEABED_COAST_COLOR := Color("#7cc9c6")
 const SEABED_OCEAN_COLOR := Color("#1c8fe9")
 
-# Prism top heights per terrain (world units). Land sits above water for a layered
-# island silhouette; the differences are small so unit movement reads as gentle steps.
+# Prism top heights (world units). Land stands at its elevation level (IslandData.get_elevation):
+# level 0 is a beach just above the water, and each level is a step higher. Each ground's usual
+# level gives sand, grass and rock the gentle steps islands had before cells got their own heights;
+# an island design raises cells further for plateaus and cliffy shores.
 const WATER_TOP_Y := 6.0
 const SAND_TOP_Y := 14.0
-const GRASS_TOP_Y := 20.0
-const STONE_TOP_Y := 26.0
+const ELEVATION_STEP := 6.0
+const GRASS_TOP_Y := SAND_TOP_Y + ELEVATION_STEP
+const MAX_TOP_Y := SAND_TOP_Y + IslandData.MAX_ELEVATION * ELEVATION_STEP
+# How much of a step between tiles of different heights a walking unit takes to climb up (or drop
+# down) it, ending (or starting) right at the tiles' shared edge, so it never cuts into the cliff.
+const CLIMB_FRACTION := 0.14
+# Picking walks a camera ray down through the island's heights in steps this long (see
+# cell_from_ray).
+const PICK_STEP := 4.0
 
 # Water cells are flat tiles at one level (no basin) a few units under the translucent
 # surface plane, so the shelf and its drop-off read with a little parallax. They still drop to
@@ -148,6 +157,8 @@ var _terrain_materials := {}
 var _tiles := {}
 var _highlighted_cell := GameTypes.NO_CELL
 var _explored := true
+# The top of the island's tallest land tile, set by _rebuild_terrain (see _max_top_y).
+var _land_top_y := WATER_TOP_Y
 
 
 func _ready() -> void:
@@ -253,33 +264,41 @@ func get_cell_center(cell: Vector2i) -> Vector3:
 
 func _local_cell_center(cell: Vector2i) -> Vector3:
 	var center := HexGridScript.cell_center_3d(cell, cell_size)
-	center.y = _terrain_top_y(_terrain_of(cell))
+	center.y = _cell_top_y(cell)
 	var decks := HexPathfinderScript.deck_cells(island) if island != null else {}
 	if decks.has(cell) and building_manager != null:
 		# A deck's floor (the dock's pier), raised above its building's anchor ground.
 		var anchor_cell: Vector2i = decks[cell]
 		var definition := building_manager.get_definition(island.get_building_type(anchor_cell))
-		center.y = _terrain_top_y(_terrain_of(anchor_cell)) + definition.deck_height_tiles * cell_size.x
+		center.y = _cell_top_y(anchor_cell) + definition.deck_height_tiles * cell_size.x
 	return center
 
 
 # Height of a unit at world_position on its way from from_cell to the neighbouring to_cell. It
-# walks a straight line between the tile centres, so this is its own y, except stepping onto or
-# off a deck: the pier's boards reach back over the quay's tile, so the unit hops up onto them as
-# it sets off (or down off them as it arrives) rather than sinking through them on a ramp.
+# walks a straight line between the tile centres and keeps to the ground under it: level across
+# a tile, then up (or down) the step at the tiles' shared edge, rather than on a ramp that would
+# float over the lower tile and sink into the higher one. Stepping onto or off a deck, the pier's
+# boards reach back over the quay's tile, so the unit hops up onto them as it sets off (or down
+# off them as it arrives) instead.
 func get_step_height(from_cell: Vector2i, to_cell: Vector2i, world_position: Vector3) -> float:
+	var from := get_cell_center(from_cell)
+	var to := get_cell_center(to_cell)
+	if is_equal_approx(from.y, to.y):
+		return world_position.y
+
 	var decks := HexPathfinderScript.deck_cells(island) if island != null else {}
 	var onto := decks.has(to_cell) and not decks.has(from_cell)
 	var off := decks.has(from_cell) and not decks.has(to_cell)
-	if not onto and not off:
-		return world_position.y
+	# The stretch of the leg (0 at from, 1 at to) over which the unit climbs or drops.
+	var climb := Vector2(0.5 - CLIMB_FRACTION, 0.5) if to.y > from.y else Vector2(0.5, 0.5 + CLIMB_FRACTION)
+	if onto:
+		climb = Vector2(0.0, DECK_STEP_FRACTION)
+	elif off:
+		climb = Vector2(1.0 - DECK_STEP_FRACTION, 1.0)
 
-	var from := get_cell_center(from_cell)
-	var to := get_cell_center(to_cell)
 	var leg := Vector2(to.x - from.x, to.z - from.z)
 	var along := Vector2(world_position.x - from.x, world_position.z - from.z).dot(leg) / maxf(leg.length_squared(), 0.001)
-	var t := clampf(along / DECK_STEP_FRACTION, 0.0, 1.0) if onto \
-		else clampf((along - (1.0 - DECK_STEP_FRACTION)) / DECK_STEP_FRACTION, 0.0, 1.0)
+	var t := clampf((along - climb.x) / (climb.y - climb.x), 0.0, 1.0)
 	return lerpf(from.y, to.y, smoothstep(0.0, 1.0, t))
 
 
@@ -354,22 +373,31 @@ func set_hovered_cell(cell: Vector2i) -> void:
 		_rebuild_preview()
 
 
-# Picks the hovered cell from a camera ray with per-tile height awareness: intersect the
-# land plane for an approximate cell, then re-intersect at that cell's actual top height so
-# the selection lands on the tile under the cursor rather than on a fixed-height plane.
+# Picks the hovered cell from a camera ray with per-tile height awareness: the ray is walked down
+# from the top of the island's tallest tile to its seabed, and the first of the island's cells it
+# passes into below that cell's top is the one under the cursor. A taller tile in front hides
+# the one behind it, and pointing at the side of a cliff picks the cliff's tile.
 func cell_from_ray(origin: Vector3, direction: Vector3) -> Vector2i:
 	var local_origin := origin - position
-	var approx = _ray_plane_xz(local_origin, direction, GRASS_TOP_Y)
-	if approx == null:
+	var bottom = _ray_plane_xz(local_origin, direction, WATER_TILE_TOP_Y)
+	if bottom == null:
 		return GameTypes.NO_CELL
+	if island == null:
+		return _local_to_cell(bottom)
 
-	var cell := _local_to_cell(approx)
-	if island != null and island.has_cell(cell):
-		var refined = _ray_plane_xz(local_origin, direction, _local_cell_center(cell).y)
-		if refined != null:
-			cell = _local_to_cell(refined)
+	var top = _ray_plane_xz(local_origin, direction, _max_top_y())
+	if top == null:
+		top = local_origin
+	var top_point: Vector3 = top
+	var bottom_point: Vector3 = bottom
+	var steps := maxi(1, ceili(Vector2(bottom_point.x - top_point.x, bottom_point.z - top_point.z).length() / PICK_STEP))
+	for step in range(steps + 1):
+		var point := top_point.lerp(bottom_point, float(step) / float(steps))
+		var cell := _local_to_cell(point)
+		if island.has_cell(cell) and point.y <= _local_cell_center(cell).y:
+			return cell
 
-	return cell
+	return _local_to_cell(bottom_point)
 
 
 # Drop the hover highlight and any placement preview — used when this island stops being the
@@ -513,6 +541,7 @@ func get_hovered_resource_node_type() -> int:
 func _rebuild_terrain() -> void:
 	_clear(_terrain_root)
 	_tiles.clear()
+	_land_top_y = WATER_TOP_Y
 	if island == null:
 		return
 
@@ -542,8 +571,10 @@ func _rebuild_terrain() -> void:
 			tile.position = Vector3(center.x, WATER_FLOOR_Y, center.z)
 			tile.scale = Vector3(1.0, seabed_top - WATER_FLOOR_Y, 1.0)
 		else:
+			var top := _cell_top_y(cell)
 			tile.position = Vector3(center.x, 0.0, center.z)
-			tile.scale = Vector3(1.0, _terrain_top_y(terrain_type), 1.0)
+			tile.scale = Vector3(1.0, top, 1.0)
+			_land_top_y = maxf(_land_top_y, top)
 		_terrain_root.add_child(tile)
 		# Land and shallow coast are hover targets; deep ocean is purely visual.
 		if _is_plot_cell(terrain_type):
@@ -577,6 +608,11 @@ func _terrain_material(terrain_type: int) -> ShaderMaterial:
 			material.set_shader_parameter("soil_color", Color("#a18d65"))
 			material.set_shader_parameter("soil_strength", 0.5)
 			material.set_shader_parameter("side_color", Color("#80694a"))
+			# Turf over the soil, and weathered rock under it on a cliff.
+			material.set_shader_parameter("lip_color", Color("#6b7639"))
+			material.set_shader_parameter("lip_depth", 1.6)
+			material.set_shader_parameter("cliff_color", Color("#7a6e60"))
+			material.set_shader_parameter("rock_strength", 1.0)
 		GameTypes.Terrain.STONE:
 			# Slate ground with a narrow patch range, so the green-grey deposit
 			# rocks (lowpoly_kit 'stone', #89938D) stand apart from it.
@@ -587,6 +623,9 @@ func _terrain_material(terrain_type: int) -> ShaderMaterial:
 			material.set_shader_parameter("patch_dark", Color("#c3a779"))
 			material.set_shader_parameter("patch_light", Color("#dfc499"))
 			material.set_shader_parameter("side_color", Color("#b99b70"))
+			# Raised sand weathers into sandstone.
+			material.set_shader_parameter("cliff_color", Color("#a58f70"))
+			material.set_shader_parameter("rock_strength", 1.0)
 		_:
 			material.set_shader_parameter("detail_strength", 0.0)
 	_terrain_materials[terrain_type] = material
@@ -766,7 +805,7 @@ func _rebuild_grid() -> void:
 			continue
 
 		var center := HexGridScript.cell_center_3d(cell, cell_size)
-		center.y = _tile_top_y(terrain_type) + 0.5
+		center.y = _tile_top_y(cell) + 0.5
 		var corners := HexGridScript.hex_corners_3d(center, cell_size)
 		for i in range(6):
 			st.add_vertex(corners[i])
@@ -1334,16 +1373,25 @@ func _terrain_of(cell: Vector2i) -> int:
 	return island.get_terrain(cell)
 
 
-func _terrain_top_y(terrain_type: int) -> float:
-	match terrain_type:
-		GameTypes.Terrain.GRASS:
-			return GRASS_TOP_Y
-		GameTypes.Terrain.SAND:
-			return SAND_TOP_Y
-		GameTypes.Terrain.STONE:
-			return STONE_TOP_Y
-		_:
-			return WATER_TOP_Y
+# The height of an elevation level's tile top (see IslandData.get_elevation).
+static func elevation_top_y(level: int) -> float:
+	return SAND_TOP_Y + level * ELEVATION_STEP
+
+
+# Where a unit stands on the cell: its land tile's top, or the water's surface.
+func _cell_top_y(cell: Vector2i) -> float:
+	var terrain_type := _terrain_of(cell)
+	if GameTypes.is_water(terrain_type):
+		return WATER_TOP_Y
+	return elevation_top_y(island.get_elevation(cell))
+
+
+# The top of the island's tallest tile or deck: where picking starts walking a ray down.
+func _max_top_y() -> float:
+	var top := _land_top_y
+	for cell in HexPathfinderScript.deck_cells(island):
+		top = maxf(top, _local_cell_center(cell).y)
+	return top
 
 
 # Top height of a water cell's seabed prism: coast sits just under the surface, open ocean
@@ -1352,9 +1400,10 @@ func _water_seabed_top_y(terrain_type: int) -> float:
 	return COAST_SEABED_TOP_Y if terrain_type == GameTypes.Terrain.COAST else OCEAN_SEABED_TOP_Y
 
 
-# Visible top height of a cell's tile: a land cap height, or the dropped seabed top for water.
-func _tile_top_y(terrain_type: int) -> float:
-	return _water_seabed_top_y(terrain_type) if GameTypes.is_water(terrain_type) else _terrain_top_y(terrain_type)
+# Visible top height of a cell's tile: its land top, or the dropped seabed top for water.
+func _tile_top_y(cell: Vector2i) -> float:
+	var terrain_type := _terrain_of(cell)
+	return _water_seabed_top_y(terrain_type) if GameTypes.is_water(terrain_type) else _cell_top_y(cell)
 
 
 # Cells that read as interactive plots: land and shallow coast get the grid and hover

@@ -8,14 +8,19 @@ extends RefCounted
 # Walking covers land hex tiles (and decks over the water, like the dock's pier). Buildings are
 # walked through (the player can't wall the robot in with their own construction); resource nodes —
 # trees, rocks, ore — and solid landmarks like the crashed spaceship are walked around, and crossed
-# only when there is no other way (OBSTACLE_COST outweighs any detour), so a unit can never be
-# trapped and every land cell stays reachable.
+# only when there is no other way (OBSTACLE_COST outweighs any detour), so nothing the player does
+# can trap a unit. Cliffs (see MAX_CLIMB) are never crossed: an island's design keeps its land
+# reachable, with ramps down to its beaches (tools/world_map_rules.gd checks).
 
 const BuildingDefinitionsScript := preload("res://scripts/buildings/building_definitions.gd")
 
 # Cost of stepping onto a resource node, versus 1 for any other land: a path is effectively
 # "fewest nodes crossed, then fewest steps".
 const OBSTACLE_COST := 1000
+# The most elevation levels (IslandData.get_elevation) a unit climbs or drops in one step, so sand
+# beside rock (levels 0 and 2) is still a step. A taller one is a cliff: no unit walks up or down
+# it, works a tile across it, or steps ashore onto its top from a boat.
+const MAX_CLIMB := 2
 
 
 # Ground a unit can stand on in principle: land (anything but water / off the map), or a finished
@@ -69,6 +74,16 @@ static func can_step(island: IslandData, from: Vector2i, to: Vector2i) -> bool:
 	return island != null and _can_step(island, deck_cells(island), from, to)
 
 
+# Whether neighbouring `a` and `b` stand close enough in height (MAX_CLIMB) for a unit to step
+# between them, or to work one from the other. The water counts as level 0, a beach's, so a boat
+# lands the robot on low ground only.
+static func within_climb(island: IslandData, a: Vector2i, b: Vector2i) -> bool:
+	if island == null:
+		return false
+	var decks := deck_cells(island)
+	return absi(_level(island, decks, a) - _level(island, decks, b)) <= MAX_CLIMB
+
+
 static func _is_walkable(island: IslandData, decks: Dictionary, cell: Vector2i) -> bool:
 	return island.has_cell(cell) and (not GameTypes.is_water(island.get_terrain(cell)) or decks.has(cell))
 
@@ -78,7 +93,14 @@ static func _can_step(island: IslandData, decks: Dictionary, from: Vector2i, to:
 		return false
 	if decks.has(from) or decks.has(to):
 		return island.get_building_anchor_cell(from) == island.get_building_anchor_cell(to)
-	return true
+	return absi(_level(island, decks, from) - _level(island, decks, to)) <= MAX_CLIMB
+
+
+# A cell's elevation level: a deck stands at its building's anchor's, and water at 0.
+static func _level(island: IslandData, decks: Dictionary, cell: Vector2i) -> int:
+	if decks.has(cell):
+		cell = decks[cell]
+	return 0 if GameTypes.is_water(island.get_terrain(cell)) else island.get_elevation(cell)
 
 
 # Buildings are passable; resource nodes and solid landmarks (the crashed spaceship,
