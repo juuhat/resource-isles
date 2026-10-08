@@ -3,7 +3,8 @@ extends SceneTree
 # Headless check for repairing the crashed ship's radar (docs/copper-and-the-radar.md): the robot's
 # Repair action at the wreck is locked until First Melt, takes three copper ingots from the island's
 # stock when it starts, can be paused and resumed (also across a save) without paying again, and
-# finishing it completes Eyes on the Horizon, which reveals the first ring of islands.
+# finishing it completes Eyes on the Horizon, which reveals the first ring of islands. The repaired
+# dish then turns with the chart's radar sweep.
 #
 #   powershell -ExecutionPolicy Bypass -File tools/run_checks.ps1 -Filter radar
 
@@ -99,6 +100,14 @@ func _check_repair(game: Node) -> void:
 	# Let the chart roll back to the new frontier, and the sweep fade in, before the scene goes.
 	await create_timer(maxf(WorldView.FRONTIER_UNROLL_SECONDS, WorldView.RADAR_POWER_UP_SECONDS) + 0.1).timeout
 	expect(is_equal_approx(_sweep(game), 1.0), "The repaired radar's sweep circles the chart")
+	# The dish turns with the sweep: facing where it points now, and still a sixth of a turn later.
+	for wait in [0.0, WorldView.RADAR_SWEEP_SECONDS / 6.0]:
+		await create_timer(wait).timeout
+		var off := rad_to_deg(wrapf(_dish_heading(game) - WorldView.radar_sweep_angle(), -PI, PI))
+		expect(absf(off) < 3.0, "The repaired dish faces along the chart's sweep (%.1f degrees off)" % off)
+		game.world_view._turn_radar_sweep()
+		var chart := float(game.world_view._chart_material.get_shader_parameter("sweep_angle"))
+		expect(absf(wrapf(chart - WorldView.radar_sweep_angle(), -PI, PI)) < 0.01, "The chart draws its sweep at the same angle")
 
 
 # Which of the wreck model's '<model_node>Broken' and '<model_node>Repaired' nodes shows (ShipWreck):
@@ -116,6 +125,23 @@ func _wreck_part(game: Node, model_node: String) -> String:
 	if repaired.visible:
 		return "printing" if wreck._sites.has(model_node) else "repaired"
 	return "broken"
+
+
+# Which way the repaired dish looks on the ground plane, in WorldView.radar_sweep_angle's terms:
+# from its pivot toward the middle of its meshes (the dish, its face, feed and horn reach out from
+# the mast), measured in the plane it turns in so the wreck's tilt doesn't skew it.
+func _dish_heading(game: Node) -> float:
+	var wreck := game.renderer.find_child("ShipWreck", true, false) as ShipWreck
+	var spin := wreck._model.find_child("RadarSpin", true, false) as Node3D
+	var meshes := spin.find_children("*", "MeshInstance3D", true, false)
+	var middle := Vector3.ZERO
+	for node in meshes:
+		var mesh := node as MeshInstance3D
+		middle += mesh.global_transform * mesh.get_aabb().get_center()
+	var look := middle / maxi(1, meshes.size()) - spin.global_position
+	var up := spin.global_basis.y.normalized()
+	look -= up * look.dot(up)
+	return atan2(look.z, look.x)
 
 
 # How strongly the chart shows the radar's sweep.

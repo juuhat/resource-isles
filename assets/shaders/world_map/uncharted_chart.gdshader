@@ -34,6 +34,9 @@ uniform vec3 ping = vec3(0.0);
 // How strongly the radar's sweep shows, 0..1: off until the ship's radar is repaired, then fading in
 // (WorldView, WorldData.is_radar_online).
 uniform float radar_sweep = 0.0;
+// Where the sweep's leading edge points, in radians from +x toward +z (WorldView.radar_sweep_angle,
+// which the repaired dish on the wreck turns with).
+uniform float sweep_angle = 0.0;
 uniform float ring_spacing = 6400.0;
 uniform float meridian_count = 12.0;
 uniform sampler2D scan_noise : repeat_enable, filter_linear;
@@ -62,7 +65,6 @@ const float JITTER = 40.0;
 const float BROAD = 60.0;
 // How far the rims' glow reaches onto the water.
 const float GLOW = 56.0;
-const float SWEEP_SECONDS = 24.0;
 // K9-DA's ping: never smaller than this many pixels across its radius, so it reads from the
 // overview, and a ripple leaves the beacon this often.
 const float PING_MIN_PIXELS = 34.0;
@@ -303,7 +305,7 @@ void fragment() {
 
 		if (fog && radar_sweep > 0.0) {
 			// The radar's sweep circling the disc, brightest at its leading edge.
-			float behind = fract(TIME / SWEEP_SECONDS - atan(p.y, p.x) / TAU);
+			float behind = fract((sweep_angle - atan(p.y, p.x)) / TAU);
 			color += line_color * pow(1.0 - behind, 16.0) * smoothstep(0.0, 0.01, behind) * 0.025 * radar_sweep;
 		}
 

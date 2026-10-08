@@ -40,8 +40,9 @@ shows one node of each pair, following `WorldData.ship_repairs`:
 - **Under repair, or paused part way:** `Repaired`, printed up to the repair's progress inside a
   teal hologram of the finished part, the same effect as a blueprint (`ConstructionSite`, with
   its `progress_source` reading the repair).
-- **Repaired:** `Repaired`. Its `<Part>Spin` node, if any, turns about its local up axis (the
-  radar dish).
+- **Repaired:** `Repaired`. Its `<Part>Spin` node, if any (the radar dish), turns about its
+  local up axis so its +Z, the dish's look, faces where the chart's radar sweep points
+  (`WorldView.radar_sweep_angle`). Dish and sweep turn together.
 
 It polls each frame, so finishing a repair needs no re-render.
 

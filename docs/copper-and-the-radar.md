@@ -89,6 +89,12 @@ the radar works (`WorldData.is_radar_online`). It fades in over 2 s when the rep
 the frontier rolls back to ring 1. Saves that charted ring 1 before the radar existed count as
 online.
 
+The sweep and the repaired dish on the wreck turn together. Both point where
+`WorldView.radar_sweep_angle()` says, which turns clockwise (seen from the camera) once every
+`WorldView.RADAR_SWEEP_SECONDS` (24 s) on real time. It keeps turning while the game is paused, as
+the sweep always has. The chart gets it as its `sweep_angle` uniform every drawn frame, and
+`ShipWreck` turns the dish to face the same way.
+
 The wreck model shows the radar too. The mast is snapped and the dish lies on the ground until the
 repair starts. While the repair runs, or is paused part way, the new radar is printed up inside a
 hologram. Once repaired, the dish turns. See [Spaceship model](spaceship-model.md).

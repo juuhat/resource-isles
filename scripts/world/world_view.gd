@@ -76,6 +76,8 @@ const MAX_CHART_ITEMS := 64
 const FRONTIER_UNROLL_SECONDS := 3.0
 # The radar's sweep fades in over this long when the repaired radar comes back online.
 const RADAR_POWER_UP_SECONDS := 2.0
+# One turn of the radar's sweep around the chart, and of the repaired dish on the wreck with it.
+const RADAR_SWEEP_SECONDS := 24.0
 const LABEL_HEIGHT := 900.0
 # Trade lanes start/end this far past each island's land reach, clear of the island: about 2600
 # units from a ring island's centre.
@@ -195,6 +197,8 @@ func _ready() -> void:
 	_chart_material.render_priority = 1
 	_chart.material_override = _chart_material
 	add_child(_chart)
+	# Every drawn frame, paused or not, as the dish on the wreck turns.
+	RenderingServer.frame_pre_draw.connect(_turn_radar_sweep)
 	_labels_root = Node3D.new()
 	_labels_root.name = "Labels"
 	add_child(_labels_root)
@@ -520,6 +524,19 @@ func _sync_radar_sweep() -> void:
 		return
 	create_tween().tween_method(func(amount: float) -> void:
 		_chart_material.set_shader_parameter("radar_sweep", amount), 0.0, 1.0, RADAR_POWER_UP_SECONDS)
+
+
+# Where the radar's sweep points now: radians in the world's xz plane, from +x toward +z (clockwise
+# from the camera), around the world centre. The chart's sweep and the repaired dish on the wreck
+# (ShipWreck) both point this way, so they turn together. Real time, like the shaders' TIME, so it
+# keeps turning while the game is paused.
+static func radar_sweep_angle() -> float:
+	var seconds := Time.get_ticks_usec() / 1_000_000.0
+	return fmod(seconds, RADAR_SWEEP_SECONDS) / RADAR_SWEEP_SECONDS * TAU
+
+
+func _turn_radar_sweep() -> void:
+	_chart_material.set_shader_parameter("sweep_angle", radar_sweep_angle())
 
 
 # Hand the chart its frontier, patches and K9-DA's ping.

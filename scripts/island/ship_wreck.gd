@@ -6,12 +6,12 @@ extends Node3D
 # '<Name>Repaired' node, and this shows the one WorldData.ship_repairs calls for. A part under
 # repair, or paused part way, is printed up to its progress inside a hologram of the finished part,
 # like a blueprint (ConstructionSite). A repaired part's '<Name>Spin' node, if it has one (the radar
-# dish), turns about its local up axis. Like ConstructionSite it polls each frame, so finishing a
-# repair needs no re-render, and it is freed with the objects on the next one.
+# dish), turns about its local up axis to face where the chart's radar sweep points
+# (WorldView.radar_sweep_angle), so dish and sweep turn together. Like ConstructionSite it polls
+# each frame, so finishing a repair needs no re-render, and it is freed with the objects on the next
+# one. It runs while the game is paused too, as the sweep does.
 
 enum State { BROKEN, REPAIRING, REPAIRED }
-
-const SPIN_DEGREES_PER_SECOND := 40.0
 
 var world: WorldData
 var island: IslandData
@@ -21,7 +21,12 @@ var _model: Node3D
 var _states := {}
 var _sites := {}
 var _ghosts := {}
-var _spinning: Array[Node3D] = []
+# Spin node -> its basis as modelled, which it turns from.
+var _spinning := {}
+
+
+func _init() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 
 
 # world may be null (no repairs to show): every part then stays broken.
@@ -33,12 +38,21 @@ func setup(new_world: WorldData, new_island: IslandData, new_anchor_cell: Vector
 	_update()
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if _model == null:
 		return
 	_update()
 	for spin in _spinning:
-		spin.rotate_object_local(Vector3.UP, deg_to_rad(SPIN_DEGREES_PER_SECOND) * delta)
+		_face_sweep(spin)
+
+
+# Turns spin about its own up axis until it faces (its +Z, the dish's look) where the radar's sweep
+# points. The wreck tilts the axis a few degrees, so the angle is measured on the ground plane.
+func _face_sweep(spin: Node3D) -> void:
+	var rest: Basis = _spinning[spin]
+	spin.basis = rest
+	var look := spin.global_basis.z
+	spin.basis = rest * Basis(Vector3.UP, atan2(look.z, look.x) - WorldView.radar_sweep_angle())
 
 
 func _update() -> void:
@@ -67,9 +81,12 @@ func _show(model_node: String, state: State) -> void:
 
 	var spin := repaired.find_child(model_node + "Spin", true, false) as Node3D
 	if spin != null:
-		_spinning.erase(spin)
+		if _spinning.has(spin):
+			spin.basis = _spinning[spin]
+			_spinning.erase(spin)
 		if state == State.REPAIRED:
-			_spinning.append(spin)
+			_spinning[spin] = spin.basis
+			_face_sweep(spin)
 
 	if state == State.REPAIRING:
 		var ghost := repaired.duplicate() as Node3D
