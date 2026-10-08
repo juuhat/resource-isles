@@ -104,11 +104,11 @@ latch = box('Case latch', (-1.02, .52, .28 + .175), (.06, .20, .014), dark)
 case.rotation_euler.z = latch.rotation_euler.z = .45
 
 # Layout metadata for the game: the solid footprint, where the robot works from, and where the
-# skiff moors: its origin (waterline, mid-hull) on the berth tile, stern a hand's width off the
-# fender beam, bow (+X) out to sea.
+# skiff moors: its origin (waterline, mid-hull) on the berth tile, its screw (.15 past the
+# transom) a hand's width off the fender beam, bow (+X) out to sea. The hull is 2.0 long.
 marker('Footprint', (.25, 0, .5), (1.45, .72, .5))
 marker('WorkSpot', (SHORE_X - .30, 0, 0))
-marker('BoatSpot', (HEAD_X1 + .07 + .15 + .85, 0, WATER_Z))
+marker('BoatSpot', (HEAD_X1 + .07 + .15 + 1.0, 0, WATER_Z))
 
 # Everything above is laid out around the midpoint of the shore and coast tiles. The berth
 # makes the footprint three tiles, so shift it all west half a tile: the origin becomes the

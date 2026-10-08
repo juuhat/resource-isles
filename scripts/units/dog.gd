@@ -2,18 +2,21 @@ class_name Dog
 extends Node3D
 
 # The dog companion (Companion Unit K9-DA), a 3D model that walks the hex grid on its own.
-# It has two modes, driven by main.gd from the rescue state in WorldData:
+# It has three modes, driven by main.gd from the rescue state in WorldData:
 #   STRANDED  — waiting at one cell on its island until the robot walks up and rescues
 #               it (the MAIN quest). It stays put so the player can always find it.
 #   FOLLOWING — rescued: it trails the robot (the `leader`), walking to a cell beside it
 #               whenever it falls behind and pottering about nearby otherwise. main.gd moves
 #               it onto whichever island the robot travels to.
+#   ABOARD    — rescued, riding the boat the robot pilots: seated on the skiff's CompanionSpot
+#               (ride), which carries it as the boat sails and turns.
 # Movement mirrors PlayerUnit (hex path, constant world-space speed on the XZ plane), but the
 # dog steers itself instead of following commanded paths, and it has no selection or actions.
 
 enum Mode {
 	STRANDED,
 	FOLLOWING,
+	ABOARD,
 }
 
 const HexGridScript := preload("res://scripts/island/hex_grid.gd")
@@ -65,9 +68,14 @@ var _anim_player: AnimationPlayer
 var _walk_anim := ""
 var _idle_anim := ""
 var _lying_anim := ""
+var _sit_anim := ""
 var _hop_tween: Tween
-# The model's resting height (set when it is fitted to the tile); hops return to it.
+# The model's place in the dog, centred on its cell (set when it is fitted to the tile), and its
+# resting height; hops return to it.
+var _model_offset := Vector3.ZERO
 var _model_base_y := 0.0
+# Aboard, the boat's seat pushes its position and heading onto the dog through this.
+var _seat_link: RemoteTransform3D
 
 
 func setup(new_ground) -> void:
@@ -78,6 +86,7 @@ func _ready() -> void:
 	_model = DOG_MODEL.instantiate()
 	add_child(_model)
 	_scale_model_to_tile()
+	_model_offset = _model.position
 	_model_base_y = _model.position.y
 	_setup_animation()
 	_stop_walk_anim()
@@ -86,6 +95,7 @@ func _ready() -> void:
 
 # Leave the dog waiting at `cell` on `island` (its stranded spot before the rescue).
 func strand(island: IslandData, cell: Vector2i) -> void:
+	_leave_seat()
 	mode = Mode.STRANDED
 	leader = null
 	_place(island, cell)
@@ -93,9 +103,28 @@ func strand(island: IslandData, cell: Vector2i) -> void:
 
 # Start trailing `new_leader` around `island`, appearing at `cell` (beside the robot).
 func follow(island: IslandData, cell: Vector2i, new_leader: PlayerUnit) -> void:
+	_leave_seat()
 	mode = Mode.FOLLOWING
 	leader = new_leader
 	_place(island, cell)
+
+
+# Ride the robot's boat, sitting at `seat` (PlayerUnit.companion_seat) facing the bow. The seat is
+# where the model's own origin goes, not its standing footprint's centre, so the Sit pose lands
+# where the skiff was laid out for it (tools/build_salvage_skiff.py).
+func ride(seat: Node3D) -> void:
+	halt()
+	if seat == null:
+		return
+	mode = Mode.ABOARD
+	_seat_link = RemoteTransform3D.new()
+	_seat_link.update_scale = false
+	seat.add_child(_seat_link)
+	_seat_link.remote_path = _seat_link.get_path_to(self)
+	_model.position = Vector3(0.0, _model_base_y, 0.0)
+	_model.rotation.y = PI / 2.0 + model_yaw_offset
+	visible = true
+	_stop_walk_anim()
 
 
 # The cell the dog is standing on, or stepping into while moving.
@@ -110,6 +139,7 @@ func is_on(island: IslandData) -> bool:
 
 # Park the dog out of sight (e.g. its island hasn't been reached yet).
 func halt() -> void:
+	_leave_seat()
 	_island = null
 	_path.clear()
 	_moving = false
@@ -132,6 +162,18 @@ func celebrate() -> void:
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		_hop_tween.tween_property(_model, "position:y", _model_base_y, 0.18) \
 			.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+
+
+# Off the boat: the seat lets go (unless the boat has gone, taking the link with it) and the dog
+# stands upright on its own footprint again, ready to turn its own way ashore.
+func _leave_seat() -> void:
+	if mode != Mode.ABOARD:
+		return
+	if is_instance_valid(_seat_link):
+		_seat_link.free()
+	_seat_link = null
+	rotation = Vector3.ZERO
+	_model.position = _model_offset
 
 
 func _place(island: IslandData, cell: Vector2i) -> void:
@@ -311,7 +353,7 @@ func _gather_mesh_aabbs(node: Node, parent_xform: Transform3D, out: Array[AABB])
 		_gather_mesh_aabbs(child, node_xform, out)
 
 
-# Find the model's embedded idle and walk clips. Movement remains gameplay-driven.
+# Find the model's embedded idle, resting, seated and walk clips. Movement remains gameplay-driven.
 func _setup_animation() -> void:
 	_anim_player = _model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	_walk_anim = _pick_walk_anim_name()
@@ -321,6 +363,8 @@ func _setup_animation() -> void:
 				_idle_anim = anim_name
 			if anim_name.to_lower().contains("liedown"):
 				_lying_anim = anim_name
+			if anim_name.to_lower().contains("sit"):
+				_sit_anim = anim_name
 			_anim_player.get_animation(anim_name).loop_mode = Animation.LOOP_LINEAR
 
 
@@ -345,7 +389,11 @@ func _play_walk_anim() -> void:
 func _stop_walk_anim() -> void:
 	if _anim_player != null:
 		_anim_player.speed_scale = 1.0
-		var resting_anim := _lying_anim if mode == Mode.STRANDED and _lying_anim != "" else _idle_anim
+		var resting_anim := _idle_anim
+		if mode == Mode.STRANDED and _lying_anim != "":
+			resting_anim = _lying_anim
+		elif mode == Mode.ABOARD and _sit_anim != "":
+			resting_anim = _sit_anim
 		if resting_anim != "":
 			if _anim_player.current_animation != resting_anim:
 				_anim_player.play(resting_anim, 0.25)

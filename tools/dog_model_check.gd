@@ -64,7 +64,42 @@ func _check() -> void:
 	dog._stop_walk_anim()
 	CheckWatchdog.require(dog._anim_player.current_animation == dog._idle_anim, "Stopping returns to Idle")
 	CheckWatchdog.require(is_equal_approx(dog._anim_player.speed_scale, 1.0), "Idle keeps its authored rate")
+	await _check_riding(dog, body)
 	dog.halt()
 	CheckWatchdog.require(not dog.visible, "Halt hides the companion")
 	print("K9-DA model: PASS")
 	quit()
+
+
+# Aboard a boat K9-DA sits on the seat it is given, facing the seat's +X (the bow), and the seat
+# carries it; stepping off stands it back upright on its own footprint.
+func _check_riding(dog: Dog, body: Node3D) -> void:
+	CheckWatchdog.require(dog._sit_anim != "", "Seated clip must import")
+	var vessel := Node3D.new()
+	root.add_child(vessel)
+	var seat := Node3D.new()
+	vessel.add_child(seat)
+	seat.position = Vector3(20.0, 4.0, -10.0)
+	vessel.rotation.y = 0.7
+	dog.ride(seat)
+	CheckWatchdog.require(dog.global_position.is_equal_approx(seat.global_position), "The dog sits on its seat at once")
+	await process_frame
+	CheckWatchdog.require(dog.mode == Dog.Mode.ABOARD and dog.visible, "Riding shows the dog aboard")
+	CheckWatchdog.require(dog._anim_player.current_animation == dog._sit_anim, "Aboard, the dog sits")
+	dog._anim_player.advance(0.3)
+	dog._anim_player.seek(0.0, true)
+	CheckWatchdog.require(body.basis.z.dot(Vector3.UP) > 0.5, "Sitting raises the dog's chest")
+	CheckWatchdog.require(dog._model.global_basis.z.normalized().is_equal_approx(vessel.global_basis.x.normalized()),
+		"The seated dog faces the bow")
+	vessel.position += Vector3(150.0, 0.0, 40.0)
+	vessel.rotation.y = -1.1
+	await process_frame
+	CheckWatchdog.require(dog.global_position.is_equal_approx(seat.global_position)
+		and dog._model.global_basis.z.normalized().is_equal_approx(vessel.global_basis.x.normalized()),
+		"The boat carries the dog as it sails and turns")
+	CheckWatchdog.require(is_equal_approx(dog.scale.x, 1.0), "Riding keeps the dog's own size")
+	# The robot leaving the boat frees the vessel, and its seat, before the dog is moved ashore.
+	vessel.free()
+	dog.halt()
+	CheckWatchdog.require(dog.rotation == Vector3.ZERO and dog._model.position == dog._model_offset,
+		"Stepping off stands the dog upright on its footprint")

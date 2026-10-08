@@ -73,6 +73,7 @@ inside the frontier lifts as the robot sees the sea.
 - **P**: add 1000 of every resource to the current island (also counts as gathered, so
   quests complete).
 - **Delete**: delete the save and restart with a new game.
+- **L**: unlock all rings and reveal every island and exploration fog inside the sailing area; saves the result.
 - **=**: reveal one more ring of islands.
 - **Q** / **E**: orbit the camera; **R** / **F**: tilt it. **C** prints the current camera
   framing.

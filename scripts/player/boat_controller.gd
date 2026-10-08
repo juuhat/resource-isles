@@ -16,7 +16,6 @@ var world: WorldData
 var world_navigation: WorldNavigation
 var world_view: WorldView
 var player_unit: PlayerUnit
-var dog: Dog
 var robot: RobotController
 var camera_rig: CameraRig
 var toast: Toast
@@ -44,7 +43,6 @@ func setup(new_game: Game) -> void:
 	world_navigation = game.world_navigation
 	world_view = game.world_view
 	player_unit = game.player_unit
-	dog = game.dog
 	robot = game.robot
 	camera_rig = game.camera_rig
 	toast = game.toast
@@ -221,9 +219,8 @@ func board(at := GameTypes.NO_CELL) -> bool:
 	world.piloted_boat = id
 	var state: Dictionary = world.boats[id]
 	player_unit.mount_boat(id, state.cell, float(state.yaw))
-	# Keep the companion safely ashore until a boat-sized companion pose is authored.
-	if world.dog_rescued:
-		dog.halt()
+	# K9-DA, once rescued, comes aboard and sits in the bow.
+	robot.sync_dog()
 	robot.clear_targets()
 	landing_cell = GameTypes.NO_CELL
 	renderer.clear_interaction()

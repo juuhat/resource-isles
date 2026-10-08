@@ -41,9 +41,10 @@ instead of the tug's illustrated vent. The layout table above governs ambiguous 
 `tools/build_salvage_skiff.py` builds `assets/models/boats/salvage_skiff.glb` (12 meshes,
 about 1,200 triangles) and four previews in `art/previews/`: `salvage_skiff.png` (hero),
 `salvage_skiff_top.png` (overhead), `salvage_skiff_crewed.png` (with the real robot docked in its
-Operate pose) and `salvage_skiff_dock_check.png` (spindle in the post socket, close up).
+Operate pose and K9-DA seated in the bow) and `salvage_skiff_dock_check.png` (spindle in the post
+socket, close up).
 
-- **Scale.** The skiff is at true tile scale: 1.70 × 0.78 model units (0.85 × 0.39 tiles), next
+- **Scale.** The skiff is at true tile scale: 2.00 × 0.78 model units (1.00 × 0.39 tiles), next
   to the 0.45-tile robot. Bow along +X, origin on the waterline at mid-hull; the keel and screw
   sit below it.
 - **Helm.** The robot stands at `PilotSpot` facing the bow. The PTO post's socket (`DockPoint`)
@@ -54,10 +55,12 @@ Operate pose) and `salvage_skiff_dock_check.png` (spindle in the post socket, cl
   stern-to off the pier head with its bow out to sea. The renderer hangs it off the dock's
   `BoatSpot`, so it turns with the dock and shows in the placement ghost. It is a moored prop
   until launched with the robot's **Pilot boat** action.
-- **Open: K9-DA's space.** `CompanionSpot` leaves about 0.2 tiles of clear deck, but K9-DA
-  walks at 0.55 tiles long (`dog.gd` `visual_size_tiles`). Either the dog gets a smaller
-  seated pose aboard or the skiff gets longer, which would push the catamaran and tug up by
-  the same ratios.
+- **K9-DA's seat.** The skiff was lengthened from 0.85 tiles (a longer parallel midbody, the
+  bow, foredeck and crate moved forward 0.30) so K9-DA rides at its full walking size (0.55
+  tiles long, `dog.gd` `visual_size_tiles`) in its Sit clip: rump just ahead of the PTO post's
+  foot, front paws short of the bow crate, folded hind paws inside the planking, head over the
+  foredeck. `CompanionSpot` is where the dog's model origin goes, facing the bow. The catamaran
+  and tug should grow by the same ratio.
 
 ## Playable boarding and local navigation
 
@@ -81,8 +84,10 @@ Operate pose) and `salvage_skiff_dock_check.png` (spindle in the post socket, cl
 - The dark beyond-the-radar tiles cover locked sea and islands. Their radius is the navigation
   frontier, expanded by quest ring rewards. Paths cannot cross it. Inside it, exploration fog
   hides what the robot has not seen yet; sailing clears it.
-- K9-DA's boat pose, the screw animation and bobbing are future work. The companion resumes
-  following after landing.
+- Once rescued, K9-DA boards with the robot and sits at the skiff's `CompanionSpot`
+  (`Dog.ride`, through `RobotController.sync_dog`), carried as the boat sails and turns; it is
+  back aboard after a reload at sea and resumes following after landing. The screw animation
+  and bobbing are future work.
 
 Check with `Godot_v4.6.3-stable_win64_console.exe --headless --path . --script res://tools/boat_navigation_check.gd`.
 Pass `-- --screenshot` without `--headless` to also capture `.godot/boat_preview.png`.

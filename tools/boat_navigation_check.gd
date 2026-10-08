@@ -70,9 +70,14 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	game.quest_manager.restore_completed(completed)
 	var action_ids := func() -> Array: return game.boats.actions().map(func(a: Dictionary) -> int: return a.id)
 	expect(action_ids.call() == [GameTypes.UnitAction.CARGO, GameTypes.UnitAction.PILOT_BOAT], "Ashore: Cargo, then Pilot boat")
+	# Once rescued, K9-DA follows the robot ashore and comes aboard with it.
+	game.world.dog_rescued = true
+	game.robot.sync_dog()
+	expect(game.dog.is_on(island), "Rescued K9-DA follows the robot ashore")
 	game._on_action_pressed(GameTypes.UnitAction.PILOT_BOAT)
 	await process_frame
 	expect(player.boat_id == 0 and player.current_cell == berth, "Board the boat")
+	await _check_companion_aboard(game)
 	expect(action_ids.call() == [GameTypes.UnitAction.CARGO, GameTypes.UnitAction.DISEMBARK], "Aboard: Cargo, then Disembark")
 	var leave: Array = game.boats.actions().filter(func(a: Dictionary) -> bool: return a.id == GameTypes.UnitAction.DISEMBARK)
 	expect(leave.size() == 1 and leave[0].icon == BoatController.BOAT_ICON and leave[0].active, "Disembark shows the boat crossed out")
@@ -110,7 +115,10 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	expect(restored.piloted_boat == 0 and restored.boats[0].cell == sea, "Boat position and occupant survive save")
 	expect(restored.get_current().buildings[anchor].boat_launched, "Launch state survives save")
 	game._spawn_player_unit()
+	game.robot.sync_dog()
 	expect(player.boat_id == 0 and player.current_cell == sea, "Reload resumes piloting")
+	expect(game.dog.mode == Dog.Mode.ABOARD and game.dog.global_position.is_equal_approx(player.companion_seat().global_position),
+		"Reload puts K9-DA back aboard")
 	_check_sailing_reroute(game)
 	expect(game._command_unit_to(berth), "Return boat to berth")
 	steps = 0
@@ -120,6 +128,8 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	expect(game._command_unit_to(pier), "Choose pier as landing")
 	game._on_action_pressed(GameTypes.UnitAction.DISEMBARK)
 	expect(player.boat_id == -1 and player.current_cell == pier, "Disembark onto pier")
+	expect(game.dog.mode == Dog.Mode.FOLLOWING and game.dog.is_on(island) and game.dog.rotation == Vector3.ZERO,
+		"K9-DA steps ashore with the robot")
 	expect(game.world.boats[0].cell == berth and game.world.piloted_boat == -1, "Boat stays parked afloat")
 	# Right-clicking the boat from the quay walks out along the pier and boards it.
 	player.place_at(anchor)
@@ -173,6 +183,58 @@ func _check_sailing_reroute(game: Node) -> void:
 	expect(player.current_cell != start and Grid.neighbors(start).has(player.current_cell),
 		"A boat whose destination is taken stops beside it")
 	game.world.boats.erase(99)
+
+
+# K9-DA sits at the skiff's CompanionSpot: on the deck, inside the hull, and clear of the robot at
+# the helm. (Its tail curls along the deck beside the robot's feet, so it is left out of the robot
+# test: its slanted box overlaps theirs though the meshes don't touch.)
+func _check_companion_aboard(game: Node) -> void:
+	var dog: Dog = game.dog
+	var player: PlayerUnit = game.player_unit
+	var seat := player.companion_seat()
+	expect(seat != null and dog.mode == Dog.Mode.ABOARD and dog.visible, "K9-DA comes aboard")
+	if seat == null:
+		return
+	for frame in 20:
+		await process_frame
+	expect(dog._anim_player.current_animation == dog._sit_anim, "K9-DA sits in the boat")
+	expect(dog.global_position.is_equal_approx(seat.global_position), "K9-DA sits at the CompanionSpot")
+	var vessel := player._vessel
+	var hull := _merge(_mesh_boxes(vessel.get_child(0), vessel))
+	var robot_boxes := _mesh_boxes(player._model, vessel)
+	var tail := dog._model.find_child("TailPivot", true, false)
+	var on_deck := true
+	var inside := true
+	var clear := true
+	# Paws may rest a hair into the deck boards: a hundredth of a model unit.
+	var tolerance: float = game.renderer.cell_size.x / IslandRenderer.TRUE_TILE_UNITS * 0.01
+	for box in _mesh_boxes(dog._model, vessel):
+		on_deck = on_deck and box.position.y >= seat.position.y - tolerance
+		inside = inside and box.position.x >= hull.position.x and box.end.x <= hull.end.x \
+			and box.position.z >= hull.position.z and box.end.z <= hull.end.z
+	for box in _mesh_boxes(dog._model, vessel, tail):
+		for robot_box in robot_boxes:
+			clear = clear and not box.intersects(robot_box)
+	expect(on_deck, "K9-DA rests on the deck, not through it")
+	expect(inside, "K9-DA fits inside the hull")
+	expect(clear, "K9-DA sits clear of the robot at the helm")
+
+
+# The visible meshes under `node` (skipping those under `skip`), as boxes in `frame`'s space.
+func _mesh_boxes(node: Node, frame: Node3D, skip: Node = null) -> Array[AABB]:
+	var to_frame := frame.global_transform.affine_inverse()
+	var boxes: Array[AABB] = []
+	for mesh: MeshInstance3D in node.find_children("*", "MeshInstance3D", true, false):
+		if mesh.is_visible_in_tree() and (skip == null or not skip.is_ancestor_of(mesh)):
+			boxes.append(to_frame * mesh.global_transform * mesh.get_aabb())
+	return boxes
+
+
+func _merge(boxes: Array[AABB]) -> AABB:
+	var merged := boxes[0]
+	for box in boxes:
+		merged = merged.merge(box)
+	return merged
 
 
 # Sails until the boat stops; the cells it passed through, in order.

@@ -58,6 +58,8 @@ var current_cell := GameTypes.NO_CELL
 var selected := false
 var boat_id := -1
 var _vessel: Node3D
+# Where K9-DA rides on the vessel: its CompanionSpot, unscaled (Dog.ride).
+var _companion_seat: Node3D
 
 var _path: Array[Vector2i] = []
 var _target_world := Vector3.ZERO
@@ -153,11 +155,20 @@ func mount_boat(id: int, cell: Vector2i, yaw: float) -> void:
 	_model.reparent(_vessel, false)
 	_model.position = helm.position * size if helm != null else Vector3.ZERO
 	_model.rotation.y = PI / 2.0
+	var companion := hull.find_child("CompanionSpot", true, false) as Node3D
+	_companion_seat = Node3D.new()
+	_vessel.add_child(_companion_seat)
+	_companion_seat.position = companion.position * size if companion != null else Vector3.ZERO
 	set_work("operate")
 
 
 func boat_yaw() -> float:
 	return _vessel.rotation.y if _vessel != null else 0.0
+
+
+# Where K9-DA sits while the robot pilots a boat, turning and moving with it; null ashore.
+func companion_seat() -> Node3D:
+	return _companion_seat
 
 
 func leave_boat() -> void:
@@ -167,6 +178,7 @@ func leave_boat() -> void:
 		_model.rotation.y = boat_yaw() + PI / 2.0
 		_vessel.free()
 		_vessel = null
+		_companion_seat = null
 	boat_id = -1
 	set_work("")
 

@@ -1,6 +1,6 @@
 """Blender --background --python tools/build_k9_da.py.
 
-K9-DA: cream/teal mechanical companion, rigid pivots, embedded Idle, LieDown and Walk.
+K9-DA: cream/teal mechanical companion, rigid pivots, embedded Idle, LieDown, Sit and Walk.
 Front is Blender -Y / Godot +Z. Studio scenery is excluded from the GLB.
 """
 import math
@@ -137,6 +137,22 @@ def animate(clip, frames):
             for i, leg in enumerate(legs):
                 leg.rotation_euler.x = [-.32, -.12, .28, .12][i]
                 leg.rotation_euler.y = -.95 if i in [0, 2] else .02
+        elif clip == 'Sit':
+            # Riding the skiff: the barrel pitched up onto its rump, front legs straight down, the
+            # rigid hind legs folded forward along the deck just outside the front paws, the tail
+            # curled round to its left. The head scans the water.
+            body.location.z += -.097 + .004 * (1-math.cos(phase))
+            body.rotation_euler.x = -.675
+            head.rotation_euler.x = .5 + .03 * math.sin(phase * 2)
+            head.rotation_euler.z = .22 * math.sin(phase)
+            tail.rotation_euler.x = -.35
+            tail.rotation_euler.z = -.9 + .2 * math.sin(phase * 2)
+            ears[0].rotation_euler.y = .08 * math.sin(phase)
+            ears[1].rotation_euler.y = -.06 * math.sin(phase + .7)
+            for i, leg in enumerate(legs):
+                front, left = i < 2, i % 2 == 0
+                leg.rotation_euler.x = .675 if front else -.67
+                leg.rotation_euler.y = (-.25 if front else .08) * (1 if left else -1)
         else:
             body.location.z += .014 * (1-math.cos(phase*2))
             head.rotation_euler.x = .035 * math.sin(phase*2)
@@ -173,6 +189,7 @@ def animate(clip, frames):
 animate('Idle', 91)
 animate('Walk', 25)  # .8 seconds; .4 native units traveled per cycle.
 animate('LieDown', 121)  # Four-second quiet stranded loop.
+animate('Sit', 91)  # Three seconds, seated aboard the skiff.
 scene.frame_start, scene.frame_end = 1, 91
 scene.frame_set(1)
 bpy.ops.object.select_all(action='SELECT')
@@ -192,4 +209,10 @@ for obj in animated:
         track.mute = track.name != 'LieDown'
 scene.frame_set(1)
 scene.render.filepath = str(ROOT/'art/previews/k9_da_lying.png')
+bpy.ops.render.render(write_still=True)
+for obj in animated:
+    for track in obj.animation_data.nla_tracks:
+        track.mute = track.name != 'Sit'
+scene.frame_set(1)
+scene.render.filepath = str(ROOT/'art/previews/k9_da_sitting.png')
 bpy.ops.render.render(write_still=True)

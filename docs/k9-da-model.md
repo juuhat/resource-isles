@@ -10,13 +10,20 @@ Four rigid legs move through parented pivots; there is no skin or texture depend
 Blender front is -Y, exported as Godot +Z. Paw pads rest at zero in the rest pose.
 
 Embedded clips are LieDown (four seconds: low resting pose, gentle breathing and small
-head/ear movements), Idle (three seconds: head scan, ear movement, tail wag) and Walk
+head/ear movements), Idle (three seconds: head scan, ear movement, tail wag), Sit (three
+seconds: seated, head scanning the water, tail sweeping the deck) and Walk
 (0.8 seconds: diagonal trot, lifted return and body bob). Gameplay provides translation;
 the walk advances 0.4 native units per cycle and playback scales with movement speed
 and model size. Before rescue the stranded dog loops LieDown on its right side,
 head lowered and upper legs relaxed across the lower pair. Rescue blends it back to standing Idle; stopping while following
-also resumes Idle. Existing rescue hops, following, terrain fitting
-and boat placement continue through the same Dog node.
+also resumes Idle. Existing rescue hops, following and terrain fitting
+continue through the same Dog node.
+
+Aboard the salvage skiff the dog loops Sit at the hull's `CompanionSpot` (`Dog.ride`). The
+barrel pitches up onto the rump, the front legs stand straight and close together, and the
+rigid hind legs fold forward along the deck just outside the front paws (a single-pivot leg
+can't tuck under the hip), with the tail curled round to the left. Only the hind paws touch
+the deck boards. The skiff was laid out around this pose (`tools/build_salvage_skiff.py`).
 
 Rebuild with Blender 5.0:
 
@@ -25,7 +32,9 @@ Rebuild with Blender 5.0:
 ```
 
 Outputs: game GLB, editable `art/blender/k9_da.blend`, and
-`art/previews/k9_da.png` plus the resting preview `art/previews/k9_da_lying.png`.
+`art/previews/k9_da.png` plus the resting preview `art/previews/k9_da_lying.png` and the
+seated preview `art/previews/k9_da_sitting.png`.
 The preview studio is excluded from the GLB.
-`tools/dog_model_check.gd` checks imported clips, pivots, ground fitting and playback.
+`tools/dog_model_check.gd` checks imported clips, pivots, ground fitting, playback and riding
+a seat; `tools/boat_navigation_check.gd` checks the dog boards, fits the skiff and lands.
 This is a first visual pass; judge proportions and gait at normal gameplay zoom.

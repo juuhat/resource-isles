@@ -829,11 +829,12 @@ func _on_rescue_pressed() -> void:
 	game.save_game()
 
 
-# Put K9-DA where the rescue state says: beside the robot once rescued; otherwise waiting at its
-# spot as soon as its island is discovered, alongside the resources revealed on approach.
+# Put K9-DA where the rescue state says: once rescued, beside the robot, or seated aboard the boat
+# it pilots; otherwise waiting at its spot as soon as its island is discovered, alongside the
+# resources revealed on approach.
 func sync_dog() -> void:
 	if world.dog_rescued and player_unit.boat_id != -1:
-		dog.halt()
+		dog.ride(player_unit.companion_seat())
 		return
 	if world.dog_rescued:
 		dog.follow(current_island, _find_dog_follow_cell(), player_unit)

@@ -398,13 +398,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		_handle_debug_key(key_event.keycode)
 
 
-# DEBUG BUILD ONLY: testing cheats dispatched from _unhandled_input. P grants resources,
-# Delete wipes the save and restarts; both are gated by OS.is_debug_build() at the call site.
+# DEBUG BUILD ONLY: testing cheats dispatched from _unhandled_input, gated by
+# OS.is_debug_build() at the call site.
 func _handle_debug_key(keycode: int) -> void:
 	# P: grant 1000 of every resource to the current island (per-island inventory) so building
 	# costs can be exercised without grinding.
 	if keycode == KEY_P:
 		_debug_grant_resources()
+
+	if keycode == KEY_L:
+		_debug_reveal_map()
 
 	# Delete: wipe the save and reload the scene — _ready then finds no save and starts fresh.
 	# (A plain delete wouldn't stick, since quitting and most actions re-save.)
@@ -431,6 +434,22 @@ func _debug_grant_resources() -> void:
 func _debug_reset_save() -> void:
 	SaveManager.delete_save()
 	get_tree().reload_current_scene()
+
+
+# DEBUG BUILD ONLY (L key). Unlock the entire existing world and clear its exploration fog.
+func _debug_reveal_map() -> void:
+	var rings := world.world_rings()
+	for coord: Vector2i in world.islands:
+		rings = maxi(rings, ceili(WorldData.rings_out(coord)))
+	_reveal_rings(maxi(0, rings - world.revealed_rings))
+	for coord: Vector2i in world.islands:
+		discover_island(coord)
+	# Cover the full sailing area, including open sea between the islands.
+	var steps := ceili(world_navigation.sailing_radius() / (WorldNavigation.CELL_SIZE.y * 0.75)) + 2
+	world.exploration.explore(ExplorationMap.cells_around(WorldData.CENTER, steps))
+	world_view.refresh()
+	save_game()
+	toast.show_message("All rings unlocked and map revealed.")
 
 
 func _on_quest_completed(quest_id: int) -> void:
