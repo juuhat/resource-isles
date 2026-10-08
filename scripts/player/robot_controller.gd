@@ -164,14 +164,17 @@ func on_entered_cell(cell: Vector2i) -> void:
 	renderer.refresh()
 
 
-# Walking, the robot got where it was sent: if it can work the target from here, it finds what it
-# can do there and starts it.
+# Walking, the robot got where it was sent: if it was sent to a boat, it boards it; if it can work
+# the target from here, it finds what it can do there and starts it.
 func on_arrived() -> void:
 	var target := pending_action_cell
 	if target == GameTypes.NO_CELL:
 		return
 
 	pending_action_cell = GameTypes.NO_CELL
+	# Sent to a boat: beside it now, the robot boards it and takes the helm.
+	if not world_navigation.boat_at(target).is_empty() and game.boats.board(target):
+		return
 	if _is_working_position(target):
 		harvestable_cell = target if current_island.get_resource_node_type(target) != -1 else GameTypes.NO_CELL
 		operable_cell = target if _building_consumes_power(target) else GameTypes.NO_CELL
@@ -185,10 +188,10 @@ func on_arrived() -> void:
 	game.refresh_action_bar()
 
 
-# True for a cell the selected robot would start working on if right-clicked: a blueprint, a
-# resource node once harvesting is unlocked, a building that draws power once operating is
-# unlocked, the wreck while a part is left to repair once repairing is unlocked, or the stranded
-# K9-DA; aboard, a shore it can land on. The hover tints it green
+# True for a cell the selected robot would start working on if right-clicked: a boat to board, a
+# blueprint, a resource node once harvesting is unlocked, a building that draws power once
+# operating is unlocked, the wreck while a part is left to repair once repairing is unlocked, or the
+# stranded K9-DA; aboard, a shore it can land on. The hover tints it green
 # (IslandRenderer.is_cell_actionable, see Game._is_actionable_cell).
 func is_actionable_cell(cell: Vector2i) -> bool:
 	if player_unit == null or not player_unit.selected or current_island == null:

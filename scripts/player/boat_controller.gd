@@ -6,9 +6,9 @@ extends RefCounted
 # boat actions on the command bar. Walking and work are the RobotController's; what comes into sight
 # on the way is Game.look_around's.
 
-# Icons for the boat actions on the robot's command bar.
-const POWER_ICON := preload("res://assets/icons/power.png")
-const BOAT_ICON := preload("res://assets/vehicles/rowboat.png")
+# Icons for the boat actions on the robot's command bar. Boarding and disembarking share the boat
+# (tools/build_boat_icon.py); Disembark is shown active, which crosses it out (ActionBar).
+const BOAT_ICON := preload("res://assets/icons/boat.png")
 const CARGO_ICON := preload("res://assets/icons/cargo_crate.png")
 
 var game: Game
@@ -75,18 +75,21 @@ func show_hover(cell: Vector2i) -> void:
 
 
 # Boat actions for the command bar (Game.refresh_action_bar): aboard, the cargo hold and, beside a
-# shore, disembarking; on foot beside a boat, boarding it and its cargo hold.
+# shore, disembarking; on foot beside a boat, its cargo hold and boarding it. The same order either
+# way, so the Cargo button stays put when the robot boards or leaves the boat.
 func actions() -> Array:
+	var aboard := player_unit.boat_id != -1
+	if not aboard and nearby_boat().is_empty():
+		return []
 	var actions: Array = []
-	if player_unit.boat_id != -1:
-		if has_cargo_hold():
-			actions.append({id = GameTypes.UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = "Boat cargo — load or unload at the shore", active = false})
-		if landing_tile() != GameTypes.NO_CELL:
-			actions.append({id = GameTypes.UnitAction.DISEMBARK, icon = BOAT_ICON, label = "Disembark (right-click shore to choose landing)", active = false})
-	elif not nearby_boat().is_empty():
-		actions.append({id = GameTypes.UnitAction.PILOT_BOAT, icon = POWER_ICON, label = "Pilot boat — board and power the helm", active = false})
-		if has_cargo_hold():
-			actions.append({id = GameTypes.UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = "Boat cargo — load or unload supplies", active = false})
+	if has_cargo_hold():
+		var label := "Boat cargo — load or unload at the shore" if aboard else "Boat cargo — load or unload supplies"
+		actions.append({id = GameTypes.UnitAction.CARGO, icon = CARGO_ICON, caption = "Cargo", label = label, active = false})
+	if not aboard:
+		actions.append({id = GameTypes.UnitAction.PILOT_BOAT, icon = BOAT_ICON, label = "Pilot boat — board and power the helm (or right-click the boat)", active = false})
+	elif landing_tile() != GameTypes.NO_CELL:
+		# Piloting is the robot's running task, so leaving the boat reads as cancelling it.
+		actions.append({id = GameTypes.UnitAction.DISEMBARK, icon = BOAT_ICON, label = "Disembark (right-click shore to choose landing)", active = true})
 	return actions
 
 
@@ -183,10 +186,14 @@ func disembark() -> void:
 	game.save_game()
 
 
-func nearby_boat() -> Dictionary:
+# A boat the robot, ashore and standing still, can board from where it stands: the one at `at`,
+# or any beside it.
+func nearby_boat(at := GameTypes.NO_CELL) -> Dictionary:
 	if player_unit.boat_id != -1 or player_unit.is_moving():
 		return {}
 	for cell in HexGrid.neighbors(player_unit.current_cell):
+		if at != GameTypes.NO_CELL and cell != at:
+			continue
 		var boat := world_navigation.boat_at(cell)
 		if not boat.is_empty() and world_navigation.can_land(cell, player_unit.current_cell):
 			return boat
@@ -204,10 +211,11 @@ func _launch(boat: Dictionary) -> int:
 	return id
 
 
-func board() -> void:
-	var boat := nearby_boat()
+# Board the boat at `at` (or any beside the robot) and take the helm. False if there's none to board.
+func board(at := GameTypes.NO_CELL) -> bool:
+	var boat := nearby_boat(at)
 	if boat.is_empty():
-		return
+		return false
 	robot.stop_work()
 	var id := _launch(boat)
 	world.piloted_boat = id
@@ -222,6 +230,7 @@ func board() -> void:
 	renderer.refresh()
 	game.refresh_action_bar()
 	game.save_game()
+	return true
 
 
 func store_position() -> void:

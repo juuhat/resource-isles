@@ -29,12 +29,13 @@ Keys and mouse controls for the current prototype. Input is handled in
 
 ## Boat
 
-- **Pilot boat**: walk beside a Dock's skiff or a parked boat and press **Pilot boat** on the
-  command bar to board.
+- **Right click a boat** (a Dock's skiff or a parked boat): the robot walks beside it and boards.
+  Standing beside one, **Pilot boat** (the boat icon) on the command bar boards it too.
 - **Right click** coast or open sea while aboard: sail there. Right click a shore to land there.
 - **Left click on another island** while aboard (also from the overview): sail to its nearest
   reachable shore.
-- **Disembark**: land beside a shore or a finished Dock, leaving the boat afloat.
+- **Disembark** (the boat crossed out): land beside a shore or a finished Dock, leaving the boat
+  afloat.
 - **Cargo**: open the boat's cargo hold and drag resources between the island and the boat.
   The hold opens once the Copper Glint quest is done.
 

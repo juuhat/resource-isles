@@ -62,9 +62,20 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	player.set_selected(true)
 	game.refresh_action_bar()
 	expect(not game.boats.nearby_boat().is_empty(), "Pilot offered beside boat")
+	var pilot: Array = game.boats.actions().filter(func(a: Dictionary) -> bool: return a.id == GameTypes.UnitAction.PILOT_BOAT)
+	expect(pilot.size() == 1 and pilot[0].icon == BoatController.BOAT_ICON and not pilot[0].active, "Pilot shows the boat")
+	# With the cargo hold open (Copper Glint), Cargo comes before the boat button aboard and ashore.
+	var completed: Dictionary = game.quest_manager.completed_to_dict()
+	completed[GameTypes.QuestId.COPPER_GLINT] = true
+	game.quest_manager.restore_completed(completed)
+	var action_ids := func() -> Array: return game.boats.actions().map(func(a: Dictionary) -> int: return a.id)
+	expect(action_ids.call() == [GameTypes.UnitAction.CARGO, GameTypes.UnitAction.PILOT_BOAT], "Ashore: Cargo, then Pilot boat")
 	game._on_action_pressed(GameTypes.UnitAction.PILOT_BOAT)
 	await process_frame
 	expect(player.boat_id == 0 and player.current_cell == berth, "Board the boat")
+	expect(action_ids.call() == [GameTypes.UnitAction.CARGO, GameTypes.UnitAction.DISEMBARK], "Aboard: Cargo, then Disembark")
+	var leave: Array = game.boats.actions().filter(func(a: Dictionary) -> bool: return a.id == GameTypes.UnitAction.DISEMBARK)
+	expect(leave.size() == 1 and leave[0].icon == BoatController.BOAT_ICON and leave[0].active, "Disembark shows the boat crossed out")
 	expect(player._work == "operate" and player._model.get_parent() == player._vessel, "Robot powers helm aboard")
 	expect(renderer.find_children(IslandRenderer.MOORED_BOAT_NAME, "", true, false).is_empty(), "Launched boat no longer duplicated on dock")
 	if OS.get_cmdline_user_args().has("--screenshot"):
@@ -110,8 +121,14 @@ func _check_trip(game: Node, anchor: Vector2i, rotation: int) -> void:
 	game._on_action_pressed(GameTypes.UnitAction.DISEMBARK)
 	expect(player.boat_id == -1 and player.current_cell == pier, "Disembark onto pier")
 	expect(game.world.boats[0].cell == berth and game.world.piloted_boat == -1, "Boat stays parked afloat")
-	game.boats.board()
-	expect(player.boat_id == 0 and game.world.boats.size() == 1, "Reboard the same boat")
+	# Right-clicking the boat from the quay walks out along the pier and boards it.
+	player.place_at(anchor)
+	expect(game._command_unit_to(berth), "Command the robot to the boat")
+	steps = 0
+	while player.is_moving() and steps < 1000:
+		player._process(0.5)
+		steps += 1
+	expect(player.boat_id == 0 and player.current_cell == berth and game.world.boats.size() == 1, "Clicking the boat boards the same boat")
 	game._on_building_move_requested(GameTypes.BuildingType.DOCK, anchor, island)
 	game._cancel_building_move()
 	await process_frame

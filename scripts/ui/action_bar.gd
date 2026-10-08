@@ -41,7 +41,7 @@ func _ready() -> void:
 
 
 # actions: an ordered Array of { id: int, icon: Texture2D, label: String, active: bool },
-# rendered right-to-left next to the portrait. `active` marks an engaged toggle (e.g. a
+# laid out left to right, the last one next to the portrait. `active` marks an engaged toggle (e.g. a
 # generator currently running); it overlays a cancel icon so the button reads as "cancel
 # this task". The label becomes the button's tooltip.
 func set_actions(actions: Array) -> void:
