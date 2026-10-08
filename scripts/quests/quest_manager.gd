@@ -108,6 +108,20 @@ func get_unlocking_quest(building_type: int) -> Quest:
 	return null
 
 
+# Whether an active quest (the current milestone, or a MAIN quest in progress) highlights the target
+# `kind` (GameTypes.QuestTargetKind) `value`, so it should glow.
+func is_highlighted(kind: int, value: int) -> bool:
+	var active := get_active_main_quests()
+	var current := get_current_milestone()
+	if current != null:
+		active.append(current)
+	for quest in active:
+		for target in quest.highlights:
+			if target.kind == kind and target.value == value:
+				return true
+	return false
+
+
 func is_upgrade_active(robot_upgrade: int) -> bool:
 	for quest in quests:
 		for reward in quest.rewards:

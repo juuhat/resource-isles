@@ -162,6 +162,8 @@ func _ready() -> void:
 	WorldBuilder.add_map_islands(world, WorldMap.load_file(), building_manager)
 	world_navigation.setup(world)
 	world_view.setup(world, resource_node_database, building_manager, world_navigation)
+	# What the active quests point at glows (Quest.highlights).
+	world_view.is_quest_highlighted = quest_manager.is_highlighted
 	# Discovered islands are always charted (older saves kept no exploration).
 	for coord in world.visited_coords():
 		world.exploration.explore(world_view.island_chart_cells(coord))
@@ -438,6 +440,8 @@ func _on_quest_completed(quest_id: int) -> void:
 	toast.show_message("Quest complete: %s" % quest.title)
 	for reward in quest.rewards:
 		_apply_reward(reward)
+	# The next quest may point at something else.
+	world_view.update_quest_highlights()
 	# A reward may have changed what the robot can do here (e.g. harvesting unlocked).
 	refresh_action_bar()
 	# Completing a quest is a milestone the player would hate to lose to a crash — checkpoint it.

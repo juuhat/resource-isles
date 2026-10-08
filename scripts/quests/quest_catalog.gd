@@ -10,7 +10,8 @@ extends RefCounted
 # only the current milestone is active, the rest are locked until reached (see QuestManager).
 # A milestone can grant SEVERAL rewards at once (e.g. unlock the camp and the quarry
 # together). Quests complete by playing; nothing is spent to complete them, and the buildings
-# a reward unlocks still cost resources to place.
+# a reward unlocks still cost resources to place. A quest may also list highlights (QuestTarget):
+# things in the world that glow while it is active, to show the player where to go.
 
 const ObjectiveScript := preload("res://scripts/quests/objective.gd")
 const QuestScript := preload("res://scripts/quests/quest.gd")
@@ -43,7 +44,12 @@ static func build_all() -> Array[Quest]:
 		"The crash scattered the robot's tools across the island. Walk over and "
 			+ "collect the axe, pickaxe, and wrench.",
 		[_objective("Recover your tools", GameTypes.Stat.TOOLS_COLLECTED, 3)],
-		[QuestReward.robot_upgrade_reward(GameTypes.RobotUpgrade.HARVESTING, "Unlocks harvesting")]
+		[QuestReward.robot_upgrade_reward(GameTypes.RobotUpgrade.HARVESTING, "Unlocks harvesting")],
+		[
+			QuestTarget.item(GameTypes.ItemType.AXE),
+			QuestTarget.item(GameTypes.ItemType.PICKAXE),
+			QuestTarget.item(GameTypes.ItemType.WRENCH),
+		]
 	))
 
 	quests.append(QuestScript.new(
@@ -178,7 +184,8 @@ static func build_all() -> Array[Quest]:
 		"Walk up to the wreck and Repair its radar with three copper ingots. With the radar "
 			+ "working again, the robot can chart the islands beyond the home waters.",
 		[_objective("Repair the radar", GameTypes.Stat.SHIP_PARTS_REPAIRED, 1)],
-		[QuestReward.reveal_world_rings(1, "Reveals the first ring of islands")]
+		[QuestReward.reveal_world_rings(1, "Reveals the first ring of islands")],
+		[QuestTarget.ship_part(GameTypes.ShipPart.RADAR)]
 	))
 
 	# The frontier's discovery beat (docs/second-island-progression.md): hand-mine a little iron,

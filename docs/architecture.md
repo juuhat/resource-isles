@@ -79,6 +79,12 @@ map); managers hold the generic logic and never per-item numbers.
 - `scripts/island/power_indicator.gd`, `powered_spinner.gd` and `blade_spinner.gd`: per-model
   helpers that animate themselves (the red unpowered bolt, powered moving parts, windmill
   blades), so the renderer needs no per-frame loop.
+- `scripts/island/quest_highlight.gd` (`QuestHighlight`): marks a model as something a quest
+  wants found. A gold glow plays over its meshes (their `material_overlay`, so the model keeps
+  its own materials), gold motes rise off its faces, and a halo lies on the ground under it
+  (left out for an object off the ground). Its shaders are in `assets/shaders/quest/`.
+  `QuestHighlight.attach(model)` works on any `Node3D` at any scale, and
+  `QuestHighlight.detach(model)` fades it out. Quests decide what gets one (see Quests below).
 - `scripts/island/island_generator.gd`, `island_profile.gd` and `island_profiles.gd` generate
   an island from a biome profile and a seed. This is a tool for making island designs, not
   part of the running game (see [Island Generation](island-generation.md)).
@@ -142,6 +148,13 @@ map); managers hold the generic logic and never per-item numbers.
 - `scripts/quests/objective.gd`, `quest.gd` and `quest_reward.gd`: the data types. A reward
   unlocks a building, grants a robot upgrade, or reveals more rings of the world. Nothing is
   spent on completion.
+- `scripts/quests/quest_target.gd`: a quest's optional highlights, the things in the world that
+  glow (`QuestHighlight`) while it is active: every ground item of a type
+  (`QuestTarget.item`), or a broken part of the crashed ship (`QuestTarget.ship_part`). Recover
+  Your Tools highlights the three tools and Eyes on the Horizon the radar. `QuestManager.is_highlighted`
+  answers for the active quests. Main hands it to the world view, whose renderers and `ShipWreck`
+  apply it as they draw and again whenever a quest completes. To highlight a new kind of thing,
+  add a `GameTypes.QuestTargetKind` and apply it where that thing is drawn.
 
 ## UI
 

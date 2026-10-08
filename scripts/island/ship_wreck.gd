@@ -7,15 +7,19 @@ extends Node3D
 # repair, or paused part way, is printed up to its progress inside a hologram of the finished part,
 # like a blueprint (ConstructionSite). A repaired part's '<Name>Spin' node, if it has one (the radar
 # dish), turns about its local up axis to face where the chart's radar sweep points
-# (WorldView.radar_sweep_angle), so dish and sweep turn together. Like ConstructionSite it polls
-# each frame, so finishing a repair needs no re-render, and it is freed with the objects on the next
-# one. It runs while the game is paused too, as the sweep does.
+# (WorldView.radar_sweep_angle), so dish and sweep turn together. A broken part the active quest
+# highlights glows (update_quest_highlights). Like ConstructionSite it polls each frame, so
+# finishing a repair needs no re-render, and it is freed with the objects on the next one. It runs
+# while the game is paused too, as the sweep does.
 
 enum State { BROKEN, REPAIRING, REPAIRED }
 
 var world: WorldData
 var island: IslandData
 var anchor_cell := GameTypes.NO_CELL
+# Optional, from the renderer: (GameTypes.QuestTargetKind, value) -> true while an active quest
+# highlights that target. A highlighted part glows while it is broken (QuestHighlight).
+var is_quest_highlighted := Callable()
 var _model: Node3D
 # Model node name -> the State shown, the ConstructionSite printing it, and its hologram copy.
 var _states := {}
@@ -36,6 +40,20 @@ func setup(new_world: WorldData, new_island: IslandData, new_anchor_cell: Vector
 	anchor_cell = new_anchor_cell
 	_model = model
 	_update()
+	update_quest_highlights()
+
+
+# Puts the quest glow on each broken part an active quest highlights (only the glow: the parts sit up
+# on the hull, off the ground), and takes it off the rest. Hidden with the broken part once its
+# repair starts.
+func update_quest_highlights() -> void:
+	for model_node in ShipRepairs.MODEL_NODES:
+		var part := ShipRepairs.part_for_model_node(model_node)
+		var broken := _model.find_child(model_node + "Broken", true, false) as Node3D
+		if part == -1 or broken == null:
+			continue
+		QuestHighlight.set_on(broken, is_quest_highlighted.is_valid()
+			and is_quest_highlighted.call(GameTypes.QuestTargetKind.SHIP_PART, part), 0.0)
 
 
 func _process(_delta: float) -> void:

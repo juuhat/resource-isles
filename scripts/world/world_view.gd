@@ -113,6 +113,9 @@ var navigation: WorldNavigation
 # The width and depth of a cell. With get_cell_center and get_step_height this makes the world view
 # the ground units walk on, across every island and the sea.
 var cell_size := Navigation.CELL_SIZE
+# Optional, set by main before the first refresh: (GameTypes.QuestTargetKind, value) -> true while
+# an active quest highlights that target (QuestManager.is_highlighted). Every renderer gets it.
+var is_quest_highlighted := Callable()
 
 var _disc_radius := 0.0 # disc units
 var _charted_radius := -1.0 # disc units
@@ -235,6 +238,13 @@ func refresh() -> void:
 		_upload_exploration()
 	_build_labels()
 	_build_routes()
+
+
+# Moves the quest glow onto what the active quests now highlight, on every island (after a quest
+# completes).
+func update_quest_highlights() -> void:
+	for coord in _renderers:
+		(_renderers[coord] as IslandRenderer).update_quest_highlights()
 
 
 # The renderer drawing the island at `coord`, or null if it is not revealed (or not generated).
@@ -425,6 +435,7 @@ func _add_renderer(coord: Vector2i, island: IslandData) -> void:
 	renderer.name = "Island_%d_%d" % [coord.x, coord.y]
 	renderer.setup(resource_node_database, building_manager)
 	renderer.world_data = world
+	renderer.is_quest_highlighted = is_quest_highlighted
 	renderer.show_grid = _show_grid
 	# In the tree first (its _ready builds the scene roots), then positioned, then rendered (the
 	# water shader needs the final world position). Island cells are world lattice cells, so every

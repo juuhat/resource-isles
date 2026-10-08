@@ -141,8 +141,14 @@ var is_cell_occupied_by_unit := Callable()
 # Optional, set by main: true for a cell the selected robot would start working on if sent there
 # (harvest, operate, rescue). The hover tints such a cell green instead of brightening it.
 var is_cell_actionable := Callable()
+# Optional, set by WorldView: (GameTypes.QuestTargetKind, value) -> true while an active quest
+# highlights that target (QuestManager.is_highlighted), so it glows (QuestHighlight).
+var is_quest_highlighted := Callable()
 # Anchor cell -> world position of the building model's WorkSpot marker, if it has one.
 var _work_spots := {}
+# Cell -> the ground item's model there, and the wreck's ShipWreck, for update_quest_highlights.
+var _item_models := {}
+var _wrecks: Array[ShipWreck] = []
 
 var _terrain_root: Node3D
 var _objects_root: Node3D
@@ -836,6 +842,8 @@ func _update_grid_style() -> void:
 func _rebuild_objects() -> void:
 	_clear(_objects_root)
 	_work_spots.clear()
+	_item_models.clear()
+	_wrecks.clear()
 	if island == null:
 		return
 
@@ -963,6 +971,8 @@ func _spawn_item(cell: Vector2i, item_type: int) -> void:
 		# put across refreshes.
 		model.rotation.y = deg_to_rad(float(absi(hash(cell)) % 360))
 		_objects_root.add_child(model)
+		_item_models[cell] = model
+		_highlight_item(cell)
 		return
 
 	var texture: Texture2D = ITEM_TEXTURES.get(item_type)
@@ -1040,8 +1050,26 @@ func _dress_construction_site(anchor_cell: Vector2i, model: Node3D, ghost_model:
 func _dress_ship_wreck(anchor_cell: Vector2i, model: Node3D) -> void:
 	var wreck := ShipWreckScript.new()
 	wreck.name = "ShipWreck"
+	wreck.is_quest_highlighted = is_quest_highlighted
 	_objects_root.add_child(wreck)
 	wreck.setup(world_data, island, anchor_cell, model)
+	_wrecks.append(wreck)
+
+
+# Puts the quest glow on whatever the active quests highlight here, and takes it off what they no
+# longer do. Called when a quest completes; a render or refresh applies it as it draws.
+func update_quest_highlights() -> void:
+	for cell in _item_models:
+		_highlight_item(cell)
+	for wreck in _wrecks:
+		wreck.update_quest_highlights()
+
+
+func _highlight_item(cell: Vector2i) -> void:
+	var model: Node3D = _item_models[cell]
+	if is_instance_valid(model):
+		QuestHighlight.set_on(model, is_quest_highlighted.is_valid()
+			and is_quest_highlighted.call(GameTypes.QuestTargetKind.ITEM, island.items.get(cell, -1)))
 
 
 # A building's model sized, placed and turned on its footprint, under _objects_root. Shared by

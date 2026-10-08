@@ -102,6 +102,12 @@ enum RewardKind {
 	REVEAL_WORLD_RINGS, # reveals more rings of islands on the world map (see WorldData)
 }
 
+# What a quest can point the player at while it is active: the target glows (QuestHighlight).
+enum QuestTargetKind {
+	ITEM,      # every ground item of an ItemType
+	SHIP_PART, # a broken part of the crashed ship (a ShipPart)
+}
+
 # Robot self-improvements granted as quest rewards; effects applied in main.gd.
 enum RobotUpgrade {
 	HARVESTING,  # the robot can harvest resource nodes at all (gated until tools recovered)

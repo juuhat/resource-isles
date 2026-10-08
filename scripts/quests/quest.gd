@@ -3,8 +3,9 @@ extends RefCounted
 
 # A single quest in the Quest Log: a kind (MAIN story goal vs MILESTONE chain step), a
 # title, a flavour description, one or more objectives to complete, and one or more rewards
-# granted when they're all done. Data only — QuestManager holds completion state and applies
-# rewards; QuestCatalog holds the per-quest data.
+# granted when they're all done. Optionally, highlights: the things in the world that glow while
+# the quest is active, to show the player where to go. Data only — QuestManager holds completion
+# state and applies rewards; QuestCatalog holds the per-quest data.
 
 var id: int
 var kind: int
@@ -12,6 +13,7 @@ var title: String
 var description: String
 var objectives: Array[Objective] = []
 var rewards: Array[QuestReward] = []
+var highlights: Array[QuestTarget] = []
 
 
 func _init(
@@ -20,7 +22,8 @@ func _init(
 	new_title: String,
 	new_description: String,
 	new_objectives: Array[Objective],
-	new_rewards: Array[QuestReward]
+	new_rewards: Array[QuestReward],
+	new_highlights: Array[QuestTarget] = []
 ) -> void:
 	id = new_id
 	kind = new_kind
@@ -28,6 +31,7 @@ func _init(
 	description = new_description
 	objectives = new_objectives
 	rewards = new_rewards
+	highlights = new_highlights
 
 
 func is_complete(stat_tracker: StatTracker) -> bool:
