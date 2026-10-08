@@ -101,8 +101,8 @@ Follow the chosen power ladder in [Power Sources](power-sources.md):
 
 Proposed milestone: **Catch the Wind**. Reaching a new ring-1 island completes the discovery
 beat and rewards the Windmill unlock. A subsequent objective asks the player to build a
-windmill and run a mine with automatic power. The locked build-menu entry should identify the
-unlocking quest.
+windmill and run a mine with automatic power. Locked buildings stay out of the build menu, so
+the quest log is where the player learns what the Windmill unlock takes.
 
 The Windmill must be unlocked before any objective requires its construction. Final ordering
 relative to Strike Iron and the supply-line lesson remains to be tuned; frontier construction

@@ -1,12 +1,14 @@
 class_name BuildingMenu
 extends CanvasLayer
 
-# The construction menu. Three pieces, all built programmatically:
+# The construction menu, laid out like the bottom build bars of Cities: Skylines or Anno. Three
+# pieces, all built programmatically:
 #   - the BUILD launcher (bottom-left, hotkey B, see main.gd), with a NEW badge while freshly
 #     unlocked buildings are still unseen;
-#   - a compact panel above it: category tabs, a grid of building cards, and a details column.
-#     Cards show their cost against the current island's stock (short resources in red), a 1-9
-#     hotkey, and quest-locked buildings dimmed with the quest that unlocks them;
+#   - a bar along the bottom edge, centred: category tabs over one row of building cards. Cards
+#     show their cost against the current island's stock (short resources in red) and a 1-9
+#     hotkey. Only unlocked buildings are listed, and a category gets a tab once it has one.
+#     Hovering a card pops its details (cost against stock, output, placement rules) up above it;
 #   - a placement bar beside the launcher while a building is picked, saying what's being placed,
 #     what it still needs, and how to cancel.
 
@@ -18,6 +20,7 @@ const NO_CATEGORY := -1
 const BUILDINGS_ICON := preload("res://assets/icons/building.png")
 const POWER_ICON := preload("res://assets/icons/power.png")
 const CANCEL_ICON := preload("res://assets/icons/cancel.png")
+const HEADING_FONT := preload("res://assets/fonts/exo2_bold.tres")
 const ACCENT := Color("79dcc5")
 const MUTED := Color("9eafbb")
 const TEXT := Color("e9f1f3")
@@ -29,10 +32,14 @@ const BUILDING_CATEGORIES := [
 	GameTypes.BuildingCategory.PROCESSING, GameTypes.BuildingCategory.LOGISTICS,
 	GameTypes.BuildingCategory.UTILITY,
 ]
-const PANEL_SIZE := Vector2(836.0, 420.0)
-const DETAILS_WIDTH := 336.0
-const CARD_SIZE := Vector2(148.0, 172.0)
-const GRID_COLUMNS := 3
+# The bar keeps one width while open so its tabs stay put when switching category. It is capped
+# to leave the BUILD launcher (left) and the robot portrait (right) uncovered.
+const BAR_MAX_WIDTH := 820.0
+const BAR_SIDE_CLEARANCE := 160.0
+const CARD_SIZE := Vector2(132.0, 150.0)
+const CARD_SPACING := 8.0
+const POPUP_WIDTH := 320.0
+const POPUP_GAP := 8.0
 const COST_ICON_SIZE := 18.0
 const THUMBNAIL_SIZE := Vector2i(192, 192)
 const HOTKEYS := [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9]
@@ -47,18 +54,21 @@ var launcher: Button
 var launcher_badge: Control
 var menu_panel: PanelContainer
 var category_row: HBoxContainer
-var card_grid: GridContainer
+var card_scroll: ScrollContainer
+var card_row: HBoxContainer
+var empty_label: Label
+var detail_popup: PanelContainer
 var detail_box: VBoxContainer
 var placement_bar: PanelContainer
 var placement_art: TextureRect
 var placement_title: Label
 var placement_status: Label
-# building_type -> card Button, for unlocked cards in the current category.
+# building_type -> card Button, for the cards in the current category.
 var cards: Dictionary = {}
-# Unlocked building types in card order; index i is hotkey i + 1.
+# Building types in card order; index i is hotkey i + 1.
 var card_order: Array[int] = []
 # { label, stock_label, resource_type, amount } for every cost figure on screen (cards and the
-# details column), recoloured as stock changes.
+# details popup), recoloured as stock changes.
 var cost_labels: Array[Dictionary] = []
 var detail_cost_labels: Array[Dictionary] = []
 # Building types unlocked this session that the player hasn't hovered or picked yet.
@@ -85,6 +95,7 @@ func setup(
 func _ready() -> void:
 	_build_ui()
 	_update_placement_bar()
+	get_viewport().size_changed.connect(_fit_bar_width)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -123,33 +134,32 @@ func set_selected_building(building_type: int) -> void:
 func open_menu() -> void:
 	if menu_panel == null or menu_panel.visible:
 		return
-	var categories := _visible_categories()
-	if not categories.has(selected_category):
-		selected_category = _default_category(categories)
+	_ensure_visible_category()
 	# Stock and unlocks may have changed while closed (another island, a finished quest).
+	_fit_bar_width()
 	_rebuild()
 	menu_panel.show()
 	launcher.set_pressed_no_signal(true)
 	_update_placement_bar()
 
-	# Short fade-and-rise so the panel reads as coming out of the launcher.
+	# Short fade-and-rise out of the bottom edge. The bar's offsets are its resting place at 0, so
+	# sliding them leaves nothing to restore afterwards.
 	if _panel_tween != null:
 		_panel_tween.kill()
-	var rest_y := menu_panel.position.y
 	menu_panel.modulate.a = 0.0
-	menu_panel.position.y = rest_y + 14.0
+	_set_bar_drop(24.0)
 	_panel_tween = create_tween().set_parallel().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 	_panel_tween.tween_property(menu_panel, "modulate:a", 1.0, 0.14)
-	_panel_tween.tween_property(menu_panel, "position:y", rest_y, 0.14)
+	_panel_tween.tween_method(_set_bar_drop, 24.0, 0.0, 0.14)
 
 
 func close_menu() -> void:
 	if menu_panel == null:
 		return
 	if _panel_tween != null and _panel_tween.is_running():
-		# Snap to the resting layout so the next open measures from the right spot.
 		_panel_tween.custom_step(1.0)
 	menu_panel.hide()
+	detail_popup.hide()
 	launcher.set_pressed_no_signal(false)
 	hovered_building_type = NO_BUILDING
 	_update_placement_bar()
@@ -170,6 +180,7 @@ func _on_quest_completed(_quest_id: int) -> void:
 	_unlocked_snapshot = unlocked
 	_update_launcher_badge()
 	if is_open():
+		_ensure_visible_category()
 		_rebuild()
 
 
@@ -199,45 +210,34 @@ func _select_building_type(building_type: int) -> void:
 
 # --- Catalog queries ---
 
-func _buildable_definitions(category: int) -> Array[BuildingDefinition]:
+# The player-buildable, unlocked buildings in a category, in catalog order.
+func _available_definitions(category: int) -> Array[BuildingDefinition]:
 	var result: Array[BuildingDefinition] = []
 	for definition in building_manager.get_definitions_for_category(category):
-		if definition.player_buildable:
+		if definition.player_buildable and quest_manager.is_building_unlocked(definition.id):
 			result.append(definition)
 	return result
 
 
-func _is_unlocked(definition: BuildingDefinition) -> bool:
-	return quest_manager.is_building_unlocked(definition.id)
-
-
-# Categories with at least one player-buildable building (locked or not). Empty ones, like
-# Utility whose only member is the worldgen spaceship, get no tab.
+# Categories with something to build right now. Locked buildings stay out of the menu entirely,
+# so a category whose buildings are all still locked (or, like Utility, not player-buildable)
+# gets no tab.
 func _visible_categories() -> Array[int]:
 	var result: Array[int] = []
 	for category in BUILDING_CATEGORIES:
-		if not _buildable_definitions(category).is_empty():
+		if not _available_definitions(category).is_empty():
 			result.append(category)
 	return result
 
 
-func _default_category(categories: Array[int]) -> int:
-	for category in categories:
-		if _unlocked_count(category) > 0:
-			return category
-	return categories[0] if not categories.is_empty() else NO_CATEGORY
-
-
-func _unlocked_count(category: int) -> int:
-	var count := 0
-	for definition in _buildable_definitions(category):
-		if _is_unlocked(definition):
-			count += 1
-	return count
+func _ensure_visible_category() -> void:
+	var categories := _visible_categories()
+	if not categories.has(selected_category):
+		selected_category = categories[0] if not categories.is_empty() else NO_CATEGORY
 
 
 func _category_has_new(category: int) -> bool:
-	for definition in _buildable_definitions(category):
+	for definition in _available_definitions(category):
 		if new_buildings.has(definition.id):
 			return true
 	return false
@@ -246,9 +246,8 @@ func _category_has_new(category: int) -> bool:
 func _unlocked_building_types() -> Dictionary:
 	var result := {}
 	for category in BUILDING_CATEGORIES:
-		for definition in _buildable_definitions(category):
-			if _is_unlocked(definition):
-				result[definition.id] = true
+		for definition in _available_definitions(category):
+			result[definition.id] = true
 	return result
 
 
@@ -291,12 +290,52 @@ func _button(text: String) -> Button:
 	return button
 
 
+# A category tab: flat until hovered, lit with an accent underline while it's the open one.
+func _tab(text: String) -> Button:
+	var button := _button(text)
+	var idle := _style(Color(0, 0, 0, 0), Color(0, 0, 0, 0), 0.0, 6)
+	idle.content_margin_left = 12.0
+	idle.content_margin_right = 12.0
+	idle.content_margin_top = 4.0
+	idle.content_margin_bottom = 6.0
+	var hover := idle.duplicate() as StyleBoxFlat
+	hover.bg_color = Color("1d2c37")
+	var active := idle.duplicate() as StyleBoxFlat
+	active.bg_color = Color("1d3940")
+	active.border_color = ACCENT
+	active.border_width_left = 0
+	active.border_width_top = 0
+	active.border_width_right = 0
+	active.border_width_bottom = 2
+	active.corner_radius_bottom_left = 0
+	active.corner_radius_bottom_right = 0
+	button.add_theme_stylebox_override("normal", idle)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", active)
+	button.add_theme_stylebox_override("hover_pressed", active)
+	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	button.add_theme_font_override("font", HEADING_FONT)
+	button.add_theme_font_size_override("font_size", 14)
+	button.add_theme_color_override("font_color", MUTED)
+	button.add_theme_color_override("font_hover_color", TEXT)
+	button.add_theme_color_override("font_pressed_color", ACCENT)
+	button.add_theme_color_override("font_hover_pressed_color", ACCENT)
+	button.toggle_mode = true
+	return button
+
+
 func _label(text: String, font_size: int = 14, color: Color = TEXT) -> Label:
 	var label := Label.new()
 	label.text = text
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return label
+
+
+func _heading(text: String, font_size: int, color: Color = TEXT) -> Label:
+	var label := _label(text, font_size, color)
+	label.add_theme_font_override("font", HEADING_FONT)
 	return label
 
 
@@ -320,7 +359,7 @@ func _badge(text: String, background: Color, foreground: Color) -> PanelContaine
 	style.content_margin_bottom = 1.0
 	badge.add_theme_stylebox_override("panel", style)
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	badge.add_child(_label(text, 11, foreground))
+	badge.add_child(_heading(text, 11, foreground))
 	return badge
 
 
@@ -346,6 +385,7 @@ func _build_ui() -> void:
 	launcher.icon = BUILDINGS_ICON
 	launcher.expand_icon = true
 	launcher.add_theme_constant_override("icon_max_width", 28)
+	launcher.add_theme_font_override("font", HEADING_FONT)
 	launcher.toggle_mode = true
 	launcher.anchor_top = 1.0
 	launcher.anchor_bottom = 1.0
@@ -363,15 +403,23 @@ func _build_ui() -> void:
 
 	_build_placement_bar()
 
+	# Bottom-centre, flush with the screen edge. Zero offsets on centre/bottom anchors let the bar
+	# size itself: it grows out from the middle and up from the bottom to fit its content.
 	menu_panel = PanelContainer.new()
 	menu_panel.visible = false
+	menu_panel.anchor_left = 0.5
+	menu_panel.anchor_right = 0.5
 	menu_panel.anchor_top = 1.0
 	menu_panel.anchor_bottom = 1.0
-	menu_panel.offset_left = 16
-	menu_panel.offset_right = 16 + PANEL_SIZE.x
-	menu_panel.offset_top = -80 - PANEL_SIZE.y
-	menu_panel.offset_bottom = -80
-	menu_panel.add_theme_stylebox_override("panel", _style(Color("12212b"), BORDER, 14.0, 12))
+	menu_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	menu_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	var bar_style := _style(Color("12212bf2"), BORDER, 12.0, 12)
+	bar_style.corner_radius_bottom_left = 0
+	bar_style.corner_radius_bottom_right = 0
+	bar_style.border_width_bottom = 0
+	bar_style.content_margin_top = 8.0
+	bar_style.content_margin_bottom = 14.0
+	menu_panel.add_theme_stylebox_override("panel", bar_style)
 	add_child(menu_panel)
 
 	var menu := VBoxContainer.new()
@@ -379,55 +427,55 @@ func _build_ui() -> void:
 	menu_panel.add_child(menu)
 
 	var heading := HBoxContainer.new()
-	heading.add_theme_constant_override("separation", 10)
+	heading.add_theme_constant_override("separation", 4)
 	menu.add_child(heading)
-	var title := _label("CONSTRUCTION", 18, ACCENT)
-	heading.add_child(title)
-	var hint := _label("1-9 to pick  ·  B to close", 12, MUTED)
-	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hint.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	heading.add_child(hint)
+	category_row = HBoxContainer.new()
+	category_row.add_theme_constant_override("separation", 2)
+	category_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	heading.add_child(category_row)
 	var close := _button("")
 	close.icon = CANCEL_ICON
 	close.expand_icon = true
-	close.custom_minimum_size = Vector2(34, 34)
-	close.add_theme_stylebox_override("normal", _style(Color("1d2c37"), BORDER, 7.0))
-	close.add_theme_stylebox_override("hover", _style(Color("2a4350"), ACCENT, 7.0))
-	close.add_theme_stylebox_override("pressed", _style(Color("254b4b"), ACCENT, 7.0))
+	close.custom_minimum_size = Vector2(30, 30)
+	close.add_theme_stylebox_override("normal", _style(Color(0, 0, 0, 0), Color(0, 0, 0, 0), 6.0))
+	close.add_theme_stylebox_override("hover", _style(Color("2a4350"), ACCENT, 6.0))
+	close.add_theme_stylebox_override("pressed", _style(Color("254b4b"), ACCENT, 6.0))
 	close.tooltip_text = "Close (B)"
 	close.pressed.connect(close_menu)
 	heading.add_child(close)
 
-	category_row = HBoxContainer.new()
-	category_row.add_theme_constant_override("separation", 6)
-	menu.add_child(category_row)
+	card_scroll = ScrollContainer.new()
+	card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	card_scroll.custom_minimum_size.y = CARD_SIZE.y
+	menu.add_child(card_scroll)
+	card_row = HBoxContainer.new()
+	card_row.add_theme_constant_override("separation", int(CARD_SPACING))
+	card_scroll.add_child(card_row)
+	empty_label = _label("Nothing to build yet. Complete quests to unlock buildings.", 14, MUTED)
+	empty_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	empty_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	empty_label.custom_minimum_size.y = CARD_SIZE.y
+	empty_label.visible = false
+	menu.add_child(empty_label)
 
-	var body := HBoxContainer.new()
-	body.add_theme_constant_override("separation", 12)
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	menu.add_child(body)
+	_build_detail_popup()
 
-	var grid_scroll := ScrollContainer.new()
-	grid_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	body.add_child(grid_scroll)
-	card_grid = GridContainer.new()
-	card_grid.columns = GRID_COLUMNS
-	card_grid.add_theme_constant_override("h_separation", 8)
-	card_grid.add_theme_constant_override("v_separation", 8)
-	grid_scroll.add_child(card_grid)
 
-	var details := PanelContainer.new()
-	details.custom_minimum_size.x = DETAILS_WIDTH
-	details.add_theme_stylebox_override("panel", _style(Color("192e38")))
-	body.add_child(details)
-	var details_scroll := ScrollContainer.new()
-	details_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	details.add_child(details_scroll)
+# The hover details, floating above the bar over the hovered card. It never takes the mouse, so
+# moving between cards doesn't flicker it.
+func _build_detail_popup() -> void:
+	detail_popup = PanelContainer.new()
+	detail_popup.visible = false
+	detail_popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	detail_popup.anchor_top = 1.0
+	detail_popup.anchor_bottom = 1.0
+	detail_popup.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	detail_popup.add_theme_stylebox_override("panel", _style(Color("172a35f7"), ACCENT, 14.0, 10))
+	add_child(detail_popup)
 	detail_box = VBoxContainer.new()
-	detail_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	detail_box.add_theme_constant_override("separation", 6)
-	details_scroll.add_child(detail_box)
+	detail_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	detail_popup.add_child(detail_box)
 
 
 # Sits right of the launcher while a building is picked and the menu is closed.
@@ -453,7 +501,7 @@ func _build_placement_bar() -> void:
 	text.add_theme_constant_override("separation", 0)
 	text.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_child(text)
-	placement_title = _label("", 15)
+	placement_title = _heading("", 15)
 	text.add_child(placement_title)
 	placement_status = _label("", 12, MUTED)
 	text.add_child(placement_status)
@@ -493,10 +541,27 @@ func _update_launcher_badge() -> void:
 		launcher_badge.visible = not new_buildings.is_empty()
 
 
+# One fixed width per screen size: as wide as the clearance for the launcher and portrait allows,
+# up to BAR_MAX_WIDTH. The panel's margins come on top of the scroll area's width.
+func _fit_bar_width() -> void:
+	if card_scroll == null:
+		return
+	var available := get_viewport().get_visible_rect().size.x - 2.0 * BAR_SIDE_CLEARANCE
+	card_scroll.custom_minimum_size.x = clampf(available, CARD_SIZE.x * 3.0, BAR_MAX_WIDTH)
+	empty_label.custom_minimum_size.x = card_scroll.custom_minimum_size.x
+
+
+# Lowers the bar by `amount` pixels below its resting place (for the open animation).
+func _set_bar_drop(amount: float) -> void:
+	menu_panel.offset_top = amount
+	menu_panel.offset_bottom = amount
+
+
 func _rebuild() -> void:
 	_rebuild_category_tabs()
 	_rebuild_cards()
-	_show_default_details()
+	detail_popup.hide()
+	hovered_building_type = NO_BUILDING
 
 
 func _rebuild_category_tabs() -> void:
@@ -505,98 +570,70 @@ func _rebuild_category_tabs() -> void:
 	_clear_container(category_row)
 	var group := ButtonGroup.new()
 	for category in _visible_categories():
-		var unlocked := _unlocked_count(category)
-		var button := _button("%s  %d" % [GameTypes.building_category_display_name(category), unlocked])
-		button.add_theme_stylebox_override("normal", _style(Color("1d2c37"), BORDER, 8.0))
-		button.add_theme_stylebox_override("hover", _style(Color("2a4350"), ACCENT, 8.0))
-		button.add_theme_stylebox_override("pressed", _style(Color("254b4b"), ACCENT, 8.0))
-		button.add_theme_stylebox_override("hover_pressed", _style(Color("2c5656"), ACCENT, 8.0))
-		button.toggle_mode = true
+		var button := _tab(GameTypes.building_category_display_name(category).to_upper())
 		button.button_group = group
 		button.button_pressed = category == selected_category
 		if _category_has_new(category):
 			button.add_theme_color_override("font_color", NEW_BADGE)
-		elif unlocked == 0:
-			button.add_theme_color_override("font_color", MUTED)
+			button.tooltip_text = "New buildings"
 		button.pressed.connect(_select_category.bind(category))
 		category_row.add_child(button)
 
 
 func _rebuild_cards() -> void:
-	if card_grid == null:
+	if card_row == null:
 		return
-	_clear_container(card_grid)
+	_clear_container(card_row)
 	cards.clear()
 	card_order.clear()
 	cost_labels.clear()
-	if selected_category == NO_CATEGORY:
-		return
-
-	# Unlocked first (these get the 1-9 hotkeys), then locked previews.
-	var locked: Array[BuildingDefinition] = []
-	for definition in _buildable_definitions(selected_category):
-		if not _is_unlocked(definition):
-			locked.append(definition)
-			continue
+	var definitions: Array[BuildingDefinition] = []
+	if selected_category != NO_CATEGORY:
+		definitions = _available_definitions(selected_category)
+	card_scroll.visible = not definitions.is_empty()
+	empty_label.visible = definitions.is_empty()
+	for definition in definitions:
 		card_order.append(definition.id)
 		var card := _build_card(definition, card_order.size())
 		cards[definition.id] = card
-		card_grid.add_child(card)
-	for definition in locked:
-		card_grid.add_child(_build_card(definition, 0))
+		card_row.add_child(card)
 	_refresh_cost_colors()
 
 
-# hotkey 0 means the card is locked.
 func _build_card(definition: BuildingDefinition, hotkey: int) -> Button:
-	var locked := hotkey == 0
 	var button := _button("")
 	button.custom_minimum_size = CARD_SIZE
 	button.toggle_mode = true
-	button.disabled = locked
 	button.button_pressed = definition.id == selected_building_type
 	button.mouse_entered.connect(_on_card_hovered.bind(definition))
 	button.mouse_exited.connect(_on_card_unhovered.bind(definition.id))
-	if not locked:
-		button.pressed.connect(_select_building_type.bind(definition.id))
-		button.focus_entered.connect(_on_card_hovered.bind(definition))
-		button.tooltip_text = "%s (%d)" % [definition.display_name, hotkey]
-	else:
-		button.focus_mode = Control.FOCUS_NONE
+	button.pressed.connect(_select_building_type.bind(definition.id))
+	button.focus_entered.connect(_on_card_hovered.bind(definition))
+	button.focus_exited.connect(_on_card_unhovered.bind(definition.id))
 
 	var content := VBoxContainer.new()
 	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	content.offset_left = 8
-	content.offset_top = 10
+	content.offset_top = 8
 	content.offset_right = -8
 	content.offset_bottom = -8
-	content.add_theme_constant_override("separation", 4)
+	content.add_theme_constant_override("separation", 3)
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	button.add_child(content)
 
 	var art := _icon(_building_art(definition), 0.0)
 	art.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	if locked:
-		# Silhouette: shape visible, detail withheld until the quest is done.
-		art.modulate = Color(0.12, 0.17, 0.21, 0.9)
 	content.add_child(art)
 
-	var title := _label(definition.display_name, 14, MUTED if locked else TEXT)
+	var title := _heading(definition.display_name, 13)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	content.add_child(title)
+	content.add_child(_cost_row(definition.cost, false, cost_labels))
 
-	if locked:
-		var lock := _label("Locked", 12, MUTED)
-		lock.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		content.add_child(lock)
-	else:
-		content.add_child(_cost_row(definition.cost, false, cost_labels))
-
-	if not locked:
-		var key_badge := _badge(str(hotkey), Color("0e1a22"), MUTED)
-		key_badge.position = Vector2(6, 6)
-		button.add_child(key_badge)
+	var key_badge := _badge(str(hotkey), Color("0e1a22"), MUTED)
+	key_badge.position = Vector2(6, 6)
+	button.add_child(key_badge)
 	if new_buildings.has(definition.id):
 		var new_badge := _badge("NEW", NEW_BADGE, Color("1a1a1a"))
 		new_badge.name = "NewBadge"
@@ -653,7 +690,7 @@ func _shortfall_text(cost: Dictionary) -> String:
 	return "" if parts.is_empty() else "Need " + ", ".join(parts)
 
 
-# --- Details column ---
+# --- Details popup ---
 
 func _on_card_hovered(definition: BuildingDefinition) -> void:
 	hovered_building_type = definition.id
@@ -665,55 +702,25 @@ func _on_card_unhovered(building_type: int) -> void:
 	if hovered_building_type != building_type:
 		return
 	hovered_building_type = NO_BUILDING
-	_show_default_details()
-
-
-# With nothing hovered, describe the building being placed, else the first card in the tab.
-func _show_default_details() -> void:
-	var definition: BuildingDefinition = null
-	if selected_building_type != NO_BUILDING:
-		definition = building_manager.get_definition(selected_building_type)
-	if definition == null or definition.category != selected_category:
-		var in_tab: Array[BuildingDefinition] = []
-		if selected_category != NO_CATEGORY:
-			in_tab = _buildable_definitions(selected_category)
-		definition = null
-		for candidate in in_tab:
-			if _is_unlocked(candidate):
-				definition = candidate
-				break
-		if definition == null and not in_tab.is_empty():
-			definition = in_tab[0]
-	_show_details(definition)
+	detail_popup.hide()
 
 
 func _show_details(definition: BuildingDefinition) -> void:
-	if detail_box == null:
-		return
 	_clear_container(detail_box)
 	detail_cost_labels.clear()
-	if definition == null:
-		detail_box.add_child(_wrapped("Nothing to build here yet. Complete quests to unlock buildings.", 13, MUTED))
-		return
 
-	var locked := not _is_unlocked(definition)
-	detail_box.add_child(_label(definition.display_name, 18))
+	detail_box.add_child(_heading(definition.display_name, 18))
 	var tag := GameTypes.building_category_display_name(definition.category).to_upper()
-	detail_box.add_child(_label(tag + ("  ·  LOCKED" if locked else ""), 11, ACCENT))
+	detail_box.add_child(_heading(tag, 11, ACCENT))
 
-	# What it takes comes first: the cost against stock, or the quest that unlocks it.
-	if locked:
-		var quest := quest_manager.get_unlocking_quest(definition.id)
-		if quest != null:
-			detail_box.add_child(_wrapped("Unlocked by the quest \"%s\"." % quest.title, 13, NEW_BADGE))
-	else:
-		var cost_row := _cost_row(definition.cost, true, detail_cost_labels)
-		cost_row.alignment = BoxContainer.ALIGNMENT_BEGIN
-		detail_box.add_child(cost_row)
-		var shortfall := _shortfall_text(definition.cost)
-		if not shortfall.is_empty():
-			detail_box.add_child(_wrapped(shortfall, 12, SHORT))
-		_refresh_cost_colors()
+	# What it takes comes first: the cost against stock.
+	var cost_row := _cost_row(definition.cost, true, detail_cost_labels)
+	cost_row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	detail_box.add_child(cost_row)
+	var shortfall := _shortfall_text(definition.cost)
+	if not shortfall.is_empty():
+		detail_box.add_child(_wrapped(shortfall, 12, SHORT))
+	_refresh_cost_colors()
 
 	if not definition.description.is_empty():
 		detail_box.add_child(_wrapped(definition.description, 13, MUTED))
@@ -727,6 +734,24 @@ func _show_details(definition: BuildingDefinition) -> void:
 	detail_box.add_child(_section("PLACEMENT"))
 	for row in _placement_rows(definition):
 		detail_box.add_child(row)
+
+	_place_detail_popup(definition.id)
+	detail_popup.show()
+
+
+# Above the bar, centred on the card and kept on screen. The popup grows upward from its offsets,
+# so only the bar's height is needed, not the popup's own.
+func _place_detail_popup(building_type: int) -> void:
+	var card: Button = cards.get(building_type)
+	var screen_width := get_viewport().get_visible_rect().size.x
+	var center_x := screen_width * 0.5
+	if card != null:
+		center_x = card.get_global_rect().get_center().x
+	var left := clampf(center_x - POPUP_WIDTH * 0.5, 16.0, screen_width - 16.0 - POPUP_WIDTH)
+	detail_popup.offset_left = left
+	detail_popup.offset_right = left + POPUP_WIDTH
+	detail_popup.offset_top = -(menu_panel.size.y + POPUP_GAP)
+	detail_popup.offset_bottom = detail_popup.offset_top
 
 
 func _stat_rows(definition: BuildingDefinition) -> Array[Control]:
@@ -801,7 +826,7 @@ func _placement_rows(definition: BuildingDefinition) -> Array[Control]:
 
 
 func _section(text: String) -> Control:
-	var label := _label(text, 11, MUTED)
+	var label := _heading(text, 11, MUTED)
 	label.custom_minimum_size.y = 20
 	label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	return label
@@ -810,7 +835,7 @@ func _section(text: String) -> Control:
 func _wrapped(text: String, font_size: int, color: Color) -> Label:
 	var label := _label(text, font_size, color)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.custom_minimum_size.x = DETAILS_WIDTH - 40
+	label.custom_minimum_size.x = POPUP_WIDTH - 28
 	return label
 
 
@@ -822,7 +847,7 @@ func _detail_row(icon: Texture2D, text: String, color: Color = TEXT) -> Control:
 	var gutter := _icon(icon, COST_ICON_SIZE)
 	row.add_child(gutter)
 	var label := _wrapped(text, 13, color)
-	label.custom_minimum_size.x = DETAILS_WIDTH - 40 - COST_ICON_SIZE - 6
+	label.custom_minimum_size.x = POPUP_WIDTH - 28 - COST_ICON_SIZE - 6
 	row.add_child(label)
 	return row
 

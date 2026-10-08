@@ -44,9 +44,10 @@ inside the frontier lifts as the robot sees the sea.
 
 ## Building
 
-- **B** or the **BUILD** button: open or close the build menu. While it is open, **1-9** pick
-  a card in the current tab. Cards show the cost against current stock (red when short);
-  locked buildings appear as silhouettes naming the quest that unlocks them.
+- **B** or the **BUILD** button: open or close the build bar along the bottom of the screen.
+  While it is open, **1-9** pick a card in the current tab. Cards show the cost against current
+  stock (red when short); hover one for its output and placement rules. Only unlocked buildings
+  are listed: a building joins the bar (marked NEW) when the quest that unlocks it is done.
 - **Left click**: place the selected building as a blueprint. The robot then walks over and
   builds it.
 - **R** / **Shift+R**: turn the building being placed.

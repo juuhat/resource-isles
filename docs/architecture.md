@@ -147,8 +147,12 @@ map); managers hold the generic logic and never per-item numbers.
 
 - `scripts/ui/resource_bar.gd`: the top stock readout; a resource appears once it has ever
   been gathered.
-- `scripts/ui/building_menu.gd`: the BUILD launcher, category tabs, building cards, details
-  column and placement bar.
+- `scripts/ui/building_menu.gd`: the BUILD launcher, the bottom build bar (category tabs over
+  a row of building cards, unlocked buildings only), the hover details popup and the placement
+  bar.
+- `assets/ui/ui_theme.tres`: the project theme (`gui/theme/custom`), which sets Exo 2 Medium
+  (`assets/fonts/`, SIL OFL) as the UI font. Headings use the bold variation,
+  `assets/fonts/exo2_bold.tres`.
 - `scripts/ui/building_info_panel.gd`: the panel for a clicked building: live adjacency and
   production breakdown, Move and Delete, and a Dock's trade routes. Move lifts the building
   off the map into a free placement preview; cancelling puts it back, and a save taken mid-move
