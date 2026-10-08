@@ -117,12 +117,19 @@ enum ShipPart {
 }
 
 enum ResourceNodeType {
-	TREE,
+	TREE,     # pine trees, on grass; every tree type yields wood (see is_tree)
 	STONE,
 	IRON_ORE, # iron deposit, found on island 2+ (see docs/second-island-progression.md)
 	COAL,     # coal seam, found on island 2+
 	COPPER_ORE,
+	LEAF_TREE, # broadleaf trees, on grass
+	PALM_TREE, # palm trees, on sand
 }
+
+
+# True for every kind of tree: the stands the robot chops and a logger camp fells.
+static func is_tree(resource_node_type: int) -> bool:
+	return resource_node_type in [ResourceNodeType.TREE, ResourceNodeType.LEAF_TREE, ResourceNodeType.PALM_TREE]
 
 enum ResourceType {
 	WOOD,
@@ -140,6 +147,7 @@ enum AdjacencyKind {
 	RESOURCE,
 	BUILDING,
 	ANY_BUILDING,  # matches any neighboring building regardless of type (the rule's `type` is ignored)
+	ANY_TREE,      # matches any neighboring tree, pine, leaf or palm (the rule's `type` is ignored)
 }
 
 # Cumulative lifetime play stats (totals that only ever go up, not current stock).

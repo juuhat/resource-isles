@@ -528,6 +528,8 @@ func _terrain_for_resource(resource_node_type: int) -> int:
 		GameTypes.ResourceNodeType.COPPER_ORE:
 			# Quarried/mined deposits sit on rock (the STONE biome, see docs/island-generation.md).
 			return GameTypes.Terrain.STONE
+		GameTypes.ResourceNodeType.PALM_TREE:
+			return GameTypes.Terrain.SAND
 		_:
 			return GameTypes.Terrain.GRASS
 

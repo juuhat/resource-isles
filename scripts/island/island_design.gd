@@ -37,13 +37,16 @@ const MARKERS: Array[String] = ["k9da"]
 const COAST_RINGS := 2
 
 # What each grid character stands for: the ground, and a deposit or item on it. Deposits sit on
-# rock and trees on grass, the ground IslandData.can_place_resource allows them on.
+# rock, pines and leaf trees on grass and palms on sand, the ground IslandData.can_place_resource
+# allows them on.
 const LEGEND := {
 	".": {terrain = GameTypes.Terrain.WATER},
 	"s": {terrain = GameTypes.Terrain.SAND},
 	"g": {terrain = GameTypes.Terrain.GRASS},
 	"r": {terrain = GameTypes.Terrain.STONE},
 	"T": {terrain = GameTypes.Terrain.GRASS, resource = GameTypes.ResourceNodeType.TREE},
+	"L": {terrain = GameTypes.Terrain.GRASS, resource = GameTypes.ResourceNodeType.LEAF_TREE},
+	"P": {terrain = GameTypes.Terrain.SAND, resource = GameTypes.ResourceNodeType.PALM_TREE},
 	"S": {terrain = GameTypes.Terrain.STONE, resource = GameTypes.ResourceNodeType.STONE},
 	"I": {terrain = GameTypes.Terrain.STONE, resource = GameTypes.ResourceNodeType.IRON_ORE},
 	"C": {terrain = GameTypes.Terrain.STONE, resource = GameTypes.ResourceNodeType.COAL},

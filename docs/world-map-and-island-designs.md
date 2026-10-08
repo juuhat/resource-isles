@@ -78,7 +78,8 @@ An island owns its land and that coast ring; everything further out is open sea.
 island today owns a whole 30 × 24 rectangle, mostly water.)
 
 **One shared legend** (`IslandDesign.LEGEND`). Each object letter also sets the ground under it:
-deposits sit on rock and trees on grass, as `IslandData._terrain_for_resource` requires. New
+deposits sit on rock, pines and leaf trees on grass and palms on sand, as
+`IslandData._terrain_for_resource` requires. New
 terrain or objects (a salvage crate, say) get a new letter there.
 
 | Char | Ground | On it |
@@ -87,7 +88,9 @@ terrain or objects (a salvage crate, say) get a new letter there.
 | `s` | sand | — |
 | `g` | grass | — |
 | `r` | rock (`Terrain.STONE`) | — |
-| `T` | grass | tree |
+| `T` | grass | pine trees |
+| `L` | grass | leaf trees |
+| `P` | sand | palm trees |
 | `S` | rock | stone deposit |
 | `I` | rock | iron ore |
 | `C` | rock | coal |

@@ -74,11 +74,11 @@ static func build_all() -> Array[BuildingDefinition]:
 	logger_camp.visual_size_tiles = Vector2(0.779, 0.779)
 	logger_camp.cost = {GameTypes.ResourceType.WOOD: 6}
 	logger_camp.required_terrains = [GameTypes.Terrain.GRASS]
-	# Must touch a forest, earns +1 per adjacent forest, but crowding other
+	# Must touch trees of any kind, earns +1 per adjacent stand, but crowding other
 	# camps strips the surrounding woodland faster than it regrows: -1 each.
-	logger_camp.required_adjacent = [_resource_ref(GameTypes.ResourceNodeType.TREE)]
+	logger_camp.required_adjacent = [_any_tree_ref()]
 	logger_camp.adjacency_yields = [
-		_yield_rule(GameTypes.AdjacencyKind.RESOURCE, GameTypes.ResourceNodeType.TREE, 1),
+		_yield_rule(GameTypes.AdjacencyKind.ANY_TREE, 0, 1),
 		_yield_rule(GameTypes.AdjacencyKind.BUILDING, GameTypes.BuildingType.LOGGER_CAMP, -1),
 	]
 	logger_camp.production_resource_type = GameTypes.ResourceType.WOOD
@@ -303,6 +303,10 @@ static func build_all() -> Array[BuildingDefinition]:
 
 static func _resource_ref(resource_node_type: int) -> Dictionary:
 	return {kind = GameTypes.AdjacencyKind.RESOURCE, type = resource_node_type}
+
+
+static func _any_tree_ref() -> Dictionary:
+	return {kind = GameTypes.AdjacencyKind.ANY_TREE, type = 0}
 
 
 static func _terrain_ref(terrain_type: int) -> Dictionary:

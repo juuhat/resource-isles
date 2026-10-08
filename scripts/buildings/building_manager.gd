@@ -317,6 +317,8 @@ func _cell_matches(cell: Vector2i, reference: Dictionary, island: IslandData) ->
 			return island.get_building_type(cell) == int(reference.type)
 		GameTypes.AdjacencyKind.ANY_BUILDING:
 			return island.has_building(cell)
+		GameTypes.AdjacencyKind.ANY_TREE:
+			return GameTypes.is_tree(island.get_resource_node_type(cell))
 		_:
 			return false
 
@@ -336,6 +338,8 @@ func get_reference_label(reference: Dictionary) -> String:
 			return get_display_name(int(reference.type))
 		GameTypes.AdjacencyKind.ANY_BUILDING:
 			return "Building"
+		GameTypes.AdjacencyKind.ANY_TREE:
+			return "Forest"
 		_:
 			return "Unknown"
 

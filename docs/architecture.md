@@ -107,8 +107,8 @@ map); managers hold the generic logic and never per-item numbers.
 - `scripts/resources/resource_database.gd` and `resource_definition.gd`: every resource's
   display name, popup colour, icon and lifetime "gathered" stat. Add a resource there.
 - `scripts/resources/resource_node_database.gd` and `resource_node_definition.gd`: resource
-  nodes (forest, stone, iron, coal and copper deposits): model, footprint, extracted resource,
-  and the amount a harvest yields.
+  nodes (pine, leaf and palm trees; stone, iron, coal and copper deposits): model, footprint,
+  extracted resource and the amount a harvest yields.
 - `scripts/resources/inventory.gd`: a resource stock with a `changed` signal. Each island owns
   one; there is no global pool. Boat cargo holds reuse it.
 - `scripts/resources/resource_manager.gd`: a facade over the **current** island's inventory,
@@ -168,8 +168,9 @@ map); managers hold the generic logic and never per-item numbers.
 ## Naming
 
 Resource nodes are permanent map objects such as forests and stone deposits; resources are
-stored inventory items such as wood and stone. Harvesting a `GameTypes.ResourceNodeType.TREE`
-yields `GameTypes.ResourceType.WOOD`.
+stored inventory items such as wood and stone. Harvesting any tree, a
+`GameTypes.ResourceNodeType.TREE` (pines), `LEAF_TREE` or `PALM_TREE`, yields
+`GameTypes.ResourceType.WOOD`; `GameTypes.is_tree` tells the three apart from the deposits.
 
 ## Placement Rules and Adjacency
 
@@ -182,7 +183,7 @@ Buildings declare placement and adjacency behaviour on their `BuildingDefinition
 - `required_terrains` / `footprint_terrains`: the terrain the footprint must sit on. A logger's
   camp is built on grass; a quarry on stone.
 - `required_adjacent`: each entry needs at least one matching neighbour, or placement is
-  blocked. A logger's camp must be next to a forest.
+  blocked. A logger's camp must be next to a forest: trees of any kind (`AdjacencyKind.ANY_TREE`).
 - `forbidden_adjacent`: placement is blocked if any neighbour matches.
 - `adjacency_yields`: Civ VI style bonuses, where each neighbour matching a
   `{ kind, type, amount }` rule adds `amount`. A logger's camp earns +1 per adjacent forest but

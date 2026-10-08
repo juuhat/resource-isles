@@ -2,17 +2,18 @@
 # raised into a grass plateau with a rocky rise: it meets the sea in cliffs to the east and
 # south-east, and steps down to beaches on the other sides, where a dock can go. The plateau
 # is too high to climb straight onto (HexPathfinder.MAX_CLIMB), so a terrace halfway down (the
-# 2s) leads to the beaches on the north, west and south-west.
+# 2s) leads to the beaches on the north, west and south-west. Pines and leaf trees grow in the
+# woods east of the wreck, and palms at the ends of the beaches.
 [grid]
 . . . s s s s . . . .
  . . s g g g s s s . .
-. s s g g g g g g s .
+. s s g g g g g g P .
  s g g g g g g a g g g
-s g g r r g g T T g g
- s g r S S g g T g g g
+s g g r r g g T T L g
+ s g r S S g g T L g g
 s s g r r g g w g g g
  . s g g p g g g g g .
-. . s s s s g g g . .
+. . P s s s g g g . .
  . . . . . s g . . . .
 
 [heights]

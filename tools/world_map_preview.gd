@@ -124,6 +124,8 @@ class MapCanvas extends Node2D:
 	}
 	const DEPOSIT_COLORS := {
 		GameTypes.ResourceNodeType.TREE: Color("#2c6e2a"),
+		GameTypes.ResourceNodeType.LEAF_TREE: Color("#5f9a2e"),
+		GameTypes.ResourceNodeType.PALM_TREE: Color("#8fae3a"),
 		GameTypes.ResourceNodeType.STONE: Color("#ecebe6"),
 		GameTypes.ResourceNodeType.IRON_ORE: Color("#a9533b"),
 		GameTypes.ResourceNodeType.COAL: Color("#1b1b1e"),
@@ -266,7 +268,7 @@ class MapCanvas extends Node2D:
 		var lines: Array = [
 			["World map: %d islands" % _islands.size(), LABEL_COLOR],
 			["sand, grass, rock, coast", null],
-			["tree, stone, iron, coal, copper", null],
+			["pine, leaf tree, palm, stone, iron, coal, copper", null],
 			["tool, wreck, K9-DA", null],
 			["grid: column,row as in world_map.cfg; odd rows sit half a cell right", GRID_LABEL_COLOR],
 		]
